@@ -4,7 +4,7 @@ export const B = {
   NONE:0, HUT:1, ROAD:2, BRIDGE:3,
   WOOD:4, REED:5, CLAY:6, SHOP:7, POST:8, JETTY:9, MARKET:10,
   NETS:11, RACK:12, LANTERN:13, STATUE:14, FLOWERS:15, FENCE:16, CHERRY:17, PIER:18,
-  SHRINE:19, STONES:20, BONES:21,
+  SHRINE:19, STONES:20, BONES:21, WEIR:22,
 };
 
 /* ---------- goods ---------- */
@@ -33,7 +33,7 @@ export const RESERVE = { timber:8, reeds:4, clay:4, carvings:0, lanterns:0 };
 */
 export const DEFS = {
   // --- work
-  woodcutter: { code:B.WOOD,   cat:'work', name:'Woodcutter', on:'edge',  cost:{scales:30},            grow:1.25, desc:'Thins the forest around it without clearing it. More trees around, more timber.' },
+  woodcutter: { code:B.WOOD,   cat:'work', name:'Woodcutter', on:'edge',  cost:{scales:30},            grow:1.25, desc:'Tends the forest around it: thins, prunes and replants, and never clears it. More trees around, more timber.' },
   reedbed:    { code:B.REED,   cat:'work', name:'Reed bed',   on:'still', cost:{scales:20,timber:4},   grow:1.2,  desc:'Still water is no use to fish, but reeds love it. More still water around, more reeds.' },
   claypit:    { code:B.CLAY,   cat:'work', name:'Clay pit',   on:'bank',  cost:{scales:25,timber:4},   grow:1.25, desc:'Digs river clay from the bank. Three times as much on a red clay seam.' },
   workshop:   { code:B.SHOP,   cat:'work', name:'Workshop',   on:'land',  road:true, cost:{scales:60,timber:12}, grow:1.4, desc:'Turns 2 reeds + 1 clay into a paper lantern, or 3 timber into a carving.' },
@@ -53,6 +53,7 @@ export const DEFS = {
   // found in the forest, never built
   shrine:     { code:B.SHRINE, cat:'found', name:'Old shrine',  charm:[5,3], desc:'Fish take the line 20% more often within 3 tiles.' },
   stones:     { code:B.STONES, cat:'found', name:'Standing stones', charm:[3,2], desc:'One more keeper can live in the valley.' },
+  weir:       { code:B.WEIR,   cat:'found', name:'Old mill weir', desc:'A stone weir from the old mill. It holds the river back: fewer fish come up, and the valley can’t heal while it stands.' },
   bones:      { code:B.BONES,  cat:'found', name:'Giant’s bones', charm:[3,2], desc:'The ribs of something that swam here before the river had a name.' },
 };
 export const DEF_BY_CODE = Object.fromEntries(Object.entries(DEFS).map(([k,d])=>[d.code,{...d,id:k}]));

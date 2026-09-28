@@ -127,6 +127,10 @@ export function makeProps({ rimMat }){
       put(g, box(.07, h, .05), mat(n % 2 ? stone : stone2, '#ffe0b0', .7), Math.cos(a) * .3, h / 2 - .01, Math.sin(a) * .3, -a, (rnd() - .5) * .15, (rnd() - .5) * .15); }
     put(g, box(.12, .04, .08), mat(stone2), 0, .02, 0);
     return finish(g); };
+  B.weir = (r) => { const g = new THREE.Group(), rnd = R(r);
+    for (let n = 0; n < 5; n++){ const h = .22 + rnd() * .08; put(g, box(.2, h, .22), mat(n % 2 ? stone : stone2, '#ffe0b0', .6), 0, h / 2 - .08, -.4 + n * .2, 0, (rnd() - .5) * .1, (rnd() - .5) * .08); }
+    put(g, box(.06, .05, 1), mat('#5f7a4a', '#fff0b0', .4), .08, .15, 0);
+    return finish(g); };
   B.bones = (r) => { const g = new THREE.Group(); const bone = mat('#e8e0cc', '#ffffff', .9);
     for (let n = 0; n < 7; n++){ const s = 1 - Math.abs(n - 3) * .12; const t = put(g, new THREE.TorusGeometry(.16 * s, .012, 4, 10, Math.PI), bone, -.36 + n * .12, 0, 0, Math.PI / 2); }
     put(g, box(.86, .025, .025), bone, 0, .01, 0);
@@ -170,5 +174,25 @@ export function makeProps({ rimMat }){
     const wg = G.wing ||= new THREE.PlaneGeometry(.12, .045).translate(.06, 0, 0).rotateX(-Math.PI / 2);
     const l = new THREE.Mesh(wg, m), r = new THREE.Mesh(wg, m); r.scale.x = -1; g.add(l, r); g.userData = { l, r }; return g;
   }
-  return { B, wagon, barge, setCargo, bird, mat };
+  /* ---------- plot add-ons: yards, lamps and edges ---------- */
+  const Y = {};
+  Y.garden = (r) => { const g = new THREE.Group(), rnd = R(r); put(g, box(.26, .02, .2), mat('#5a4330', '#ffcf99', .2), 0, .01, 0);
+    for (let n = 0; n < 8; n++) put(g, ico(.022), mat(n % 3 ? '#6f9a3e' : '#c8563a', '#fff0b0', .6), -.1 + (n % 4) * .065, .035, -.06 + Math.floor(n / 4) * .12); return finish(g); };
+  Y.woodpile = () => { const g = new THREE.Group(); for (let n = 0; n < 6; n++){ const o = put(g, cyl(.022, .022, .2, 5), mat('#9a6b3f'), 0, .022 + Math.floor(n / 3) * .04, -.045 + (n % 3) * .045, 0, 0, Math.PI / 2); o.rotation.y = Math.PI / 2; } return finish(g); };
+  Y.well = () => { const g = new THREE.Group(); put(g, cyl(.08, .09, .08, 8), mat(stone, '#ffe0b0', .6), 0, .04, 0); put(g, cyl(.06, .06, .01, 8), mat('#23413c'), 0, .081, 0);
+    for (const x of [-.07, .07]) put(g, box(.015, .18, .015), mat(dark), x, .15, 0); roof(g, .2, .14, .06, .23, '#6b4a2e'); return finish(g); };
+  Y.tree = (r) => { const g = new THREE.Group(), rnd = R(r); put(g, cyl(.018, .026, .2, 5), mat('#5a3a28'), 0, .1, 0);
+    for (let n = 0; n < 3; n++) put(g, ico(.08 + rnd() * .03), mat(['#4f7a36', '#5f8a3e', '#6d8a3a'][n], '#fff0b0', .7), (rnd() - .5) * .1, .24 + rnd() * .08, (rnd() - .5) * .1); return finish(g); };
+  Y.bench = () => { const g = new THREE.Group(); put(g, box(.22, .015, .07), mat('#8a6440'), 0, .06, 0); put(g, box(.22, .05, .012), mat('#8a6440'), 0, .095, -.03);
+    for (const x of [-.09, .09]) put(g, box(.015, .06, .06), mat(dark), x, .03, 0); return finish(g); };
+  Y.planter = (r) => { const g = new THREE.Group(), rnd = R(r); put(g, box(.2, .07, .12), mat('#b8683f'), 0, .035, 0);
+    for (let n = 0; n < 6; n++) put(g, ico(.022), mat(['#f2b8c6', '#ffe08a', '#5f8a3e'][n % 3], '#fff', .6), -.07 + n * .028, .08, (rnd() - .5) * .05); return finish(g); };
+  function lamp(){ const g = new THREE.Group(); put(g, cyl(.01, .014, .3, 5), mat('#3b2a1c'), 0, .15, 0); put(g, box(.05, .05, .05), glowM('#ffc46a', 3), 0, .31, 0);
+    put(g, cone(.045, .04, 4), mat('#2a1d14'), 0, .355, 0, Math.PI / 4); return finish(g); }
+  function edge(type){ const g = new THREE.Group();
+    if (type === 'hedge'){ for (let n = 0; n < 5; n++) put(g, ico(.075), mat(n % 2 ? '#4f7a36' : '#5a8a3a', '#fff0b0', .6), -.38 + n * .19, .06, 0).scale.set(1.3, .8, .9); }
+    else if (type === 'wall'){ put(g, box(.94, .07, .06), mat(stone2, '#ffe0b0', .6), 0, .035, 0); put(g, box(.94, .015, .075), mat(stone, '#ffe0b0', .6), 0, .075, 0); }
+    else { for (const x of [-.45, -.15, .15, .45]) put(g, box(.022, .12, .022), mat(dark), x, .06, 0); for (const y of [.05, .1]) put(g, box(.94, .016, .014), mat('#9a7048'), 0, y, 0); }
+    return finish(g); }
+  return { B, Y, lamp, edge, wagon, barge, setCargo, bird, mat };
 }

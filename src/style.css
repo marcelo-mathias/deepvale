@@ -274,3 +274,17 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 @media (max-width:640px){ #drawer{bottom:calc(150px + env(safe-area-inset-bottom,0px))} #drawer .items{grid-template-columns:1fr 1fr} #crate .card{width:150px;min-height:0} .goods em{display:none} }
 
 [hidden]{display:none!important}
+.pop.snap{color:var(--ember);font-size:13px}
+
+/* plot panel: upgrade a building, dress its yard */
+#plot{position:absolute;z-index:7;width:min(300px,calc(100vw - 24px));box-sizing:border-box;background:linear-gradient(180deg,rgba(14,30,27,.96),rgba(9,19,17,.96));border:1px solid rgba(234,201,141,.4);border-radius:4px;padding:10px 12px;font-size:12px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+#plot .ph{display:flex;align-items:center;gap:8px;margin-bottom:8px} #plot .ph b{font-family:var(--display);font-weight:400;font-size:16px;letter-spacing:.05em;color:#f6efdf}
+#plot .lv{font-family:var(--mono);font-size:10.5px;color:var(--jade)} #plot .x{margin-left:auto;background:none;border:0;font-size:18px;color:var(--mist-2);cursor:pointer;line-height:1}
+#plot .pu{width:100%;display:flex;flex-direction:column;gap:3px;text-align:left;background:rgba(234,201,141,.08);border:1px solid rgba(234,201,141,.45);border-radius:3px;padding:7px 9px;cursor:pointer;margin-bottom:8px;font-size:12.5px}
+#plot .pu:hover{background:rgba(234,201,141,.14)} #plot .ic{font-family:var(--mono);font-size:11px;display:flex;gap:8px;flex-wrap:wrap}
+#plot .pr{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:6px 0} #plot .pl{width:44px;color:var(--mist-2);font-size:11px}
+#plot .pr button{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:2px;padding:3px 6px;font-size:11px;cursor:pointer}
+#plot .pr button[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}
+#plot .pj{margin-bottom:8px} #plot .ob{height:3px;background:rgba(255,255,255,.08);margin:5px 0} #plot .ob i{display:block;height:100%;background:var(--gold)}
+#plot .dim{color:var(--mist-2)} #plot .small{font-size:11px;margin-top:6px} #plot .c{font-family:var(--mono)} #plot .c.short{color:var(--ember)} #plot .c.scales{color:var(--gold)}
+.health{margin-top:6px;font-size:12px;color:var(--mist);display:flex;align-items:center;gap:8px;cursor:help}.health b{font-family:var(--mono);color:#bff5de}.health .hb{flex:1;max-width:140px;height:4px;background:rgba(255,255,255,.08)}.health .hb i{display:block;height:100%;background:linear-gradient(90deg,#8fdcc0,#c9e88a)}

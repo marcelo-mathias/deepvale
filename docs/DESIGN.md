@@ -9,6 +9,15 @@
 5. **Respect for the river.** Nothing is killed or sold. Every fish is met on a barbless line and let go. The game is about keeping a river alive and learning what the valley says about its creatures, not about catching them.
 6. **Folklore first.** Each fish has a rumor, fixed facts and three tales. Tales are the reward for meeting fish again, and they are what draws pilgrims (and silver) to the villages.
 
+## Restoration (0.5)
+
+The valley was damaged: an old mill weir, a drought, years of logging. The river used to run wide and braided, and the giants left when it shrank. The player is **restoring** it, not carving a new one.
+
+- **Old channels** (`makeChannels` in `src/world/secrets.js`, from the save's seed): five dry beds, about 170 tiles, that leave the river and rejoin it. Sunken, pebbled, sparse scrub. Digging one costs 40% of normal. Digging elsewhere is still allowed at full price ("Dig a new channel").
+- **The weir**: stone blocks across the river at column 6. Taking it down is an 18 s job (150 scales, 20 timber). While it stands, fish arrive 15% less often.
+- **Valley health** = 35 × old-channel tiles flowing / all old-channel tiles + 30 × min(1, forest tiles / 65% of the starting forest) + 20 × min(1, (backwater tiles + reed beds) / 20) + 15 if the weir is gone. Fish arrival × (0.8 + health / 250). Gates: Moonscale Koi 50, Valley Warden 70.
+- **Backwaters** get lily pads and dragonflies and count toward health.
+
 ## Core loop
 
 Two loops feed each other. The **river loop** is the one Deepvale started with. The **valley loop** (0.3) gives the land a purpose and makes silver come from something you can watch.
@@ -94,6 +103,13 @@ Everything beyond huts, roads and bridges is in the **Build** drawer (B). Source
 | Lantern Eel | Reel +25% |
 | Moonscale Koi | Market +50%, +4 charm |
 | Valley Warden | Scales +50% (radius 4) |
+
+## Workers and plots (0.4)
+
+- **Jobs.** Clear, dig, hut, bridge, every building and every upgrade is paid up front and queued. Builders (2 + 1 per hut, up to 14) walk from the nearest hut (BFS over land, bridges and piers), two to a job at most. Durations: clear 5 s, dig 7 s, bridge 8 s, hut 9 s, buildings 4–14 s, upgrades 13–16 s, for one pair of hands at 0.65 speed each. Roads, paving, fences, flower beds and plot add-ons stay instant.
+- A tile with a job is busy. Remove on it cancels with a full refund. Clearing and digging may start next to a tile that is still being cleared or dug. Jobs are saved and completed on load.
+- **Plots.** Click a building or road. Upgrades (two levels): huts +2 and +3 beds; woodcutter, reed bed, clay pit, workshop output ×1.5 / ×2; trading post and jetty capacity ×1.5 / ×2; market prices ×1.25 / ×1.5. Cost 60 scales + 10 timber, then 180 + 25 timber + 8 clay, ×1.12 per upgrade bought.
+- **Add-ons**: one yard (vegetable patch, woodpile, well, shade tree, bench; roads: bench, planter, tree) +1–2 charm around it; a lamp +1 charm around it; an edge per side (fence, hedge, low wall; roads only on open sides) +0.5–1 charm on the plot.
 
 ## The forest
 

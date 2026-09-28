@@ -68,14 +68,14 @@ export function makeTrade(ctx){
   const load = v => GOOD_IDS.reduce((s, g) => s + (v.cargo[g] || 0), 0);
   function available(){ const o = {}; for (const g of GOOD_IDS) o[g] = Math.max(0, Math.floor((S.goods[g] || 0) - (S.reserve[g] ?? 0))); return o; }
   function fill(v){
-    const cap = ctx.capacity(v.kind); const av = available(); v.cargo = {}; let n = 0;
+    const cap = ctx.capacity(v.kind, v.home); const av = available(); v.cargo = {}; let n = 0;
     // most valuable first
     for (const g of [...GOOD_IDS].sort((a, b) => GOODS[b].price - GOODS[a].price)){
       const take = Math.min(av[g], cap - n); if (take <= 0) continue; v.cargo[g] = take; S.goods[g] -= take; n += take; }
     return n;
   }
   function showCargo(v){
-    const n = load(v), cap = ctx.capacity(v.kind), slots = v.kind === 'wagon' ? 6 : 8;
+    const n = load(v), cap = ctx.capacity(v.kind, v.home), slots = v.kind === 'wagon' ? 6 : 8;
     const list = []; const shown = Math.min(slots, Math.ceil(n / cap * slots));
     const goods = GOOD_IDS.filter(g => v.cargo[g]); let gi = 0;
     for (let s = 0; s < shown; s++){ list.push(GOODS[goods[gi % goods.length]].col); gi++; }
@@ -94,7 +94,7 @@ export function makeTrade(ctx){
       if (v.state === 'stuck'){ continue; }
       if (v.state === 'load'){
         v.t += dt;
-        const av = available(), ready = GOOD_IDS.reduce((s, g) => s + av[g], 0), cap = ctx.capacity(v.kind);
+        const av = available(), ready = GOOD_IDS.reduce((s, g) => s + av[g], 0), cap = ctx.capacity(v.kind, v.home);
         v.ready = ready;
         if (ready >= cap || (v.t > (v.kind === 'wagon' ? 30 : 45) && ready >= 3)){ if (depart(v)) v.t = 0; }
         if (v.kind === 'barge') v.mesh.position.y = WATER_Y - .03 + Math.sin(t * 1.3 + v.home) * .006;

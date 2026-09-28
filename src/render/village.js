@@ -56,15 +56,29 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, meta, emit
       const step = new THREE.Mesh(new THREE.BoxGeometry(.1, .02, .14), plankM); step.position.set(0, .08, .2); step.rotation.x = .5; g.add(step); }
     g.traverse(o => { if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     const ox = ((r >> 5) % 5 - 2) * .02, oz = ((r >> 8) % 5 - 2) * .02; const c = tileC(i, j);
-    g.position.set(c.x + ox, heightAt(c.x, c.z) - .01, c.z + oz); g.rotation.y = face; root.add(g);
+    const lvl = meta()[k]?.lvl || 1; g.scale.setScalar([1.25, 1.42, 1.55][lvl - 1]);
+    if (lvl >= 2){ const an = new THREE.Group(); const w2 = new THREE.Mesh(wallG, cm(st.wall[(r + 1) % 3], '#ffd9a8', .8)), r2 = new THREE.Mesh(meta()[k]?.style === 'cedar' ? roofSteepG : roofG, cm(st.roof[(r >> 3) % 3], '#ffcf99', .9));
+      an.add(w2, r2); an.scale.set(.7, .8, .8); an.position.set(-.26, 0, -.06); body.add(an); an.traverse(o => { if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } }); }
+    if (lvl >= 3){ const an = new THREE.Group(); const w3 = new THREE.Mesh(wallG, cm(st.wall[(r + 2) % 3], '#ffd9a8', .8)), r3 = new THREE.Mesh(roofG, cm(st.roof[(r >> 4) % 3], '#ffcf99', .9));
+      an.add(w3, r3); an.scale.set(.62, .7, .7); an.position.set(.25, 0, -.12); body.add(an); an.traverse(o => { if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } }); }
+    g.position.set(c.x + ox * .5, heightAt(c.x, c.z) - .01, c.z + oz * .5); g.rotation.y = face; root.add(g);
     g.updateMatrixWorld(); const cp = new THREE.Vector3(.08, .43, -.05); body.localToWorld(cp);
     huts.push({ chim: cp, t: Math.random() * 2 });
+  }
+  // yard, lamp and edges bought for a plot (see the plot panel)
+  function addSlots(k, c, b){
+    const sl = meta()[k]?.slots; if (!sl) return; const y = heightAt(c.x, c.z) - .01, road = b === ROAD;
+    if (sl.yard && props.Y[sl.yard]){ const o = props.Y[sl.yard](hsh(k, 7)); o.position.set(c.x + .3, heightAt(c.x + .3, c.z + .3) - .01, c.z + .3); o.rotation.y = (hsh(k, 3) % 4) * Math.PI / 2; root.add(o); }
+    if (sl.lamp){ const o = props.lamp(); o.position.set(c.x - .4, heightAt(c.x - .4, c.z - .4) - .01, c.z - .4); root.add(o); }
+    for (const [sd, a, bb] of [['n', 0, -1], ['e', 1, 0], ['s', 0, 1], ['w', -1, 0]]){ const t = sl.edges?.[sd]; if (!t) continue;
+      const o = props.edge(t); o.position.set(c.x + a * .46, y, c.z + bb * .46); o.rotation.y = a ? Math.PI / 2 : 0; root.add(o); }
   }
   function sync(){
     for (const c of [...root.children]){ root.remove(c); }
     huts.length = 0;
     for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++){
       const k = idx(i, j), b = builds[k], c = tileC(i, j);
+      if (b !== 0) addSlots(k, c, b);
       if (b === HUT){ hutMesh(i, j, k); continue; }
       if (b === BRIDGE){
         const g = new THREE.Group(), ax = bridgeAxis(i, j);
@@ -85,9 +99,11 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, meta, emit
       const g = props.B[d.id](r, opts);
       let y = heightAt(c.x, c.z) - .01;
       if (b === B.REED) y = WATER_Y;
+      if (b === B.WEIR) y = WATER_Y;
       if (b === B.PIER){ y = DECK_Y; g.rotation.y = pierAxis(i, j); }
       else if (b === B.JETTY){ const w = waterDir(i, j); g.rotation.y = Math.atan2(w.a, w.b); }
       else if (b !== B.FENCE && b !== B.REED) g.rotation.y = ((r >> 4) % 4) * Math.PI / 2 * (b === B.STONES || b === B.FLOWERS || b === B.CHERRY ? 1 : 0) + (b === B.BONES ? (r % 7) * .4 : 0);
+      if (![B.FENCE, B.REED, B.PIER, B.JETTY, B.FLOWERS, B.WEIR].includes(b)) g.scale.setScalar(1.2 * [1, 1.12, 1.25][(meta()[k]?.lvl || 1) - 1]);
       g.position.set(c.x, y, c.z); root.add(g);
       if (b === B.SHOP){ g.updateMatrixWorld(); const cp = new THREE.Vector3(-.15, .46, -.08); g.localToWorld(cp); huts.push({ chim: cp, t: Math.random() * 2 }); }
     }

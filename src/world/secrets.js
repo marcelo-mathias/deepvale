@@ -31,3 +31,26 @@ export function makeSecrets(seed, tiles){
   }
   return out;
 }
+
+// Old channels: where the river used to run before the valley was damaged. Dry, sunken beds that leave
+// the river and rejoin it. Restoring them is the gentle way to widen the river. One runs close beside the
+// main channel so that, with the strip between dug out too, it opens a reach wide enough for the largest fish.
+import { tileC, riverZ } from './constants.js';
+export function makeChannels(seed, tiles){
+  const R = mulberry(seed ^ 0x5eed), out = new Uint8Array(GW * GH);
+  const specs = [
+    { i0: 13, len: 18, side: R() < .5 ? 1 : -1, d: 3.2, w: 3.2 },            // the braided reach, near the village
+    { i0: 2, len: 10 + Math.floor(R() * 4), side: 1, d: 4 + R() * 2, w: 3.2 },
+    { i0: 26 + Math.floor(R() * 3), len: 12 + Math.floor(R() * 4), side: -1, d: 4 + R() * 2.5, w: 3.2 },
+    { i0: 5 + Math.floor(R() * 4), len: 9, side: -1, d: 3.5 + R() * 1.5, w: 2.8 },
+    { i0: 30, len: 11, side: 1, d: 4 + R() * 1.5, w: 2.8 },
+  ];
+  for (const s of specs){
+    for (let i = s.i0; i < Math.min(GW, s.i0 + s.len); i++){
+      const t = (i - s.i0 + .5) / s.len, x = tileC(i, 0).x;
+      const zc = riverZ(x) + s.side * s.d * Math.pow(Math.sin(Math.PI * t), .6) + Math.sin(i * .9 + s.i0) * .35;
+      for (let j = 0; j < GH; j++){ const z = tileC(i, j).z; if (Math.abs(z - zc) < s.w / 2 + (t < .15 || t > .85 ? .6 : 0) && tiles[idx(i, j)] !== 2) out[idx(i, j)] = 1; }
+    }
+  }
+  return out;
+}

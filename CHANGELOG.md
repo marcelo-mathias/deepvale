@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.5.0 — the river remembers
+
+- Restoration: the valley was damaged, and the river used to be wider. Its old beds show as dry, sunken strips of scrub beside the river. Digging them out costs 40% of a new channel ("Restore the old channel"); one runs close beside the main river, so restoring it and the strip between opens a reach wide enough for the Warden.
+- An old mill weir holds the river back at the west end. Click it to take it down (a long job): more fish come up, and the valley can heal.
+- Valley health (0–100) in the purse: old channels restored (35), forest kept (30), backwaters and reed beds (20), weir gone (15). Fish arrive more often as it rises. The Moonscale Koi needs 50 and the Valley Warden 70.
+- Backwaters are habitat now, not dead water: lily pads, dragonflies, and they count toward health
+- Roads are their own textured meshes: straights, corners, T-junctions and crossings, with curbs on open sides, in dirt, gravel, cobble or plank
+- Woodcutters tend the forest instead of clearing it; new intro and tutorial lines tell the restoration story
+
+## 0.4.0 — plots and workers
+
+- Workers: clearing, digging, huts, bridges, buildings and upgrades are now jobs. Builders (2, plus 1 per hut) walk out from the nearest hut, work the tile with axes, shovels and hammers, and walk home. Trees fall one by one, dug ground turns to mud, buildings rise inside a scaffold. You can queue as much as you like; clearing and digging can run on from tiles still being worked. Remove on a job calls it off with a full refund. Unfinished work completes while you're away.
+- Plots: click any building or road to open its plot. Upgrade huts to houses (+2 beds) and longhouses (+3 more), and work buildings, trading posts, jetties and markets twice (more output, capacity or prices). Buildings grow and gain annexes as they level.
+- Yards (vegetable patch, woodpile, well, shade tree, bench, planter), a corner lamp, and fences, hedges or low walls on each side, all adding charm. Roads take railings and hedges on their open sides.
+- Buildings are drawn bigger so they fill their tile
+- Debug: "Finish all work"
+
+## 0.3.1 — lines, giants and crows
+
+- Lines have a reach (about 3 tiles, a little more from a bridge or pier). Hooked fish surge away now and then; a line pulled too far goes orange, then snaps. If fewer hands than the fish needs are left, it slips free.
+- Only fishers whose line can reach the fish's head join the fight, so crews have to stand where the giant swims.
+- Giants glow: the Sturgeon's moss, more light on the Moonscale, a pulsing Warden. The Sturgeon, Eel, Moonscale and Warden bring an early dusk when they surface, and carry their own light over the water.
+- Each giant has its own ~10 second tune when it surfaces (frame drum, cello and flute, glass bells, music box, warm choir)
+- Trees fall when forest is cleared; dug tiles splash
+- Send a crow (Build → Work & trade, 10 silver) to find what is under a forest hint without clearing it
+
 ## 0.3.0 — the valley trade
 
 - A bigger valley: 44×30 tiles (was 28×20), and you can zoom out much further. Shadows follow the camera. 0.2 saves are laid into the middle of the new valley.

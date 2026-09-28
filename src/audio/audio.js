@@ -178,5 +178,51 @@ export function sfx(kind, arg){
     case 'tally-end': if (arg) { [7, 9, 12].forEach((n, i) => bell(note(n), t + i * .05, .02, 2)); } else kalimba(note(9), t, .03); break;
     case 'pick': kalimba(note(9), t, .04); kalimba(note(12), t + .1, .04); break;
     case 'no': noiseHit(t, { f: 300, q: 3, dur: .08, g: .05 }); break;
+    case 'snap': { const o = AC.createOscillator(), g = AC.createGain(); o.frequency.setValueAtTime(1400, t); o.frequency.exponentialRampToValueAtTime(260, t + .18);
+      g.gain.setValueAtTime(.05, t); g.gain.exponentialRampToValueAtTime(.0001, t + .22); o.connect(g); out(g, .2); o.start(t); o.stop(t + .25); noiseHit(t, { f: 3000, q: 1, dur: .05, g: .06 }); break; }
   }
 }
+
+/* ---------- themes: a ~10 second tune for each giant as it surfaces ---------- */
+const m2f = m => 440 * Math.pow(2, (m - 69) / 12);
+function voice(type, f, t, dur, g, { attack = .05, release = .6, cutoff = 2000, vib = 0, pan = 0, wetAmt = .5, detune = 0 } = {}){
+  const p = AC.createStereoPanner(); p.pan.value = pan; out(p, wetAmt);
+  const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = cutoff; lp.Q.value = .5;
+  const gn = AC.createGain(); gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(g, t + attack);
+  gn.gain.setValueAtTime(g, t + Math.max(attack, dur - release)); gn.gain.linearRampToValueAtTime(0, t + dur);
+  gn.connect(lp).connect(p);
+  const o = AC.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = detune; o.connect(gn); o.start(t); o.stop(t + dur + .05);
+  if (vib){ const l = AC.createOscillator(), lg = AC.createGain(); l.frequency.value = 5.2; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(f * vib, t + .6); l.connect(lg).connect(o.frequency); l.start(t); l.stop(t + dur + .05); }
+  return lp;
+}
+const pad = (ms, t, dur, g, cutoff = 900) => ms.forEach((m, i) => { for (const d of [-7, 7]) voice('sawtooth', m2f(m), t, dur, g / ms.length, { attack: 1.4, release: 1.6, cutoff, detune: d, pan: (i / ms.length - .5) * .8, wetAmt: .7 }); });
+const cello = (m, t, dur, g = .05) => voice('sawtooth', m2f(m), t, dur, g, { attack: .35, release: .5, cutoff: 1100, vib: .006, wetAmt: .5 });
+function flute(m, t, dur, g = .035){ voice('sine', m2f(m), t, dur, g, { attack: .12, release: .35, vib: .008, wetAmt: .6 }); noiseHit(t, { f: m2f(m), q: 6, dur: Math.min(dur, .5), g: g * .3, attack: .08, wetAmt: .4 }); }
+function drum(t, g = .12){ const o = AC.createOscillator(), gn = AC.createGain(); o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(52, t + .25);
+  gn.gain.setValueAtTime(g, t); gn.gain.exponentialRampToValueAtTime(.0001, t + .5); o.connect(gn); out(gn, .3); o.start(t); o.stop(t + .55);
+  noiseHit(t, { f: 400, q: .7, dur: .12, g: g * .4, type: 'lowpass' }); }
+function swell(t, peak = .16, dur = 9){ const s = AC.createBufferSource(); s.buffer = brownBuf; const lp = AC.createBiquadFilter(); lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(220, t); lp.frequency.linearRampToValueAtTime(800, t + dur * .4); lp.frequency.linearRampToValueAtTime(280, t + dur);
+  const g = AC.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + dur * .35); g.gain.linearRampToValueAtTime(0, t + dur); s.connect(lp).connect(g); out(g, .5); s.start(t); s.stop(t + dur + .1); }
+const THEMES = {
+  // Ember Showa: a frame drum and a warm pentatonic figure
+  showa(t){ swell(t, .1, 8); [0, .8, 1.6, 3.2, 4, 4.8, 6.4, 7.2, 8].forEach((d, i) => drum(t + d, i % 3 ? .07 : .12));
+    pad([50, 57, 62], t, 10, .05, 700);
+    [[1.6, 69], [2, 71], [2.4, 74], [3.2, 71], [4.8, 69], [5.2, 66], [5.6, 64], [6.4, 62], [8, 69], [8.6, 74]].forEach(([d, m]) => kalimba(m2f(m), t + d, .05, R(-.3, .3))); },
+  // Mossback Sturgeon: an old cello line and a wooden flute
+  sturgeon(t){ swell(t, .08, 10); [[0, 50, 2.2], [2.2, 57, 2], [4.2, 54, 2], [6.2, 52, 1.8], [8, 50, 2.4]].forEach(([d, m, l]) => cello(m, t + d, l, .045));
+    [[3, 81, .9], [3.9, 78, .6], [4.5, 76, 1.2], [6, 78, .6], [6.6, 74, 2]].forEach(([d, m, l]) => flute(m, t + d, l)); },
+  // Lantern Eel: glass bells climbing a bright, lifted scale
+  eel(t){ swell(t, .07, 10); pad([62, 69, 76], t, 10, .03, 1400);
+    const sc = [74, 76, 78, 80, 81, 83, 86, 88]; for (let k = 0; k < 16; k++) bell(m2f(sc[(k * 3) % 8] + (k > 9 ? 12 : 0)), t + .6 + k * .5, .018, 2.8, R(-.7, .7)); },
+  // Moonscale Koi: a music-box lullaby over a soft chord
+  moon(t){ swell(t, .07, 10); pad([59, 62, 66], t, 5, .035, 1100); pad([55, 62, 67], t + 5, 5, .035, 1100);
+    [[.5, 83], [1, 86], [1.5, 90], [2.5, 88], [3, 86], [3.5, 83], [5, 83], [5.5, 86], [6, 91], [7, 90], [7.5, 86], [8.5, 83]].forEach(([d, m]) => { kalimba(m2f(m), t + d, .04, R(-.4, .4)); bell(m2f(m + 12), t + d, .006, 1.5); }); },
+  // The Valley Warden: a warm choir, one brass swell at the reveal, and bells as it settles
+  warden(t){ swell(t, .14, 11);
+    [[0, [50, 57, 62, 64]], [2.4, [55, 59, 62, 67]], [4.8, [47, 54, 59, 62]], [7.2, [45, 57, 62, 64]], [9, [50, 57, 62, 66]]].forEach(([d, ch]) => pad(ch, t + d, 3.2, .07, 1200));
+    for (const m of [62, 69]){ const f = voice('sawtooth', m2f(m), t + 2.2, 4, .04, { attack: 1.6, release: 1.8, cutoff: 400, wetAmt: .6 }); f.frequency.setValueAtTime(400, t + 2.2); f.frequency.linearRampToValueAtTime(2200, t + 3.8); f.frequency.linearRampToValueAtTime(600, t + 6.2); }
+    [74, 78, 81, 86].forEach((m, i) => bell(m2f(m), t + 7.6 + i * .35, .02, 3.5, R(-.5, .5))); },
+};
+// called when a giant surfaces (with the cinematic zoom)
+export function playTheme(id){ if (!AC || !soundOn) return; const th = THEMES[id]; if (th) th(AC.currentTime + .05); else sfx('awe'); }
