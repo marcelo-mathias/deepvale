@@ -11,23 +11,114 @@
 
 ## Core loop
 
-1. **Clear land** turns forest into ground a fisher can stand on. It must touch cleared land or water.
-2. **Dig water** grows the river. It must connect to existing water, and it only helps if the current runs through it (see Flow).
-3. **Build huts** on cleared land. Each hut houses 3 fishers; hiring stops when every hut is full.
-4. **Lay roads** from the Pilgrim Way (the road that enters at the north edge). Roads over forest clear it as they go. Click a road again with the road tool to lift it.
-5. **Build bridges** over water, joined to a road or bridge. Fishers can stand on bridges, which puts their lines over the middle of the river where the widest-water fish swim.
-6. **Hire fishers** at the water's edge or on a bridge, up to three per tile.
-7. Fish swim the flowing water they spawned in. A fish takes the line only when at least `crew` idle fishers are within reach at the same time.
-8. More fishers on the line (up to twice the crew) and Braided Lines bring it in faster. The fish is held at the surface for a moment, then turned loose and swims back to deep water. It sheds scales, and counts as a meeting in the Codex.
+Two loops feed each other. The **river loop** is the one Deepvale started with. The **valley loop** (0.3) gives the land a purpose and makes silver come from something you can watch.
 
-Offline: returning after a minute or more grants 60% of the recent scale rate and 60% of the pilgrim silver rate, capped at 8 hours.
+River loop:
 
-## Two currencies
+1. **Dig water** grows the river. It must connect to existing water, and it only helps if the current runs through it (see Flow).
+2. **Hire fishers** at the water's edge, on a bridge or on a pier, up to three per tile. Huts house 3 each.
+3. Fish swim the flowing water they spawned in. A fish takes the line only when at least `crew` idle fishers are within reach at the same time.
+4. When a fish is released, its scales are counted up in a **tally**: the base value, then every multiplier that applies (extra hands, drying racks, statues, keepers, blessings, named places, the good tide), line by line.
 
-- **Scales** are shed by released fish. They pay for work on the land and river: clearing, digging, huts, roads, bridges.
-- **Silver** is left by pilgrims. It pays fishers and upgrades (Braided lines, Offerings).
-- Pilgrims only visit huts that touch a road or bridge connected to the Pilgrim Way. Each such hut brings 5 silver / min, ×1.5 if the hut belongs to a named village, and the total is multiplied by `1 + 0.2 × tales told`.
-- Three or more huts within two tiles of each other form a **village** and get a name (Reedmoor, Lowlantern, …) that floats over them.
+Valley loop:
+
+1. **Clear land** turns forest into ground, gives 3 timber, and may uncover a **secret** (see The forest).
+2. **Make goods.** Woodcutters (forest edge), reed beds (still water), clay pits (bank) and workshops (reeds + clay → lanterns, timber → carvings).
+3. **Ship them.** Each trading post keeps a wagon that rolls up the Pilgrim Way; each jetty keeps a barge that rides the current out of the east edge. Both leave when full (or after a wait with a few goods), are away for a while, and come back with silver. Pilgrims also buy lanterns and carvings at **market stalls**.
+4. **Orders** from along the river (two up the Way, one downriver) pay extra silver and a **crate** when a shipment by the right route completes them.
+5. **Crates** offer a pick of three: a **keeper**, a **blessing** or a **blueprint**.
+6. **Build for charm and blessings.** Decor adds charm; fish statues, net sheds, racks and shrines bless nearby tiles; some arrangements become **named places** with a lasting bonus.
+
+A **village wish** is always open (meet 4 Reedlings, plant 3 flower beds, sell 40 goods, find something in the forest…) and pays a crate.
+
+Offline: returning after a minute or more grants 60% of the recent scale and silver rates and 60% of raw-goods production, capped at 8 hours.
+
+## Currencies and goods
+
+- **Scales** are shed by released fish. They pay for work on the land and river, and for most buildings.
+- **Silver** comes from trade: wagons, barges and market stalls. It pays fishers and the two upgrades (Braided lines, Offerings).
+- **Goods**: timber, reeds, clay (raw, and also building materials) and carvings, lanterns (crafted). Wagons and barges only take what is above the **keep-back** amount set in the Trade panel (T).
+
+| Good | Wagon | Barge (×1.25) |
+| --- | --- | --- |
+| Timber | 2 | 2.5 |
+| Reeds | 2 | 2.5 |
+| Clay | 3 | 3.75 |
+| Carvings | 9 | 11.25 |
+| Lanterns | 14 | 17.5 |
+
+Market stalls pay ×1.5, raised further by charm around the stall and by a village in harmony.
+
+Pilgrims walk the Way to hear the tales. They come more often with more tales told, more charm and the Kind Hosts blessing. They visit huts and buy at market stalls; they no longer leave silver at huts.
+
+## Building
+
+Everything beyond huts, roads and bridges is in the **Build** drawer (B). Source of truth: `src/data/builds.js`.
+
+| Category | Things |
+| --- | --- |
+| Work & trade | Woodcutter, Reed bed, Clay pit, Workshop, Trading post, Jetty, Market stall |
+| Fishing | Pier, Net shed*, Drying rack* |
+| Decor | Flower bed, Fence, Stone lantern*, Cherry tree*, Fish statue (one kind per fish met) |
+| Styles & paths | Hut styles: thatch, cedar*, stilt*, lacquer*. Road surfaces: gravel, cobble*, plank* |
+
+\* needs a blueprint first.
+
+- **Placement preview.** With a build tool active, hovering shows floating numbers over every tile the placement would touch (timber per tree, charm per home, +25% reel per fisher…) and a summary line.
+- **Painting.** Roads, paving, fences, flower beds and Remove can be dragged along a line.
+- **Remove** (X) gives half the cost back.
+- **Harmony.** A village whose huts all share one style is in harmony: its market pays 20% more.
+
+### Named places
+
+| Place | Arrangement | Bonus |
+| --- | --- | --- |
+| Harbor | Jetty + net shed + drying rack within 2 | Barges +25% |
+| Craft Quarter | Workshop + market + clay pit within 3 | Crafts +20% |
+| Lantern Garden | 2 stone lanterns + flowers + cherry together | Pilgrims +15% |
+| Lantern Bridge | A bridge with 2 stone lanterns beside it | Bridge fishers reel +20% |
+| Shrine Walk | Cobbled road by the old shrine, with a stone lantern | Bites +10% |
+| Fisher's Row | 3 piers side by side | Scales +10% |
+| Harmonious Village | 5+ huts, all one style | Market +20% |
+| Statue Garden | 3 different fish statues within 3 | Scales +15% |
+
+### Fish statues
+
+| Statue | Blessing (radius 2) |
+| --- | --- |
+| Reedling | Bites +15% |
+| River Koi | Scales +25% |
+| Stonebelly Carp | Clay pits +50% |
+| Ember Showa | Workshops +50% |
+| Mossback Sturgeon | Woodcutters +50% |
+| Lantern Eel | Reel +25% |
+| Moonscale Koi | Market +50%, +4 charm |
+| Valley Warden | Scales +50% (radius 4) |
+
+## The forest
+
+About 22 secrets are placed from a seed kept in the save (`src/world/secrets.js`), always away from cleared land. A hint shows above the canopy once cleared land is within 7 tiles (11 with Quill):
+
+| Secret | Hint | Found |
+| --- | --- | --- |
+| Hermit's camp | campfire smoke | a crate of keepers |
+| Forgotten cache | a glint | a crate |
+| Old workshop | a glint | a random blueprint |
+| Giant's bones | crows circling | scales, and the bones stay as decor |
+| Standing stones | crows circling | +1 keeper slot |
+| Old shrine | soft light | bites +20% within 3 |
+| Red clay seam | red soil | clay pits ×3 there |
+| Old cedar grove | none | +20 timber |
+
+## Keepers and blessings
+
+Keepers are named villagers with a quirk (14 of them). Two can live in the valley at once, plus one per standing stones found. Blessings stack up to a cap. Both come from crates; see `KEEPERS` and `BOONS` in `src/data/builds.js`.
+
+The **good tide**: each fish met within 50 seconds of the last adds ×0.05 to the next release, up to ×1.5 (more with Long Tides). A busy river keeps it up.
+
+## Debug tools
+
+In dev builds (or any build with `?debug` in the address), press `` ` `` or F9: time ×1–16, fish frenzy, resources, spawn or meet fish, crates, unlock all blueprints, clear around the view, find all secrets, send wagons now, grant the wish, reset the save.
 
 ## Flow
 
@@ -51,12 +142,12 @@ The Ember Showa warms the water around it: the water shader tints and shimmers a
 | --- | --- | --- | --- | --- | --- | --- |
 | Reedling | 1.15 | 1 | 0 | 1 | 4 | 12 |
 | River Koi | 2.1 | 1 | 0 | 1 | 10 | 20 |
-| Stonebelly Carp | 3.3 | 2 | 40 | 1 | 34 | 32 |
-| Ember Showa | 4.8 | 3 | 90 | 1 | 100 | 48 |
-| Mossback Sturgeon | 6.6 | 5 | 130 | 1 | 340 | 75 |
-| Lantern Eel | 7.8 | 6 | 170 | 1 | 950 | 95 |
-| Moonscale Koi | 9.6 | 8 | 230 | 5 | 2,800 | 130 |
-| The Valley Warden | 15 | 12 | 320 | 7 | 13,000 | 200 |
+| Stonebelly Carp | 3.3 | 2 | 60 | 1 | 34 | 32 |
+| Ember Showa | 4.8 | 3 | 170 | 1 | 100 | 48 |
+| Mossback Sturgeon | 6.6 | 5 | 220 | 1 | 340 | 75 |
+| Lantern Eel | 7.8 | 6 | 270 | 1 | 950 | 95 |
+| Moonscale Koi | 9.6 | 8 | 330 | 5 | 2,800 | 130 |
+| The Valley Warden | 15 | 12 | 420 | 7 | 13,000 | 200 |
 
 Source of truth: `src/data/species.js`. "Open width" comes from `needD`: the fish needs water at least `needD` tiles from any bank, so width = `needD × 2 − 1`.
 
@@ -64,14 +155,17 @@ Source of truth: `src/data/species.js`. "Open width" comes from `needD`: the fis
 
 | Action | Currency | Formula |
 | --- | --- | --- |
-| Clear land | scales | 4 × 1.09ⁿ |
-| Dig water | scales | 12 × 1.075ⁿ |
-| Hut | scales | 25 × 1.45ⁿ (the first hut is free) |
+| Clear land | scales | 4 × 1.025ⁿ (+3 timber) |
+| Dig water | scales | 12 × 1.028ⁿ |
+| Hut | scales | 25 × 1.3ⁿ (the first hut is free) |
 | Road | scales | 3 (+ clearing cost over forest) |
-| Bridge | scales | 30 × 1.25ⁿ |
+| Bridge | scales | 30 × 1.2ⁿ |
 | Hire fisher | silver | 15 × 1.3ⁿ |
 | Braided lines (+30% reel speed) | silver | 60 × 2.3ⁿ |
 | Offerings (+25% arrivals and bites) | silver | 90 × 2.5ⁿ |
+| Everything in Build | scales + goods | see `DEFS` in `src/data/builds.js`; each has its own growth per one built |
+
+The valley grew from 28×20 to 44×30 tiles in 0.3, so the starting river is about 143 flowing tiles. The water gates in the species table were raised to match.
 
 ## Rendering
 
@@ -101,10 +195,13 @@ Unlock hooks are written into the map as hints only; nothing gates on them yet.
 - [ ] Day and night cycle, with the Moonscale Koi only surfacing at night
 - [ ] Ripples and wakes where large fish break the surface
 - [x] Huts, roads, bridges, villages and pilgrims
+- [x] Trade (wagons, barges, markets, orders), forest secrets, decor and named places, keepers and crates (0.3)
+- [x] Natural soundscape: river, wind, birds, sparse kalimba (0.3)
+- [ ] Balance pass on 0.3's economy after a real session (prices, trip times, keeper strength)
 - [ ] Fisher walking animation (pilgrims walk; fishers still teleport when moved)
 - [ ] A second playable region (the Ashfen is the natural next one)
 - [ ] Tales shown as a short illustrated card when first learned
-- [ ] Settings panel: volume, reduced motion, reset save
+- [ ] Settings panel: volume, reduced motion, reset save (reset is in the debug panel for now)
 - [ ] Self-host the fonts so the itch.io build works fully offline
 
 ## Visual references

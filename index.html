@@ -21,16 +21,20 @@
       <div class="silver"><span id="scales">0</span><span class="unit">scales</span><span id="silver" class="sv">0</span><span class="unit">silver</span></div>
       <div class="rate" id="rate">No fish met yet</div>
       <div class="rate" id="housing"></div>
+      <div class="goods" id="goods"></div>
+      <div class="tide" id="tide" hidden></div>
       <div class="goal" id="goal"></div>
+      <div class="wish" id="wish" hidden></div>
     </div>
-    <div class="tr">
+    <div class="tr-col"><div class="tr">
+      <button class="chip" id="btnTrade" type="button">Trade<span class="n" id="tradeN">0/0</span></button>
       <button class="chip" id="btnCodex" type="button">Codex<span class="n" id="codexCount">0/8</span></button>
       <button class="chip" id="btnMap" type="button">Map</button>
       <button class="chip" id="btnSound" type="button">Sound off</button>
       <button class="chip" id="btnPix" type="button">Pixels ×3</button>
       <button class="chip" id="btnOut" type="button" aria-label="Zoom out">−</button>
       <button class="chip" id="btnIn" type="button" aria-label="Zoom in">+</button>
-    </div>
+    </div><div id="keepers" aria-label="Keepers"></div></div>
   </header>
 
   <div id="banner"><div class="kicker" id="bannerKick">Something vast stirs below</div><h2 id="bannerName"></h2><p id="bannerEp"></p><div class="req" id="bannerReq"></div></div>
@@ -40,7 +44,7 @@
   <div id="fishcard" hidden></div>
 
   <nav class="toolbar" aria-label="Tools">
-    <button class="tool" data-tool="look" id="tool-look" type="button" aria-pressed="true"><kbd>Q</kbd><span class="tn">Look</span><span class="tc small">fish · move crew</span></button>
+    <button class="tool" data-tool="look" id="tool-look" type="button" aria-pressed="true"><kbd>Q</kbd><span class="tn">Look</span><span class="tc small">move crew</span></button>
     <button class="tool" data-tool="clear" id="tool-clear" type="button" aria-pressed="false"><kbd>1</kbd><span class="tn">Clear land</span><span class="tc" id="c-clear">0</span></button>
     <button class="tool" data-tool="dig" id="tool-dig" type="button" aria-pressed="false"><kbd>2</kbd><span class="tn">Dig water</span><span class="tc" id="c-dig">0</span></button>
     <button class="tool" data-tool="hire" id="tool-hire" type="button" aria-pressed="false"><kbd>3</kbd><span class="tn">Hire fisher</span><span class="tc sv" id="c-hire">0</span></button>
@@ -48,10 +52,25 @@
     <button class="tool" data-tool="hut" id="tool-hut" type="button" aria-pressed="false"><kbd>4</kbd><span class="tn">Hut</span><span class="tc" id="c-hut">0</span></button>
     <button class="tool" data-tool="road" id="tool-road" type="button" aria-pressed="false"><kbd>5</kbd><span class="tn">Road</span><span class="tc" id="c-road">0</span></button>
     <button class="tool" data-tool="bridge" id="tool-bridge" type="button" aria-pressed="false"><kbd>6</kbd><span class="tn">Bridge</span><span class="tc" id="c-bridge">0</span></button>
+    <button class="tool build" data-tool="build" id="tool-build" type="button" aria-pressed="false"><kbd>B</kbd><span class="tn">Build</span><span class="tc small">more…</span></button>
+    <button class="tool" data-tool="remove" id="tool-remove" type="button" aria-pressed="false"><kbd>X</kbd><span class="tn">Remove</span><span class="tc small">½ back</span></button>
     <div class="sep"></div>
     <button class="up" id="upLine" type="button"><span class="tn">Braided lines</span><span class="tl" id="lvLine">Lv 0</span><span class="tc sv" id="cLine">0</span></button>
     <button class="up" id="upBait" type="button"><span class="tn">Offerings</span><span class="tl" id="lvBait">Lv 0</span><span class="tc sv" id="cBait">0</span></button>
   </nav>
+
+  <div id="drawer" hidden><div class="tabs" id="drawerTabs"></div><div class="items" id="drawerItems"></div></div>
+
+  <aside id="trade" hidden aria-label="Trade">
+    <button class="chip close" id="tradeClose" type="button">Close</button>
+    <h3>Trade</h3>
+    <p class="intro">Wagons roll up the Pilgrim Way to Birchmere and the Tarn. Barges ride the current east to the Ashfen and the Salt Mouth, where goods fetch a quarter more. Orders pay extra, and come with a crate.</p>
+    <div id="tradeBody"></div>
+  </aside>
+
+  <div id="crate" hidden><div class="crate-in"><div class="ck" id="crateK">A crate</div><h3 id="crateH"></h3><div class="cards" id="crateCards"></div><div class="replace" id="crateR"></div></div></div>
+  <div id="toast"></div>
+  <div id="debug" hidden></div>
 
   <aside id="codex" hidden>
     <button class="chip close" id="codexClose" type="button">Close</button>
