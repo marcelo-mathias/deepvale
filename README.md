@@ -1,6 +1,6 @@
 # Deepvale
 
-An idle fishing game about tiny crews and giant fish. Far below a vast mountain, a valley river keeps creatures longer than villages. Clear the banks, dig the water wider, and hire enough hands to bring something vast to the surface.
+A cozy idle game about tiny crews, giant fish and river folklore. Far below a vast mountain, a valley river keeps creatures longer than villages. Keep the current running, build a village by the water, and gather enough gentle hands to meet something vast, and let it go.
 
 ![Deepvale river view](docs/screenshot-river.png)
 
@@ -31,7 +31,12 @@ src/
   style.css           HUD styling
   core/utils.js       math, noise and localStorage helpers
   world/constants.js  valley grid, tile types, river course
+  world/flow.js       river current solver (flowing vs still water)
   data/species.js     the eight fish and their unlock gates
+  data/lore.js        rumors, tales, village names, map regions
+  render/village.js   huts, bridges and pilgrims
+  render/wisps.js     steam and chimney smoke
+  ui/map.js           the river map overlay
   render/shaders.js   GLSL chunks (noise, caustics, rim light, fish swim bend)
   audio/audio.js      procedural ambience and sound effects
 scripts/              release helpers
@@ -46,6 +51,8 @@ docs/DESIGN.md        game design notes, economy and roadmap
 | --- | --- |
 | Drag / WASD | Pan |
 | Scroll / pinch / + − | Zoom |
-| Q | Look (click a fisher, then a bank tile, to move them) |
+| Q | Look (hover a fish for its card, click to follow it; click a fisher, then a bank tile or bridge, to move them) |
 | 1 / 2 / 3 | Clear land / Dig water / Hire fisher |
+| 4 / 5 / 6 | Hut / Road / Bridge |
 | C | Codex |
+| M | Map of the river |

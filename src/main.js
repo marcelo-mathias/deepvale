@@ -1,21 +1,37 @@
 import * as THREE from 'three';
 import { clamp, lerp, smooth, rand, hash2, fbm, ridged, fmt, store } from './core/utils.js';
-import { GW, GH, HX, HZ, WATER_Y, BED_Y, LAND_Y, WILD, LAND, WATER, idx, tileC, inGrid, riverZ } from './world/constants.js';
+import { GW, GH, HX, HZ, WATER_Y, BED_Y, LAND_Y, WILD, LAND, WATER, idx, tileC, inGrid, riverZ,
+  NONE, HUT, ROAD, BRIDGE, WAY_I, DECK_Y, HOUSING, mouthRows } from './world/constants.js';
 import { SPECIES, SP } from './data/species.js';
+import { LORE, TALE_AT, VILLAGE_NAMES } from './data/lore.js';
 import { NOISE_GLSL, RIM_FRAG, BEND_VERT, BEND_DECL } from './render/shaders.js';
 import { setSound as setAudio, sfx, isSoundOn } from './audio/audio.js';
+import { makeFlow, solveFlow } from './world/flow.js';
+import { makeWisps } from './render/wisps.js';
+import { makeVillage } from './render/village.js';
+import { initMap } from './ui/map.js';
 
 function setSound(on){ setAudio(on); document.getElementById('btnSound').textContent = on ? 'Sound on' : 'Sound off'; }
 
 /* ================= state ================= */
-const S={coins:20,tiles:null,fishers:[],hires:0,clears:0,digs:0,lineLv:0,baitLv:0,codex:{},earned:0,income:[],t:Date.now(),first:true};
+// scales: shed by released fish, pay for river and building work. silver: left by pilgrims, pays fishers and upgrades.
+const S={scales:20,silver:10,tiles:null,builds:null,fishers:[],hires:0,clears:0,digs:0,huts:0,bridges:0,lineLv:0,baitLv:0,codex:{},hutVillage:{},earned:0,income:[],t:Date.now(),first:true};
 const tiles=new Uint8Array(GW*GH);
+const builds=new Uint8Array(GW*GH);
+const INLET=mouthRows(0),OUTLET=mouthRows(GW-1);
 const wildH=new Float32Array(GW*GH);
 for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){wildH[idx(i,j)]=.2+fbm(i*.41+3,j*.41+9,3)*.42;}
 function initTiles(){
   for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const c=tileC(i,j);const d=Math.abs(c.z-riverZ(c.x));tiles[idx(i,j)]=d<1.6?WATER:WILD;}
   // a little clearing on the north bank, mid-valley
   for(let i=12;i<=16;i++){for(let j=0;j<GH;j++){const c=tileC(i,j);const d=c.z-riverZ(c.x);if(d<0&&d>-2.8&&tiles[idx(i,j)]===WILD)tiles[idx(i,j)]=LAND;}}
+}
+// the Pilgrim Way comes down from the north edge to a first hut near the clearing
+function initBuilds(){
+  builds.fill(NONE);let end=0;
+  for(let j=0;j<GH-2;j++){const k=idx(WAY_I,j);if(tiles[k]===WATER)break;tiles[k]=LAND;builds[k]=ROAD;end=j;
+    if(tiles[idx(WAY_I,j+2)]===WATER||tiles[idx(WAY_I,j+1)]===WATER)break;}
+  for(const di of [-1,1]){const i=WAY_I+di,k=idx(i,end);if(tiles[k]!==WATER){tiles[k]=LAND;builds[k]=HUT;break;}}
 }
 
 /* ================= renderer / scene ================= */
@@ -100,13 +116,23 @@ const C=h=>new THREE.Color(h);
 const PAL={bedLo:C('#2f3b2c'),bedHi:C('#8c8a62'),sand:C('#b9a676'),meadow:C('#a4b86a'),meadow2:C('#8fa75b'),wild:C('#4d7a3a'),wild2:C('#3a6331'),
   hill:C('#6f8a45'),dry:C('#9a9b5d'),rock:C('#8a8274'),rock2:C('#6a6660'),snow:C('#eef2f2'),path:C('#b8a47a')};
 const tmpC=new THREE.Color(),tmpC2=new THREE.Color();
+function linkAt(i,j){if(j<0)return i===WAY_I;if(!inGrid(i,j))return false;const b=builds[idx(i,j)];return b===ROAD||b===BRIDGE||b===HUT;}
+function onRoad(i,j,fx,fz){const w=.27,cx=Math.abs(fx-.5)<w,cz=Math.abs(fz-.5)<w;if(cx&&cz)return true;
+  return (cx&&fz<.5&&linkAt(i,j-1))||(cx&&fz>.5&&linkAt(i,j+1))||(cz&&fx<.5&&linkAt(i-1,j))||(cz&&fx>.5&&linkAt(i+1,j));}
+function wayX(z){return tileC(WAY_I,0).x+Math.sin(z*.45+1)*.9*smooth(-HZ,-HZ-4,z);}
 function colorAt(x,z,h,ny,out){
   const n=fbm(x*.7,z*.7,2);
   const i=Math.floor(x+HX),j=Math.floor(z+HZ);const inside=inGrid(i,j);
   if(h<WATER_Y-.02){out.copy(PAL.bedHi).lerp(PAL.bedLo,smooth(-.3,-1.2,h));out.multiplyScalar(.85+n*.3);return;}
   if(h<WATER_Y+.13){out.copy(PAL.sand).multiplyScalar(.85+n*.3);return;}
   if(inside&&tiles[idx(i,j)]===LAND){out.copy(PAL.meadow).lerp(PAL.meadow2,n);
-    const fx=x+HX-i,fz=z+HZ-j;if(Math.min(fx,fz,1-fx,1-fz)<.04)out.multiplyScalar(.86);return;}
+    const fx=x+HX-i,fz=z+HZ-j;if(Math.min(fx,fz,1-fx,1-fz)<.04)out.multiplyScalar(.86);
+    const b=builds[idx(i,j)];
+    if(b===ROAD&&onRoad(i,j,fx,fz))out.copy(PAL.path).multiplyScalar(.9+n*.2);
+    else if(b===HUT&&Math.max(Math.abs(fx-.5),Math.abs(fz-.5))<.4)out.lerp(PAL.path,.55);
+    return;}
+  // the Pilgrim Way continues north out of the valley
+  if(!inside&&z<-HZ&&z>-HZ-14&&Math.abs(x-wayX(z))<.3&&h<6){out.copy(PAL.path).multiplyScalar(.85+n*.2);return;}
   if(inside||h<1.2){out.copy(PAL.wild).lerp(PAL.wild2,smooth(.3,.7,n));out.multiplyScalar(.9+n*.2);}
   else{out.copy(PAL.hill).lerp(PAL.dry,smooth(3,12,h+n*3));}
   const strata=.86+.14*Math.sin(h*4.2+fbm(x*.3,z*.3,2)*3);
@@ -126,51 +152,94 @@ function buildTerrain(fineOnly){
   tGeo.attributes.color.needsUpdate=true;
   tGeo.computeBoundingSphere();
 }
+/* current, as a texture the water and riverbed shaders read: rg = direction, b = speed, a = 1 flowing / 0 still / .5 land */
+const FLOW=makeFlow();
+const flowData=new Uint8Array(GW*GH*4);
+const flowTex=new THREE.DataTexture(flowData,GW,GH,THREE.RGBAFormat);
+flowTex.magFilter=flowTex.minFilter=THREE.LinearFilter;flowTex.wrapS=flowTex.wrapT=THREE.ClampToEdgeWrapping;
+const FLOW_GLSL=`uniform sampler2D uFlow;
+vec4 flowAt(vec2 p){vec2 uv=(p+vec2(${HX.toFixed(1)},${HZ.toFixed(1)}))/vec2(${GW.toFixed(1)},${GH.toFixed(1)});
+  vec4 f=texture2D(uFlow,clamp(uv,vec2(0.5/${GW.toFixed(1)},0.5/${GH.toFixed(1)}),vec2(1.0-0.5/${GW.toFixed(1)},1.0-0.5/${GH.toFixed(1)})));
+  float out_=step(0.001,max(max(-uv.x,uv.x-1.0),max(-uv.y,uv.y-1.0)));
+  return mix(f,vec4(0.75,0.5,0.25,1.0),out_);}
+`;
+function updateFlowTex(){
+  for(let k=0;k<GW*GH;k++){const w=tiles[k]===WATER;const vx=FLOW.vx[k],vz=FLOW.vz[k];
+    flowData[k*4]=Math.round(clamp(vx/2*.5+.5,0,1)*255);flowData[k*4+1]=Math.round(clamp(vz/2*.5+.5,0,1)*255);
+    flowData[k*4+2]=Math.round(clamp(FLOW.speed[k]/2,0,1)*255);flowData[k*4+3]=!w?128:FLOW.live[k]?255:0;}
+  flowTex.needsUpdate=true;
+}
 const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,flatShading:true,roughness:.95,metalness:0});
 terrainMat.onBeforeCompile=sh=>{
-  sh.uniforms.uTime=U.time;sh.uniforms.uWaterY={value:WATER_Y};
+  sh.uniforms.uTime=U.time;sh.uniforms.uWaterY={value:WATER_Y};sh.uniforms.uFlow={value:flowTex};
   sh.vertexShader='varying vec3 vWPos;\n'+sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\n vWPos=(modelMatrix*vec4(transformed,1.0)).xyz;');
-  sh.fragmentShader='varying vec3 vWPos;\nuniform float uTime;\nuniform float uWaterY;\n'+NOISE_GLSL+sh.fragmentShader
+  sh.fragmentShader='varying vec3 vWPos;\nuniform float uTime;\nuniform float uWaterY;\n'+NOISE_GLSL+FLOW_GLSL+sh.fragmentShader
    .replace('#include <color_fragment>',`#include <color_fragment>
     float depthW=uWaterY-vWPos.y;
     float cloud=clouds(vWPos.xz,uTime);
     diffuseColor.rgb*=1.0-cloud*0.34;
-    if(depthW>0.0) diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.012,0.085,0.075),clamp(depthW*0.55,0.0,0.82));
+    float stillB=0.0;
+    if(depthW>0.0){stillB=1.0-smoothstep(0.1,0.4,flowAt(vWPos.xz).a);
+      diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(0.012,0.085,0.075),vec3(0.05,0.075,0.02),stillB),clamp(depthW*0.55,0.0,0.82));}
     float ch=vWPos.y/0.75; float fw=max(fwidth(ch),1e-4); float cd=abs(fract(ch+0.5)-0.5);
     float cl=1.0-smoothstep(fw*0.6,fw*1.7,cd);
     float major=1.0-step(0.5,abs(mod(floor(ch+0.5),5.0)));
     diffuseColor.rgb*=1.0-cl*smoothstep(0.5,2.0,vWPos.y)*(0.09+0.16*major);`)
    .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
-    if(depthW>0.0){float cz=caustic(vWPos.xz*0.085,uTime*0.3);totalEmissiveRadiance+=vec3(0.45,1.0,0.8)*cz*0.55*exp(-depthW*0.6)*(1.0-cloud*0.8);}
+    if(depthW>0.0){float cz=caustic(vWPos.xz*0.085,uTime*0.3);totalEmissiveRadiance+=vec3(0.45,1.0,0.8)*cz*0.55*exp(-depthW*0.6)*(1.0-cloud*0.8)*(1.0-stillB*0.85);}
     float shore=1.0-smoothstep(0.0,0.05,abs(vWPos.y-uWaterY-0.02));
     totalEmissiveRadiance+=vec3(1.0,0.84,0.6)*shore*0.6*(1.0-cloud*0.6);`);
 };
 const terrain=new THREE.Mesh(tGeo,terrainMat);terrain.receiveShadow=true;terrain.castShadow=true;scene.add(terrain);
 
 /* ================= water surface ================= */
+const HEATN=6;
+const heatU=Array.from({length:HEATN},()=>new THREE.Vector4(0,0,1,0)); // x,z,radius,strength: warm water around the Ember Showa
 const waterMat=new THREE.ShaderMaterial({
   transparent:true,depthWrite:false,
   blending:THREE.CustomBlending,blendSrc:THREE.SrcAlphaFactor,blendDst:THREE.OneMinusSrcAlphaFactor,blendSrcAlpha:THREE.OneFactor,blendDstAlpha:THREE.OneMinusSrcAlphaFactor,
-  uniforms:{uTime:U.time,uSun:{value:SUN_DIR},uView:{value:CAM_DIR},uFog:{value:FOG},uFogNear:{value:190},uFogFar:{value:330}},
+  uniforms:{uTime:U.time,uSun:{value:SUN_DIR},uView:{value:CAM_DIR},uFog:{value:FOG},uFogNear:{value:190},uFogFar:{value:330},uFlow:{value:flowTex},uHeat:{value:heatU}},
   vertexShader:`varying vec3 vW;varying float vFogD;void main(){vec4 w=modelMatrix*vec4(position,1.0);vW=w.xyz;vec4 mv=viewMatrix*w;vFogD=-mv.z;gl_Position=projectionMatrix*mv;}`,
-  fragmentShader:`uniform float uTime;uniform vec3 uSun;uniform vec3 uView;uniform vec3 uFog;uniform float uFogNear;uniform float uFogFar;varying vec3 vW;varying float vFogD;
+  fragmentShader:`uniform float uTime;uniform vec3 uSun;uniform vec3 uView;uniform vec3 uFog;uniform float uFogNear;uniform float uFogFar;uniform vec4 uHeat[${HEATN}];varying vec3 vW;varying float vFogD;
   ${NOISE_GLSL}
-  float wh(vec2 p){return vns(p*0.8+uTime*vec2(0.10,0.06))*0.55+vns(p*2.1-uTime*vec2(0.08,0.13))*0.3+vns(p*5.3+uTime*vec2(0.2,-0.1))*0.15;}
+  ${FLOW_GLSL}
+  float wh(vec2 p,float drift){return vns(p*0.8+uTime*vec2(0.10,0.06)*drift)*0.55+vns(p*2.1-uTime*vec2(0.08,0.13)*drift)*0.3+vns(p*5.3+uTime*vec2(0.2,-0.1)*drift)*0.15;}
+  // flow-map advection: two phases half a cycle apart, cross-faded so the pattern never stretches too far
+  float fh(vec2 p,vec2 v,float drift){
+    float T=uTime*0.22;float a=fract(T),b=fract(T+0.5);float wb=abs(a-0.5)*2.0;
+    return mix(wh(p-v*a*2.2,drift),wh(p-v*b*2.2+vec2(3.7,1.3),drift),1.0-wb);}
   void main(){
     vec2 p=vW.xz;float e=0.08;
-    float h0=wh(p);float hx=wh(p+vec2(e,0.0));float hz=wh(p+vec2(0.0,e));
-    vec3 N=normalize(vec3((h0-hx)*1.6,1.0,(h0-hz)*1.6));
+    vec4 fl=flowAt(p);
+    float live=smoothstep(0.1,0.4,fl.a);float still=1.0-live;
+    vec2 v=(fl.rg*2.0-1.0)*2.0*live;float spd=length(v);
+    float drift=mix(0.35,1.0,live);
+    float h0=fh(p,v,drift);float hx=fh(p+vec2(e,0.0),v,drift);float hz=fh(p+vec2(0.0,e),v,drift);
+    vec3 N=normalize(vec3((h0-hx)*mix(0.5,1.6,live),1.0,(h0-hz)*mix(0.5,1.6,live)));
     float fres=pow(1.0-clamp(dot(N,uView),0.0,1.0),2.5);
-    float spec=pow(max(dot(reflect(-uSun,N),uView),0.0),70.0);
+    float spec=pow(max(dot(reflect(-uSun,N),uView),0.0),mix(160.0,70.0,live));
     float cloud=clouds(p,uTime);
     float band=vns(p*0.05+vec2(uTime*0.004,0.0))*2.0;
     float shaft=smoothstep(0.62,1.0,sin(dot(p,normalize(vec2(1.0,0.45)))*0.2+band+uTime*0.02))*(1.0-cloud);
     vec3 col=vec3(0.02,0.13,0.12);
     col+=vec3(0.5,0.72,0.78)*fres*0.45;
-    col+=vec3(0.45,0.95,0.78)*shaft*0.22;
+    col+=vec3(0.45,0.95,0.78)*shaft*0.22*live;
+    // streaks drawn along the current
+    vec2 dir=spd>1e-3?v/spd:vec2(1.0,0.0);vec2 q=vec2(dot(p,dir),dot(p,vec2(-dir.y,dir.x)));
+    float str=smoothstep(0.72,0.9,vns(vec2(q.x*0.7-uTime*(0.5+spd*0.9),q.y*4.5)))*smoothstep(0.15,0.6,spd);
+    col+=vec3(0.8,0.95,0.9)*str*0.16*(1.0-cloud*0.5);
+    // still water goes murky and green, with specks of duckweed
+    vec3 murk=vec3(0.05,0.09,0.03)+vec3(0.1,0.13,0.04)*vns(p*1.7);
+    float weed=step(0.8,vns(p*7.0+vec2(0.0,uTime*0.01)))*0.6;
+    col=mix(col,murk+vec3(0.14,0.2,0.06)*weed,still*0.85);
     col+=vec3(1.0,0.82,0.58)*spec*3.0*(1.0-cloud*0.8);
+    // warmth
+    float heat=0.0;for(int i=0;i<${HEATN};i++){vec4 H=uHeat[i];float d=length(p-H.xy)/H.z;heat+=H.w*exp(-d*d*2.2);}
+    heat=min(heat,1.2);
+    float shim=vns(p*3.0+vec2(0.0,uTime*1.4));
+    col+=vec3(1.0,0.42,0.14)*heat*(0.22+0.2*shim);
     col*=1.0-cloud*0.25;
-    float a=clamp(0.2+fres*0.35+shaft*0.1+spec*0.6,0.0,0.94);
+    float a=clamp(0.2+fres*0.35+shaft*0.1*live+spec*0.6+still*0.42+str*0.1+heat*0.12,0.0,0.94);
     float f=smoothstep(uFogNear,uFogFar,vFogD);col=mix(col,uFog,f);a=mix(a,1.0,f);
     gl_FragColor=vec4(col,a);
   }`
@@ -194,6 +263,7 @@ for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const c=tileC(i,j);const n=2+Math.flo
 function scatterOuter(){let tries=0;
   while(trees.length<MAXT-40&&tries<60000){tries++;const x=rand(-70,70),z=rand(-70,50);
     if(Math.abs(x)<HX+.8&&Math.abs(z)<HZ+.8)continue;
+    if(z<-HZ&&z>-HZ-15&&Math.abs(x-wayX(z))<.7)continue;
     const h=heightAt(x,z);if(h<.3||h>15)continue;
     const e=.4,nx=heightAt(x+e,z)-heightAt(x-e,z),nz=heightAt(x,z+e)-heightAt(x,z-e);if(Math.hypot(nx,nz)>.9)continue;
     if(fbm(x*.09+11,z*.09-3,3)<.46)continue;
@@ -216,17 +286,22 @@ rocks.castShadow=rocks.receiveShadow=true;scene.add(rocks);
 
 /* ================= water analysis ================= */
 const D=new Int16Array(GW*GH),COMP=new Int32Array(GW*GH);let comps=[];
+// live = water the current runs through. Still water counts as bank for the fish: they will not go there.
+const isLive=k=>tiles[k]===WATER&&FLOW.live[k]===1;
+let stillCount=0;
 function analyzeWater(){
+  solveFlow(FLOW,tiles,INLET,OUTLET);updateFlowTex();
+  stillCount=0;for(let k=0;k<GW*GH;k++)if(tiles[k]===WATER&&!FLOW.live[k])stillCount++;
   D.fill(-1);const q=[];
-  for(let k=0;k<GW*GH;k++)if(tiles[k]!==WATER){D[k]=0;q.push(k);}
-  for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const k=idx(i,j);if(tiles[k]===WATER&&(i===0||j===0||i===GW-1||j===GH-1)&&D[k]<0){D[k]=1;q.push(k);}}
+  for(let k=0;k<GW*GH;k++)if(!isLive(k)){D[k]=0;q.push(k);}
+  for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const k=idx(i,j);if(isLive(k)&&(j===0||j===GH-1)&&D[k]<0){D[k]=1;q.push(k);}}
   for(let h=0;h<q.length;h++){const k=q[h],i=k%GW,j=(k/GW)|0;
     for(let dj=-1;dj<=1;dj++)for(let di=-1;di<=1;di++){const ni=i+di,nj=j+dj;if(!inGrid(ni,nj))continue;const nk=idx(ni,nj);if(D[nk]<0){D[nk]=D[k]+1;q.push(nk);}}}
   COMP.fill(-1);comps=[];
-  for(let k=0;k<GW*GH;k++){if(tiles[k]!==WATER||COMP[k]>=0)continue;
+  for(let k=0;k<GW*GH;k++){if(!isLive(k)||COMP[k]>=0)continue;
     const c={id:comps.length,size:0,maxD:0,tiles:[]};const st=[k];COMP[k]=c.id;
     while(st.length){const t=st.pop();c.size++;c.tiles.push(t);c.maxD=Math.max(c.maxD,D[t]);const i=t%GW,j=(t/GW)|0;
-      for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){const ni=i+di,nj=j+dj;if(!inGrid(ni,nj))continue;const nk=idx(ni,nj);if(tiles[nk]===WATER&&COMP[nk]<0){COMP[nk]=c.id;st.push(nk);}}}
+      for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){const ni=i+di,nj=j+dj;if(!inGrid(ni,nj))continue;const nk=idx(ni,nj);if(isLive(nk)&&COMP[nk]<0){COMP[nk]=c.id;st.push(nk);}}}
     comps.push(c);}
 }
 function dAt(x,z){const i=Math.floor(x+HX),j=Math.floor(z+HZ);return inGrid(i,j)?Math.max(0,D[idx(i,j)]):0;}
@@ -248,7 +323,9 @@ function fishCanvases(sp){
     case 'reed':band('#4a5a3a','#d2d8c2');for(let x=4;x<60;x++){px(g,x,1,'#39452e');px(g,x,15,'#39452e');if(x%3===0)px(g,x,8,'#3e4a31');}break;
     case 'kohaku':band('#f3eee4','#fbf8f1');for(let n=0,N=3+Math.floor(R()*3);n<N;n++)blob(8+R()*42,8+(R()-.5)*4,4+R()*7,3+R()*3.5,'#c9331d');if(R()<.4)blob(5,8,3,2.5,'#c9331d');break;
     case 'bronze':band('#6e4a22','#d9bb82');for(let y=0;y<H;y++)for(let x=2;x<60;x++){if((x+(y%2)*2)%4===0&&Math.abs(y-8)<10)px(g,x,y,'rgba(40,22,8,.35)');}break;
-    case 'showa':band('#1c1a1b','#e9e2d6');for(let n=0;n<5;n++)blob(6+R()*46,8+(R()-.5)*6,3+R()*6,2+R()*3.5,'#c8361f');for(let n=0;n<2;n++)blob(10+R()*40,8+(R()-.5)*8,3+R()*4,2+R()*2,'#efe9df');break;
+    case 'showa':band('#1c1a1b','#e9e2d6');for(let n=0;n<5;n++)blob(6+R()*46,8+(R()-.5)*6,3+R()*6,2+R()*3.5,'#c8361f');for(let n=0;n<2;n++)blob(10+R()*40,8+(R()-.5)*8,3+R()*4,2+R()*2,'#efe9df');
+      // live coals: a few glowing specks along the back and flanks
+      for(let n=0;n<26;n++){const x=5+R()*52,y=8+(R()-.5)*12;px(g,x,y,'#ff9a4a');px(ge,x,y,R()<.5?'#ff7a2a':'#ffb45a');}break;
     case 'moss':band('#303c2c','#a4a488');for(let n=0;n<140;n++)px(g,3+R()*56,8+(R()-.5)*14,R()<.5?'#6f8f45':'#8aa653');
       for(let x=6;x<58;x+=5){px(g,x,8,'#d9cfaa');px(g,x+1,8,'#d9cfaa');px(g,x+2,3,'#bfb593');px(g,x+2,13,'#bfb593');}break;
     case 'lantern':band('#131732','#3a3e66');for(let x=5;x<60;x+=4){for(const y of [3,13,21,27]){px(g,x,y,'#bff7ff');px(ge,x,y,'#8ff0ff');}}px(ge,4,8,'#8ff0ff');break;
@@ -260,7 +337,7 @@ function fishCanvases(sp){
       for(let x=4;x<60;x+=3){px(g,x,20,'#8fb0a2');px(g,x,28,'#8fb0a2');}break;}
   }
   const eye=sp.pattern==='warden'?'#ffd27a':'#141414';
-  px(g,3,4,eye);px(g,3,12,eye);if(sp.glow){px(ge,3,4,sp.pattern==='warden'?'#ffd27a':'#556');px(ge,3,12,sp.pattern==='warden'?'#ffd27a':'#556');}
+  px(g,3,4,eye);px(g,3,12,eye);if(sp.glow){const ec=sp.pattern==='warden'?'#ffd27a':sp.pattern==='showa'?'#ff7a2a':'#556';px(ge,3,4,ec);px(ge,3,12,ec);}
   g.fillStyle=sp.fin;g.fillRect(62,0,2,H);
   return {c,e};
 }
@@ -313,7 +390,7 @@ function makeFishMesh(sp){
   const depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,side:THREE.DoubleSide});
   depth.onBeforeCompile=sh=>{Object.assign(sh.uniforms,u);sh.vertexShader=BEND_DECL+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n'+BEND_VERT);};
   const mesh=new THREE.Mesh(geo,mat);mesh.customDepthMaterial=depth;mesh.castShadow=true;
-  return {mesh,mat,u,canvas:cv.c};
+  return {mesh,mat,u,canvas:cv.c,rim:rs};
 }
 const fishes=[];
 function swimY(sp){return -.6-Math.min(.42,sp.len*.03);}
@@ -366,12 +443,23 @@ function updateFish(f,dt){
     f.out+=dt/10;f.y=lerp(targetY,-3.6-sp.len*.08,easeInOut(Math.min(1,f.out)));
     f.x+=Math.sin(f.h)*f.speed*dt*.6;f.z+=Math.cos(f.h)*f.speed*dt*.6;f.u.uPhase.value+=dt*1.2;
     if(f.out>=1)removeFish(f);
-  }else if(f.state==='landed'){
-    f.out+=dt/3.2;const k=Math.min(1,f.out);
-    f.y=lerp(targetY,WATER_Y+.05,easeInOut(Math.min(1,k*1.6)));f.mesh.rotation.z=easeInOut(k)*1.3;
-    f.u.uPhase.value+=dt*9;f.u.uAmp.value=.1*(1-k);
-    if(k>.55){if(!f.mat.transparent){f.mat.transparent=true;f.mat.needsUpdate=true;}f.mat.opacity=1-(k-.55)/.45;}
-    if(Math.random()<dt*18*(1-k))sparkle(f.x+rand(-.3,.3)*sp.len*.5,WATER_Y+.1,f.z+rand(-.3,.3)*sp.len*.5,sp.glow||'#fff3d6');
+  }else if(f.state==='held'){
+    // brought up beside the crew, just under the surface, for a moment
+    f.out+=dt/3.4;const k=Math.min(1,f.out);
+    f.y=lerp(f.y,WATER_Y-.1-sp.hgt*sp.len*.25,1-Math.exp(-dt*2));
+    f.u.uPhase.value+=dt*1.6;f.u.uAmp.value=lerp(f.u.uAmp.value,.025,dt*2);f.u.uCurve.value*=1-dt;
+    if(Math.random()<dt*10)sparkle(f.x+rand(-.4,.4)*sp.len*.5*Math.abs(Math.sin(f.h)),WATER_Y+.05,f.z+rand(-.4,.4)*sp.len*.5*Math.abs(Math.cos(f.h)),sp.glow||'#fff3d6');
+    if(k>=1){f.state='release';f.out=0;f.speed=0;}
+  }else if(f.state==='release'){
+    // turned loose: it heads back out to open water and sinks out of sight
+    f.out+=dt/8;const k=Math.min(1,f.out);
+    f.h+=angDiff(f.relH,f.h)*Math.min(1,dt*1.2);
+    f.speed=lerp(f.speed,sp.speed*.35*Math.sqrt(sp.len)*1.1,1-Math.exp(-dt*.7));
+    const nx=f.x+Math.sin(f.h)*f.speed*dt,nz=f.z+Math.cos(f.h)*f.speed*dt;
+    if(dAt(nx,nz)>0){f.x=nx;f.z=nz;}else f.relH+=dt*1.5;
+    f.y=lerp(WATER_Y-.1,-3.4-sp.len*.08,easeInOut(k));
+    f.u.uPhase.value+=dt*(1.4+f.speed*3/Math.sqrt(sp.len));f.u.uAmp.value=lerp(f.u.uAmp.value,sp.eel?.05:.035,dt);
+    if(k>.6){if(!f.mat.transparent){f.mat.transparent=true;f.mat.needsUpdate=true;}f.mat.opacity=1-(k-.6)/.4;}
     if(k>=1)removeFish(f);
   }
   f.mesh.position.set(f.x,f.y,f.z);f.mesh.rotation.y=f.h;
@@ -397,6 +485,10 @@ const coatMs=coatCols.map(c=>rimMat({color:c},'#ffd9a8',1));
 const ROD_ANG=1.0;
 function slotPos(i,j,slot){
   const c=tileC(i,j);let vx=0,vz=0;
+  if(builds[idx(i,j)]===BRIDGE){// along the deck, alternating sides of the rail
+    const alongX=village.axis(i,j)==='x';
+    const ax=alongX?1:0,az=alongX?0:1,side=slot===1?1:-1,px=-az*side,pz=ax*side;
+    return {x:c.x+ax*(slot-1)*.3+px*.1,z:c.z+az*(slot-1)*.3+pz*.1,face:Math.atan2(px,pz),deck:true};}
   for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++){if(!a&&!b)continue;if(inGrid(i+a,j+b)&&tiles[idx(i+a,j+b)]===WATER){const w=(a&&b)?.5:1;vx+=a*w;vz+=b*w;}}
   const L=Math.hypot(vx,vz)||1;vx/=L;vz/=L;const px=-vz,pz=vx;
   const x=c.x+vx*.32+px*(slot-1)*.26,z=c.z+vz*.32+pz*(slot-1)*.26;
@@ -419,7 +511,7 @@ function makeFisher(i,j,slot,colorIdx){
 }
 function placeFisher(fs){
   const p=slotPos(fs.i,fs.j,fs.slot);fs.x=p.x;fs.z=p.z;fs.face=p.face;
-  fs.g.position.set(p.x,Math.max(heightAt(p.x,p.z),WATER_Y)-.01,p.z);fs.g.rotation.set(0,p.face,0);
+  fs.g.position.set(p.x,p.deck?DECK_Y+.022:Math.max(heightAt(p.x,p.z),WATER_Y)-.01,p.z);fs.g.rotation.set(0,p.face,0);
   const a=p.face+fs.bobOff.a;fs.bob={x:p.x+Math.sin(a)*fs.bobOff.d,z:p.z+Math.cos(a)*fs.bobOff.d};
   if(dAt(fs.bob.x,fs.bob.z)===0){fs.bob={x:p.x+Math.sin(p.face)*.9,z:p.z+Math.cos(p.face)*.9};}
 }
@@ -453,6 +545,27 @@ function updateSparkles(dt){for(let k=0;k<SPK;k++){const d=spkData[k];if(d.life<
   d.life-=dt*.6;spkPos[k*3]+=d.vx*dt;spkPos[k*3+1]+=d.vy*dt;spkPos[k*3+2]+=d.vz*dt;const a=Math.max(0,d.life);spkCol[k*3]=d.c[0]*a;spkCol[k*3+1]=d.c[1]*a;spkCol[k*3+2]=d.c[2]*a;}
   spkGeo.attributes.position.needsUpdate=spkGeo.attributes.color.needsUpdate=true;}
 
+/* ================= wisps, warm water & the village ================= */
+const wisps=makeWisps(scene);
+const village=makeVillage({scene,rimMat,heightAt,tiles,builds,emit:wisps.emit,wayX});
+// the Ember Showa warms the water it passes through: heat spots along its body and a short fading trail, plus rising steam
+const heatTrail=[];let heatT=0;
+function updateHeat(dt){
+  const hot=fishes.filter(f=>f.sp.steam);
+  let n=0;
+  heatT-=dt;
+  for(const f of hot){const vis=clamp((f.emerge-.3)/.7,0,1)*(f.state==='release'||f.state==='leave'?1-Math.min(1,f.out):1);if(vis<=0)continue;
+    for(const t of [-.35,0,.35]){if(n>=3)break;heatU[n++].set(f.x+Math.sin(f.h)*t*f.sp.len,f.z+Math.cos(f.h)*t*f.sp.len,1.1+f.sp.len*.18,.75*vis);}
+    if(heatT<=0){heatTrail.push({x:f.x,z:f.z,a:.55*vis});if(heatTrail.length>3)heatTrail.shift();}
+    // steam: denser over the body, thin along the trail
+    const rate=26*vis;for(let e=0;e<rate*dt*3;e++){if(Math.random()>1/3)continue;const t=rand(-.5,.5);
+      wisps.emit(f.x+Math.sin(f.h)*t*f.sp.len+rand(-.35,.35),WATER_Y+.03,f.z+Math.cos(f.h)*t*f.sp.len+rand(-.35,.35),'steam');}
+  }
+  if(heatT<=0)heatT=.9;
+  for(const tr of heatTrail){tr.a*=Math.exp(-dt*.35);if(n<HEATN)heatU[n++].set(tr.x,tr.z,1.6,tr.a);if(Math.random()<dt*4*tr.a)wisps.emit(tr.x+rand(-.6,.6),WATER_Y+.03,tr.z+rand(-.6,.6),'steam');}
+  for(;n<HEATN;n++)heatU[n].w=0;
+}
+
 /* ================= tile overlay & hover ================= */
 const hoverLoop=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-.5,0,-.5),new THREE.Vector3(.5,0,-.5),new THREE.Vector3(.5,0,.5),new THREE.Vector3(-.5,0,.5)]),
   new THREE.LineBasicMaterial({color:'#ffe6b0',depthTest:false,transparent:true,fog:false}));
@@ -464,31 +577,93 @@ const selRing=new THREE.Mesh(new THREE.RingGeometry(.12,.16,12).rotateX(-Math.PI
 selRing.renderOrder=11;selRing.visible=false;scene.add(selRing);
 
 /* ================= economy & rules ================= */
+// scales pay for work on the land and river; silver (from pilgrims) pays fishers and upgrades
+const COST={clear:'scales',dig:'scales',hut:'scales',road:'scales',bridge:'scales',hire:'silver',line:'silver',bait:'silver'};
 const cost={clear:()=>Math.round(4*Math.pow(1.09,S.clears)),dig:()=>Math.round(12*Math.pow(1.075,S.digs)),hire:()=>Math.round(15*Math.pow(1.3,S.hires)),
+  hut:()=>Math.round(25*Math.pow(1.45,S.huts)),road:()=>3,bridge:()=>Math.round(30*Math.pow(1.25,S.bridges)),
   line:()=>Math.round(60*Math.pow(2.3,S.lineLv)),bait:()=>Math.round(90*Math.pow(2.5,S.baitLv))};
 const lineMult=()=>1+.3*S.lineLv,baitMult=()=>1+.25*S.baitLv;
+const hutCount=()=>{let n=0;for(let k=0;k<GW*GH;k++)if(builds[k]===HUT)n++;return n;};
+const housing=()=>hutCount()*HOUSING;
+const bAt=(i,j)=>inGrid(i,j)?builds[idx(i,j)]:NONE;
+const nbLink=(i,j)=>[[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>{const t=bAt(i+a,j+b);return t===ROAD||t===BRIDGE;})||(j===0&&i===WAY_I);
+// a fisher can stand on cleared land at the water's edge, or on a bridge
+function standable(i,j){const k=idx(i,j),b=builds[k];if(b===BRIDGE)return true;return tiles[k]===LAND&&b!==HUT&&nb8(i,j,WATER);}
 function canDo(tool,i,j){
   if(!inGrid(i,j))return {ok:false,why:'Outside the valley floor'};
-  const t=tiles[idx(i,j)];
+  const k=idx(i,j),t=tiles[k],b=builds[k];
   if(tool==='clear'){if(t!==WILD)return {ok:false,why:t===LAND?'Already cleared':'That is water'};
     if(!nb4(i,j,LAND)&&!nb4(i,j,WATER))return {ok:false,why:'Must touch cleared land or water'};return {ok:true,c:cost.clear()};}
   if(tool==='dig'){if(t===WATER)return {ok:false,why:'Already water'};if(!nb4(i,j,WATER))return {ok:false,why:'Must connect to existing water'};
+    if(b===ROAD)return {ok:false,why:'Lift the road first (click it with the road tool)'};if(b===HUT)return {ok:false,why:'A family lives here'};
     if(fishersOn(i,j).length)return {ok:false,why:'Move the fishers off first'};return {ok:true,c:cost.dig()};}
-  if(tool==='hire'){if(t!==LAND)return {ok:false,why:t===WILD?'Clear this land first':'Fishers need solid ground'};
-    if(!nb8(i,j,WATER))return {ok:false,why:'Must stand at the water’s edge'};if(freeSlot(i,j)<0)return {ok:false,why:'Three fishers per tile'};return {ok:true,c:cost.hire()};}
-  if(tool==='move'){if(t!==LAND||!nb8(i,j,WATER))return {ok:false,why:'Needs cleared land at the water’s edge'};if(freeSlot(i,j)<0)return {ok:false,why:'Tile is full'};return {ok:true,c:0};}
+  if(tool==='hire'){if(!standable(i,j))return {ok:false,why:b===HUT?'That is a home':t===WILD?'Clear this land first':t===WATER?'Fishers need solid ground or a bridge':'Must stand at the water’s edge'};
+    if(fishersState.length>=housing())return {ok:false,why:`Every hut is full (${HOUSING} fishers each). Build another hut`};
+    if(freeSlot(i,j)<0)return {ok:false,why:'Three fishers per tile'};return {ok:true,c:cost.hire()};}
+  if(tool==='move'){if(!standable(i,j))return {ok:false,why:'Needs cleared land at the water’s edge, or a bridge'};if(freeSlot(i,j)<0)return {ok:false,why:'Tile is full'};return {ok:true,c:0};}
+  if(tool==='hut'){if(t!==LAND)return {ok:false,why:t===WILD?'Clear this land first':'Huts need dry land'};if(b!==NONE)return {ok:false,why:'Something is already built here'};
+    if(fishersOn(i,j).length)return {ok:false,why:'Move the fishers off first'};return {ok:true,c:cost.hut()};}
+  if(tool==='road'){if(b===ROAD){if(i===WAY_I&&j===0)return {ok:false,why:'The Pilgrim Way stays'};return {ok:true,c:0,lift:true};}
+    if(t===WATER)return {ok:false,why:'Use a bridge to cross water'};if(b!==NONE)return {ok:false,why:'Something is already built here'};
+    if(!nbLink(i,j))return {ok:false,why:'Roads must join a road or bridge'};
+    return {ok:true,c:cost.road()+(t===WILD?cost.clear():0),wild:t===WILD};}
+  if(tool==='bridge'){if(t!==WATER)return {ok:false,why:'Bridges go over water'};if(b===BRIDGE)return {ok:false,why:'Already bridged'};
+    if(!nbLink(i,j))return {ok:false,why:'Bridges must join a road or bridge'};return {ok:true,c:cost.bridge()};}
   return {ok:false};
 }
-function spend(c){if(S.coins<c){log(`Not enough silver. That costs ${fmt(c)}.`,'warn');return false;}S.coins-=c;return true;}
-function earn(v,x,z){S.coins+=v;S.earned+=v;S.income.push([Date.now(),v]);if(x!==undefined)popAt(x,z,'+'+fmt(v));}
+function spend(c,cur='scales'){if(S[cur]<c){log(`Not enough ${cur}. That costs ${fmt(c)}.`,'warn');return false;}S[cur]-=c;return true;}
+function earn(v,x,z){S.scales+=v;S.earned+=v;S.income.push([Date.now(),v]);if(x!==undefined)popAt(x,z,'+'+fmt(v)+' scales');}
 function act(tool,i,j){
   const r=canDo(tool,i,j);if(!r.ok){if(r.why)log(r.why+'.','warn');return;}
-  if(tool==='clear'){if(!spend(r.c))return;tiles[idx(i,j)]=LAND;S.clears++;worldChanged();sfx('dig');}
-  else if(tool==='dig'){if(!spend(r.c))return;tiles[idx(i,j)]=WATER;S.digs++;worldChanged();sfx('dig');}
-  else if(tool==='hire'){if(!spend(r.c))return;makeFisher(i,j,freeSlot(i,j),S.hires+1);S.hires++;log(`A new fisher joins the bank. You have ${fishersState.length}.`);sfx('pluck');}
+  const k=idx(i,j),cur=COST[tool];
+  if(tool==='clear'){if(!spend(r.c,cur))return;tiles[k]=LAND;S.clears++;worldChanged();sfx('dig');}
+  else if(tool==='dig'){if(!spend(r.c,cur))return;tiles[k]=WATER;S.digs++;worldChanged();sfx('dig');}
+  else if(tool==='hire'){if(!spend(r.c,cur))return;makeFisher(i,j,freeSlot(i,j),S.hires+1);S.hires++;log(`A new fisher joins the bank. You have ${fishersState.length} of ${housing()} housed.`);sfx('pluck');}
+  else if(tool==='hut'){if(!spend(r.c,cur))return;builds[k]=HUT;S.huts++;buildsChanged();sfx('pluck');
+    log(linkedHuts().some(h=>h.i===i&&h.j===j)?`A family settles in. Room for ${HOUSING} more fishers.`:`A family settles in. Join the hut to the Pilgrim Way by road so pilgrims can visit.`);}
+  else if(tool==='road'){if(r.lift){builds[k]=NONE;buildsChanged();sfx('dig');}
+    else{if(!spend(r.c,cur))return;if(r.wild){tiles[k]=LAND;S.clears++;}builds[k]=ROAD;buildsChanged(r.wild);sfx('dig');}}
+  else if(tool==='bridge'){if(!spend(r.c,cur))return;builds[k]=BRIDGE;S.bridges++;buildsChanged();sfx('pluck');log('A bridge spans the water. Fishers can stand on it and reach the middle of the river.');}
   refreshUI();save();
 }
-function worldChanged(){buildTerrain(true);updateTrees();analyzeWater();fishersState.forEach(placeFisher);updateMarks();}
+function worldChanged(){buildTerrain(true);updateTrees();analyzeWater();fishersState.forEach(placeFisher);updateMarks();village.sync();}
+function buildsChanged(){buildTerrain(true);if(arguments[0])updateTrees();computeVillages();village.sync();fishersState.forEach(placeFisher);updateMarks();}
+
+/* ================= villages & pilgrims ================= */
+// huts that pilgrims can reach: next to a road or bridge connected to the Pilgrim Way
+function linkedHuts(){
+  const seen=new Uint8Array(GW*GH),st=[];const s0=idx(WAY_I,0);if(builds[s0]===ROAD){seen[s0]=1;st.push(s0);}
+  while(st.length){const k=st.pop(),i=k%GW,j=(k/GW)|0;for(const [a,b] of [[1,0],[-1,0],[0,1],[0,-1]]){const ni=i+a,nj=j+b;if(!inGrid(ni,nj))continue;const nk=idx(ni,nj);
+    if(!seen[nk]&&(builds[nk]===ROAD||builds[nk]===BRIDGE)){seen[nk]=1;st.push(nk);}}}
+  const out=[];for(let k=0;k<GW*GH;k++){if(builds[k]!==HUT)continue;const i=k%GW,j=(k/GW)|0;
+    if([[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>inGrid(i+a,j+b)&&seen[idx(i+a,j+b)]))out.push({i,j,k});}
+  return out;
+}
+let villages=[];// {name,huts:[k],cx,cz}
+function computeVillages(){
+  const hs=[];for(let k=0;k<GW*GH;k++)if(builds[k]===HUT)hs.push(k);
+  const grp=new Map();const par=hs.map((_,n)=>n);const find=n=>par[n]===n?n:(par[n]=find(par[n]));
+  for(let a=0;a<hs.length;a++)for(let b=a+1;b<hs.length;b++){const ia=hs[a]%GW,ja=(hs[a]/GW)|0,ib=hs[b]%GW,jb=(hs[b]/GW)|0;if(Math.max(Math.abs(ia-ib),Math.abs(ja-jb))<=2)par[find(a)]=find(b);}
+  hs.forEach((k,n)=>{const r=find(n);if(!grp.has(r))grp.set(r,[]);grp.get(r).push(k);});
+  villages=[];const used=new Set(Object.values(S.hutVillage));
+  for(const ks of grp.values()){
+    if(ks.length<3){ks.forEach(k=>{delete S.hutVillage[k];});continue;}
+    const cnt={};ks.forEach(k=>{const n=S.hutVillage[k];if(n)cnt[n]=(cnt[n]||0)+1;});
+    let name=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0];
+    if(!name){name=VILLAGE_NAMES.find(n=>!used.has(n))||'New Hamlet';used.add(name);log(`Three huts stand together now. The village is called ${name}.`,'gold');}
+    ks.forEach(k=>{S.hutVillage[k]=name;});
+    let cx=0,cz=0;ks.forEach(k=>{const c=tileC(k%GW,(k/GW)|0);cx+=c.x;cz+=c.z;});villages.push({name,huts:ks,cx:cx/ks.length,cz:cz/ks.length});
+  }
+}
+const talesKnown=id=>{const n=S.codex[id]||0;return TALE_AT.filter(t=>n>=t).length;};
+const allTales=()=>SPECIES.reduce((s,sp)=>s+talesKnown(sp.id),0);
+// silver per minute: each linked hut hosts pilgrims; every tale the village can tell brings more; named villages draw more still
+function silverRate(){const lh=linkedHuts();let r=0;for(const h of lh)r+=5*(S.hutVillage[h.k]?1.5:1);return r*(1+.2*allTales());}
+let pilgrimT=4;
+function pilgrimTick(dt){
+  S.silver+=silverRate()*dt/60;
+  pilgrimT-=dt;if(pilgrimT<=0){const lh=linkedHuts();pilgrimT=lh.length?rand(9,16)/Math.sqrt(lh.length):5;if(started)village.spawnPilgrim(lh);}
+}
 
 /* ================= hooking & fighting ================= */
 let hookTimer=0;
@@ -502,7 +677,7 @@ function hookCheck(){
       if(Math.random()<.07*baitMult()){
         const crew=near.slice(0,f.sp.crew*2);f.state='hooked';f.hookers=crew;f.progress=0;
         crew.forEach(fs=>{fs.state='fight';fs.fish=f;});
-        log(`${crew.length>1?crew.length+' fishers have':'A fisher has'} hooked ${S.codex[f.sp.id]?'a '+f.sp.name:'something unfamiliar'}.`,f.sp.crew>1?'gold':'');
+        log(`${crew.length>1?crew.length+' fishers have':'A fisher has'} ${S.codex[f.sp.id]?'a '+f.sp.name:'something unfamiliar'} on a barbless line.`,f.sp.crew>1?'gold':'');
         sfx('hook');
       }
     }else if(performance.now()>f.nextHint){f.nextHint=performance.now()+25000;
@@ -520,11 +695,11 @@ function updateFight(f,dt){
   f.h+=angDiff(Math.atan2(f.x-cx,f.z-cz),f.h)*dt*.15;
   if(Math.random()<dt*2)sparkle(fishHead(f).x,WATER_Y+.02,fishHead(f).z,'#dff8ee');
   if(f.progress>=1){
-    f.state='landed';f.out=0;f.hookers.forEach(fs=>{fs.state='idle';fs.fish=null;});
-    const first=!S.codex[f.sp.id];S.codex[f.sp.id]=(S.codex[f.sp.id]||0)+1;
+    f.state='held';f.out=0;f.relH=Math.atan2(f.x-cx,f.z-cz);f.hookers.forEach(fs=>{fs.state='idle';fs.fish=null;});
+    const before=talesKnown(f.sp.id);const first=!S.codex[f.sp.id];S.codex[f.sp.id]=(S.codex[f.sp.id]||0)+1;
     earn(f.sp.value,f.x,f.z);
-    log(`Landed ${first?'your first ':'a '}${f.sp.name}. +${fmt(f.sp.value)} silver.`,'gold');
-    if(first&&f.sp.crew>1)log(`New in the codex: ${f.sp.name}.`,'gold');
+    log(`${first?'Met':'Released'} ${first?'a '+f.sp.name+' for the first time':'a '+f.sp.name}, and let it go. It shed ${fmt(f.sp.value)} scales.`,'gold');
+    if(talesKnown(f.sp.id)>before){const n=talesKnown(f.sp.id);log(`A new tale of the ${f.sp.name} is told in the village (${n} of 3). Pilgrims will come to hear it.`,'gold');}
     sfx(f.sp.awe?'land-big':'land');renderCodex();refreshUI();save();
   }
 }
@@ -552,7 +727,7 @@ function startCine(f){
   document.getElementById('bannerKick').textContent=known?'It returns':'Something vast stirs below';
   document.getElementById('bannerName').textContent=f.sp.name;
   document.getElementById('bannerEp').textContent=f.sp.ep;
-  document.getElementById('bannerReq').textContent=`Needs ${f.sp.crew} fishers on one bank · worth ${fmt(f.sp.value)} silver`;
+  document.getElementById('bannerReq').textContent=`Needs ${f.sp.crew} fishers on one bank · sheds ${fmt(f.sp.value)} scales when released`;
   dv.classList.add('cine');setTimeout(()=>banner.classList.add('on'),900);
   tweenTo({x:f.x,z:f.z},Math.max(14,f.sp.len*2.6),4);
   log(`${f.sp.name} has surfaced in the river.`,'gold');sfx('awe');
@@ -642,7 +817,7 @@ canvas.addEventListener('pointermove',e=>{
 canvas.addEventListener('pointerup',e=>{pointers.delete(e.pointerId);
   if(drag&&drag.moved<=6&&drag.btn===0&&started){click(e.clientX,e.clientY);}
   if(!pointers.size)drag=null;});
-canvas.addEventListener('pointerleave',()=>{tip.style.display='none';hoverLoop.visible=false;hovered=null;});
+canvas.addEventListener('pointerleave',()=>{ptrIn=false;tip.style.display='none';hoverLoop.visible=false;hovered=null;updateCard();});
 canvas.addEventListener('wheel',e=>{e.preventDefault();view.z=clamp(view.z*Math.exp(e.deltaY*.0012),8,110);cancelAuto();},{passive:false});
 function cancelAuto(){tween=null;if(cine.fish)endCine(false);}
 function pan(dx,dy){const upp=view.z/innerHeight;const right=new THREE.Vector3(1,0,-1).normalize(),fwd=new THREE.Vector3(-1,0,-1).normalize();
@@ -650,46 +825,101 @@ function pan(dx,dy){const upp=view.z/innerHeight;const right=new THREE.Vector3(1
 const keys=new Set();
 addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('button')&&e.key===' ')return;
   const k=e.key.toLowerCase();keys.add(k);
-  if(k==='q'||k==='escape'){setTool('look');}if(k==='1')setTool('clear');if(k==='2')setTool('dig');if(k==='3')setTool('hire');
-  if(k==='c')toggleCodex();if(k==='='||k==='+')view.z=clamp(view.z/1.2,8,110);if(k==='-')view.z=clamp(view.z*1.2,8,110);});
+  if(k==='q'||k==='escape'){setTool('look');pinned=null;updateCard();}
+  const T={'1':'clear','2':'dig','3':'hire','4':'hut','5':'road','6':'bridge'};if(T[k])setTool(T[k]);
+  if(k==='c')toggleCodex();if(k==='m')regionMap.toggle();if(k==='='||k==='+')view.z=clamp(view.z/1.2,8,110);if(k==='-')view.z=clamp(view.z*1.2,8,110);});
 addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 function keyPan(dt){const s=520*dt;let dx=0,dy=0;if(keys.has('a')||keys.has('arrowleft'))dx+=s;if(keys.has('d')||keys.has('arrowright'))dx-=s;
   if(keys.has('w')||keys.has('arrowup'))dy+=s;if(keys.has('s')||keys.has('arrowdown'))dy-=s;if(dx||dy){pan(dx,dy);cancelAuto();}}
-let hovered=null;
+let hovered=null,pinned=null,lastPtr={x:0,y:0},ptrIn=false;
+// screen-space fish picking: walk the (bent) spine in pixels and compare to the body's projected half-width at that point
+const _pv=new THREE.Vector3();
+function toScreen(x,y,z){_pv.set(x,y,z).project(camera);return {x:(_pv.x+1)/2*innerWidth,y:(1-_pv.y)/2*innerHeight};}
+function spinePts(f,n=10){const L=f.sp.len,c=f.u.uCurve.value,ch=Math.cos(f.h),sh=Math.sin(f.h),pts=[];
+  for(let s=0;s<=n;s++){const t=s/n,lz=L/2-t*L,xo=c*Math.pow(L*t,2)*.5;pts.push({t,x:f.x+lz*sh+xo*ch,z:f.z+lz*ch-xo*sh});}return pts;}
+function pickFish(cx,cy){
+  const ppu=innerHeight/view.z;let best=null,bd=Infinity;
+  for(const f of fishes){if(f.emerge<.5||f.mat.opacity<.35)continue;
+    const pts=spinePts(f).map(p=>({...toScreen(p.x,f.y,p.z),t:p.t}));
+    for(let k=0;k<pts.length-1;k++){const a=pts[k],b=pts[k+1];const vx=b.x-a.x,vy=b.y-a.y,l2=vx*vx+vy*vy||1;
+      const u=clamp(((cx-a.x)*vx+(cy-a.y)*vy)/l2,0,1);const d=Math.hypot(cx-a.x-vx*u,cy-a.y-vy*u);
+      const t=lerp(a.t,b.t,u);const hw=Math.max(3,profile(f.sp,t)*f.sp.len*f.sp.wid*.5*ppu)+3;
+      const nd=d/hw;if(nd<1&&nd<bd){bd=nd;best=f;}}}
+  return best;
+}
+const card=document.getElementById('fishcard');
+function stateLine(f){
+  if(f.state==='hooked')return `On a barbless line · ${f.hookers.length} of ${f.sp.crew} hands`;
+  if(f.state==='held')return 'Held gently at the surface';
+  if(f.state==='release'||f.state==='leave')return 'Swimming back to deep water';
+  if(f.emerge<1)return 'Rising from below';
+  const near=fishersState.filter(fs=>fs.state==='idle'&&distToFish(f,fs.bob.x,fs.bob.z)<1.5+f.sp.len*f.sp.wid*.5).length;
+  return near?`Circling the bait · ${near} of ${f.sp.crew} hands waiting`:'Swimming the current';
+}
+function fishCardHTML(f){
+  const sp=f.sp,L=LORE[sp.id],met=S.codex[sp.id]||0,known=met>0,tk=talesKnown(sp.id);
+  const row=(k,v)=>`<div class="k">${k}</div><div class="v">${v}</div>`;
+  const tale=known?L.tales[tk-1]:L.rumor;
+  return `<div class="fc-h"><div class="fc-n">${known?sp.name:'Unknown fish'}</div><div class="fc-s">${stateLine(f)}</div></div>
+    ${known?`<div class="fc-ep">${sp.ep}</div>`:''}
+    <div class="fc-g">${row('Length',`${Math.round(sp.len*4)} m`)}${row('Age',known?L.age:'?')}${row('Temper',known?L.temper:'?')}${row('Favors',known?L.favors:'?')}
+      ${row('Crew',`${sp.crew} hand${sp.crew>1?'s':''}`)}${row('Met',known?`×${met}`:'never')}${row('Scales',fmt(sp.value))}${row('Tales',`${tk} / 3`)}</div>
+    <div class="fc-t"><span class="fc-tk">${known?'Tale '+tk:'Rumor'}</span>${tale}</div>
+    <div class="fc-f">${pinned===f?'Click anywhere to let go':'Click the fish to follow it'}</div>`;
+}
+function placeCard(x,y){const w=card.offsetWidth,h=card.offsetHeight;
+  let l=x+18,t=y+18;if(l+w>innerWidth-12)l=x-w-18;if(t+h>innerHeight-12)t=innerHeight-h-12;card.style.left=Math.max(12,l)+'px';card.style.top=Math.max(12,t)+'px';}
+function showCard(f,x,y){card.innerHTML=fishCardHTML(f);card.hidden=false;placeCard(x,y);}
+function updateCard(){
+  const f=pinned||hovered;fishes.forEach(o=>{o.rim.value=o===f?2.6:(o.sp.glow?1.4:1.0);});
+  if(!f||!fishes.includes(f)){if(pinned&&!fishes.includes(pinned))pinned=null;if(!hovered||!fishes.includes(hovered))card.hidden=true;return;}
+  if(pinned){const hd=fishHead(pinned),p=toScreen(hd.x,.3,hd.z);showCard(pinned,p.x,p.y);}
+  else showCard(f,lastPtr.x,lastPtr.y);
+}
 function hover(cx,cy){
+  lastPtr={x:cx,y:cy};ptrIn=true;
   const p=groundAt(cx,cy);if(!p){hoverLoop.visible=false;tip.style.display='none';return;}
   const i=Math.floor(p.x+HX),j=Math.floor(p.z+HZ);
-  hovered=null;for(const f of fishes){if(f.state==='landed'||f.emerge<.6)continue;if(distToFish(f,p.x,p.z)<f.sp.len*f.sp.wid*.5+.25){hovered=f;break;}}
+  hovered=cine.fish?null:pickFish(cx,cy);canvas.style.cursor=hovered?'pointer':'crosshair';
   let html='';
   if(!inGrid(i,j)){hoverLoop.visible=false;}
-  else{const c=tileC(i,j);const t=tiles[idx(i,j)];hoverLoop.visible=true;
-    hoverLoop.position.set(c.x,(t===WATER?WATER_Y:heightAt(c.x,c.z))+.03,c.z);
+  else{const c=tileC(i,j),k=idx(i,j),t=tiles[k],b=builds[k];hoverLoop.visible=true;
+    hoverLoop.position.set(c.x,(t===WATER?(b===BRIDGE?DECK_Y:WATER_Y):heightAt(c.x,c.z))+.03,c.z);
     const useTool=selected?'move':tool;
-    if(useTool!=='look'){const r=canDo(useTool,i,j);hoverLoop.material.color.set(r.ok?(S.coins>=(r.c||0)?'#ffe6b0':'#e98a5f'):'#e98a5f');
-      const names={clear:'Clear land',dig:'Dig water',hire:'Hire fisher',move:'Move fisher here'};
-      html=`<div>${names[useTool]}${r.ok&&r.c?` · <span class="c">${fmt(r.c)} silver</span>`:''}</div>`+(r.ok?'':`<div class="bad">${r.why}</div>`);}
+    if(useTool!=='look'){const r=canDo(useTool,i,j),cur=COST[useTool]||'scales';hoverLoop.material.color.set(r.ok?(S[cur]>=(r.c||0)?'#ffe6b0':'#e98a5f'):'#e98a5f');
+      const names={clear:'Clear land',dig:'Dig water',hire:'Hire fisher',move:'Move fisher here',hut:'Build a hut',road:r.lift?'Lift this road':'Lay road',bridge:'Build a bridge'};
+      html=`<div>${names[useTool]}${r.ok&&r.c?` · <span class="c ${cur}">${fmt(r.c)} ${cur}</span>`:''}</div>`+(r.ok?'':`<div class="bad">${r.why}</div>`);
+      if(useTool==='dig'&&r.ok)html+=`<div class="dim">Water only lives if the current runs through it</div>`;}
     else{hoverLoop.material.color.set('#ffe6b0');
-      if(t===WATER){const cp=comps[COMP[idx(i,j)]];html=`<div>Water body · <span class="c">${cp.size}</span> tiles</div><div class="dim">Open water up to ${cp.maxD*2-1} wide</div>`;}
-      else if(fishersOn(i,j).length)html=`<div>${fishersOn(i,j).length} fisher${fishersOn(i,j).length>1?'s':''}</div><div class="dim">Click to move one</div>`;}
+      if(b===HUT){const lk=linkedHuts().some(h=>h.k===k),vn=S.hutVillage[k];html=`<div>${vn?'A hut in '+vn:'A hut'} · houses ${HOUSING} fishers</div><div class="${lk?'dim':'bad'}">${lk?'Pilgrims visit by the Way':'Not joined to the Pilgrim Way'}</div>`;}
+      else if(t===WATER){const sp=FLOW.speed[k];
+        if(!FLOW.live[k])html=`<div>Still water</div><div class="bad">The current doesn’t reach here. Nothing lives in it.</div>`;
+        else{const cp=comps[COMP[k]];html=`<div>${b===BRIDGE?'Bridge over ':''}Flowing water · <span class="c">${cp.size}</span> tiles</div><div class="dim">Current ${sp>1.1?'quick':sp>.5?'steady':'gentle'} · open water up to ${cp.maxD*2-1} wide</div>`;}
+        if(fishersOn(i,j).length)html+=`<div class="dim">${fishersOn(i,j).length} fisher${fishersOn(i,j).length>1?'s':''} on the bridge · click to move one</div>`;}
+      else if(fishersOn(i,j).length)html=`<div>${fishersOn(i,j).length} fisher${fishersOn(i,j).length>1?'s':''}</div><div class="dim">Click to move one</div>`;
+      else if(b===ROAD)html=`<div>${i===WAY_I&&j===0?'The Pilgrim Way':'Road'}</div>`;}
   }
-  if(hovered){const f=hovered,k=!!S.codex[f.sp.id];html=`<div style="font-family:var(--display);letter-spacing:.05em">${k?f.sp.name:'Unknown fish'}</div><div class="dim">About ${Math.round(f.sp.len*4)} m long · needs ${f.sp.crew} fisher${f.sp.crew>1?'s':''}</div>`+html;}
+  if(hovered||pinned){tip.style.display='none';updateCard();return;}
+  card.hidden=true;
   if(html){tip.innerHTML=html;tip.style.display='block';tip.style.left=Math.min(cx,innerWidth-250)+'px';tip.style.top=Math.min(cy,innerHeight-80)+'px';}else tip.style.display='none';
 }
 function click(cx,cy){
+  if(pinned){pinned=null;updateCard();if(tool==='look'&&!selected)return;}
+  if(tool==='look'&&!selected){const f=pickFish(cx,cy);if(f){pinned=f;updateCard();return;}}
   const p=groundAt(cx,cy);if(!p)return;const i=Math.floor(p.x+HX),j=Math.floor(p.z+HZ);
   if(selected){const r=canDo('move',i,j);
     if(r.ok&&!(selected.i===i&&selected.j===j)){selected.i=i;selected.j=j;selected.slot=freeSlot(i,j);placeFisher(selected);sparkle(selected.x,.3,selected.z,'#ffe9bf');save();}
     else if(!r.ok)log(r.why+'.','warn');
     selected=null;selRing.visible=false;updateMarks();return;}
   if(tool==='look'){if(!inGrid(i,j))return;const on=fishersOn(i,j).filter(f=>f.state==='idle');
-    if(on.length){selected=on[on.length-1];selRing.visible=true;updateMarks();log('Pick a spot at the water’s edge for this fisher.');}return;}
+    if(on.length){selected=on[on.length-1];selRing.visible=true;updateMarks();log('Pick a spot at the water’s edge, or a bridge, for this fisher.');}return;}
   act(tool,i,j);hover(cx,cy);
 }
 function setTool(t){tool=t;selected=null;selRing.visible=false;document.querySelectorAll('.tool').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===t)));updateMarks();}
 document.querySelectorAll('.tool').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
 function updateMarks(){
   const useTool=selected?'move':tool;let n=0;
-  if(useTool!=='look'){for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){if(!canDo(useTool,i,j).ok)continue;const c=tileC(i,j);const t=tiles[idx(i,j)];
+  if(useTool!=='look'){for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){{const r=canDo(useTool,i,j);if(!r.ok||r.lift)continue;}const c=tileC(i,j);const t=tiles[idx(i,j)];
     p4.set(c.x,(t===WATER?WATER_Y:heightAt(c.x,c.z))+.04,c.z);m4.makeTranslation(p4.x,p4.y,p4.z);marks.setMatrixAt(n++,m4);}}
   marks.count=n;marks.instanceMatrix.needsUpdate=true;
 }
@@ -705,54 +935,66 @@ function popAt(x,z,text){const v=new THREE.Vector3(x,.2,z).project(camera);const
 const labelPool=new Map();
 function updateLabels(){
   const want=new Set();
-  for(const f of fishes){const show=f.state==='hooked'||(cine.fish===f&&cine.t>2);if(!show)continue;want.add(f);
+  for(const f of fishes){const show=f.state==='hooked'||f.state==='held'||(cine.fish===f&&cine.t>2);if(!show||f===pinned)continue;want.add(f);
     let el=labelPool.get(f);if(!el){el=document.createElement('div');el.className='lbl';el.innerHTML='<div class="nm"></div><div class="sub"></div><div class="pb"><i></i></div>';labelsEl.appendChild(el);labelPool.set(f,el);}
     const hd=fishHead(f);const v=new THREE.Vector3(hd.x,.4,hd.z).project(camera);
     el.style.left=((v.x+1)/2*innerWidth)+'px';el.style.top=((1-v.y)/2*innerHeight)+'px';
-    el.querySelector('.nm').textContent=S.codex[f.sp.id]||f.state==='hooked'||cine.fish===f?f.sp.name:'???';
-    el.querySelector('.sub').textContent=f.state==='hooked'?`${f.hookers.length} of ${f.sp.crew} hands on the line`:`About ${Math.round(f.sp.len*4)} m`;
+    el.querySelector('.nm').textContent=f.sp.name;
+    el.querySelector('.sub').textContent=f.state==='hooked'?`${f.hookers.length} of ${f.sp.crew} hands on the line`:f.state==='held'?'Released with thanks':`About ${Math.round(f.sp.len*4)} m`;
     el.querySelector('.pb').style.display=f.state==='hooked'?'block':'none';el.querySelector('.pb i').style.width=(f.progress*100).toFixed(1)+'%';}
   for(const [f,el] of labelPool)if(!want.has(f)){el.remove();labelPool.delete(f);}
+  // village names float over their huts
+  for(const v of villages){let el=villageLbl.get(v.name);if(!el){el=document.createElement('div');el.className='vlbl';el.textContent=v.name;labelsEl.appendChild(el);villageLbl.set(v.name,el);}
+    const p=toScreen(v.cx,.9,v.cz);el.style.left=p.x+'px';el.style.top=p.y+'px';}
+  for(const [n,el] of villageLbl)if(!villages.some(v=>v.name===n)){el.remove();villageLbl.delete(n);}
 }
+const villageLbl=new Map();
 function incomeRate(){const now=Date.now();S.income=S.income.filter(([t])=>now-t<15*60e3);if(!S.income.length)return 0;
   const span=Math.max(120e3,now-S.income[0][0]);return S.income.reduce((s,[,v])=>s+v,0)/(span/60e3);}
 function nextGoal(){
-  const sp=SPECIES.find(s=>!S.codex[s.id]);if(!sp)return 'Every giant in the codex has been landed. The valley is yours.';
+  const sp=SPECIES.find(s=>!S.codex[s.id]);if(!sp)return 'Every fish of the valley has been met. Keep listening: there are tales still untold.';
   const best=comps.reduce((a,c)=>c.size>a.size?c:a,{size:0,maxD:0});const parts=[];
-  if(fishersState.length<sp.crew)parts.push(`<b>${sp.crew} fishers</b>`);
-  if(best.size<sp.minWater)parts.push(`<b>${sp.minWater} tiles</b> of connected water`);
+  if(fishersState.length<sp.crew)parts.push(housing()<sp.crew?`<b>${sp.crew} fishers</b> (and huts to house them)`:`<b>${sp.crew} fishers</b>`);
+  if(best.size<sp.minWater)parts.push(`<b>${sp.minWater} tiles</b> of flowing water`);
   if(best.maxD<sp.needD)parts.push(`open water <b>${sp.needD*2-1} tiles wide</b>`);
   const nm=sp.crew<=2?sp.name:'Something larger';
-  if(!parts.length)return `${nm} can surface now. Keep <b>${sp.crew}</b> fisher${sp.crew>1?'s':''} together on one bank and wait.`;
-  return `${nm} needs ${parts.join(', ')}.`;
+  let g=!parts.length?`${nm} can surface now. Keep <b>${sp.crew}</b> fisher${sp.crew>1?'s':''} together on one bank and wait.`:`${nm} needs ${parts.join(', ')}.`;
+  if(stillCount>0)g+=`<div class="still">${stillCount} tile${stillCount>1?'s':''} of still water. The current doesn’t reach ${stillCount>1?'them':'it'}.</div>`;
+  return g;
 }
 let lastGoal='';
 function refreshUI(){
-  $('coins').textContent=fmt(S.coins);
-  const r=incomeRate();$('rate').textContent=r>0?`about ${r<10?r.toFixed(1):fmt(r)} silver / min`:'No catches yet';
+  $('scales').textContent=fmt(S.scales);$('silver').textContent=fmt(S.silver);
+  const r=incomeRate(),sr=silverRate(),lh=linkedHuts().length;
+  $('rate').textContent=`${r>0?`~${r<10?r.toFixed(1):fmt(r)} scales / min`:'No fish met yet'} · ${sr>0?`${sr<10?sr.toFixed(1):fmt(sr)} silver / min from pilgrims`:'no pilgrims yet'}`;
+  $('housing').textContent=`${fishersState.length} / ${housing()} fishers housed · ${hutCount()} hut${hutCount()>1?'s':''}${lh<hutCount()?` (${lh} on the Way)`:''} · ${allTales()} tale${allTales()===1?'':'s'} told`;
   const g=nextGoal();if(g!==lastGoal){$('goal').innerHTML=g;lastGoal=g;}
-  $('cClear').textContent=fmt(cost.clear());$('cDig').textContent=fmt(cost.dig());$('cHire').textContent=fmt(cost.hire());
+  for(const t of ['clear','dig','hire','hut','road','bridge']){const c=cost[t]();$('c-'+t).textContent=fmt(c);$('tool-'+t).classList.toggle('poor',S[COST[t]]<c);}
   $('cLine').textContent=fmt(cost.line());$('cBait').textContent=fmt(cost.bait());$('lvLine').textContent='Lv '+S.lineLv;$('lvBait').textContent='Lv '+S.baitLv;
-  $('tool-clear').classList.toggle('poor',S.coins<cost.clear());$('tool-dig').classList.toggle('poor',S.coins<cost.dig());$('tool-hire').classList.toggle('poor',S.coins<cost.hire());
-  $('upLine').disabled=S.coins<cost.line();$('upBait').disabled=S.coins<cost.bait();
+  $('upLine').disabled=S.silver<cost.line();$('upBait').disabled=S.silver<cost.bait();
   $('codexCount').textContent=`${SPECIES.filter(s=>S.codex[s.id]).length}/${SPECIES.length}`;
 }
-$('upLine').title='Crews reel 30% faster per level';$('upBait').title='Fish arrive and bite 25% more often per level';
-$('upLine').addEventListener('click',()=>{if(spend(cost.line())){S.lineLv++;log(`Braided lines, level ${S.lineLv}. Crews reel faster.`);refreshUI();save();}});
-$('upBait').addEventListener('click',()=>{if(spend(cost.bait())){S.baitLv++;log(`River bait, level ${S.baitLv}. Fish arrive and bite more often.`);refreshUI();save();}});
+$('upLine').title='Crews bring fish in 30% faster per level';$('upBait').title='Rice and song left at the water: fish arrive and take the line 25% more often per level';
+$('upLine').addEventListener('click',()=>{if(spend(cost.line(),'silver')){S.lineLv++;log(`Braided lines, level ${S.lineLv}. Crews bring fish in faster.`);refreshUI();save();}});
+$('upBait').addEventListener('click',()=>{if(spend(cost.bait(),'silver')){S.baitLv++;log(`Offerings, level ${S.baitLv}. Fish come to the banks more often.`);refreshUI();save();}});
 function toggleCodex(){const c=$('codex');c.hidden=!c.hidden;if(!c.hidden)renderCodex();}
 $('btnCodex').addEventListener('click',toggleCodex);$('codexClose').addEventListener('click',toggleCodex);
+const regionMap=initMap($('map'));
+$('btnMap').addEventListener('click',()=>regionMap.toggle());$('mapClose').addEventListener('click',()=>regionMap.toggle());
 $('btnIn').addEventListener('click',()=>{view.z=clamp(view.z/1.3,8,110);cancelAuto();});
 $('btnOut').addEventListener('click',()=>{view.z=clamp(view.z*1.3,8,110);cancelAuto();});
 $('btnPix').addEventListener('click',()=>{PIX=PIX===3?2:PIX===2?4:3;$('btnPix').textContent='Pixels ×'+PIX;resize();store.set('deepvale-pix',String(PIX));});
 const thumbCache={};
 function renderCodex(){
   const L=$('codexList');L.innerHTML='';const best=comps.reduce((a,c)=>c.size>a.size?c:a,{size:0,maxD:0});
-  for(const sp of SPECIES){const known=!!S.codex[sp.id];const e=document.createElement('div');e.className='entry'+(known?'':' unknown');
+  for(const sp of SPECIES){const met=S.codex[sp.id]||0,known=met>0,lo=LORE[sp.id],tk=talesKnown(sp.id);const e=document.createElement('div');e.className='entry'+(known?'':' unknown');
     const cv=document.createElement('canvas');cv.width=72;cv.height=24;drawThumb(cv,sp,known);
     const ok=(c)=>c?'ok':'';
-    e.innerHTML=`<div></div><div><div class="en">${known?sp.name:'Unknown'}</div><div class="ee">${known?sp.ep:`Something about ${Math.round(sp.len*4)} m long has been seen in the river.`}</div>
-      <div class="er"><span class="${ok(fishersState.length>=sp.crew)}">Crew ${sp.crew}</span><span class="${ok(best.size>=sp.minWater)}">Water ${sp.minWater}+</span><span class="${ok(best.maxD>=sp.needD)}">Width ${sp.needD*2-1}+</span>${known?`<span>Landed ×${S.codex[sp.id]}</span>`:''}</div></div>`;
+    const tales=lo.tales.map((t,n)=>n<tk?`<li>${t}</li>`:`<li class="locked">${known?`Meet it ${TALE_AT[n]-met} more time${TALE_AT[n]-met>1?'s':''} to hear this tale.`:'Untold.'}</li>`).join('');
+    e.innerHTML=`<div></div><div><div class="en">${known?sp.name:'Unknown'}</div><div class="ee">${known?sp.ep:`Something about ${Math.round(sp.len*4)} m long has been seen in the river. ${lo.rumor}`}</div>
+      ${known?`<div class="es">${lo.temper} · ${lo.age} · favors ${lo.favors.toLowerCase()}</div>`:''}
+      <div class="er"><span class="${ok(fishersState.length>=sp.crew)}">Crew ${sp.crew}</span><span class="${ok(best.size>=sp.minWater)}">Flowing ${sp.minWater}+</span><span class="${ok(best.maxD>=sp.needD)}">Width ${sp.needD*2-1}+</span>${known?`<span>Met ×${met}</span>`:''}</div>
+      ${known?`<ol class="tales">${tales}</ol>`:''}</div>`;
     e.firstChild.appendChild(cv);L.appendChild(e);}
 }
 function drawThumb(cv,sp,known){
@@ -768,15 +1010,23 @@ document.getElementById('btnSound').addEventListener('click',()=>setSound(!isSou
 
 /* ================= save / load / offline ================= */
 const SAVE_KEY='deepvale-save-v1';
-function save(){S.t=Date.now();S.tiles=Array.from(tiles);S.fishers=fishersState.map(f=>({i:f.i,j:f.j,slot:f.slot,c:f.color}));store.set(SAVE_KEY,JSON.stringify(S));}
+function save(){S.t=Date.now();S.tiles=Array.from(tiles);S.builds=Array.from(builds);S.fishers=fishersState.map(f=>({i:f.i,j:f.j,slot:f.slot,c:f.color}));store.set(SAVE_KEY,JSON.stringify(S));}
+let migrated=false;
 function load(){
   const raw=store.get(SAVE_KEY);if(!raw)return false;
-  try{const d=JSON.parse(raw);if(!d.tiles||d.tiles.length!==GW*GH)return false;Object.assign(S,d);tiles.set(d.tiles);return true;}catch(e){return false;}
+  try{const d=JSON.parse(raw);if(!d.tiles||d.tiles.length!==GW*GH)return false;
+    // 0.1 saves had one currency (silver from selling fish): it becomes scales, and the village is founded fresh
+    if(d.scales===undefined){d.scales=d.coins||0;d.silver=10;delete d.coins;migrated=true;}
+    Object.assign(S,d);tiles.set(d.tiles);
+    if(d.builds&&d.builds.length===GW*GH)builds.set(d.builds);else initBuilds();
+    return true;}catch(e){return false;}
 }
 function offlineGain(ms){
-  if(ms<60e3)return;const hrs=Math.min(ms,8*3600e3);const r=incomeRate();if(r<=0)return;
-  const g=Math.floor(r*(hrs/60e3)*.6);if(g<=0)return;S.coins+=g;S.earned+=g;
-  $('awayV').textContent='+'+fmt(g)+' silver';const m=Math.round(hrs/60e3);$('awayD').textContent=`Your crews kept fishing for ${m>=120?Math.round(m/60)+' hours':m+' minutes'}.`;
+  if(ms<60e3)return;const hrs=Math.min(ms,8*3600e3),m=hrs/60e3;
+  const g=Math.floor(incomeRate()*m*.6),sv=Math.floor(silverRate()*m*.6);if(g<=0&&sv<=0)return;
+  S.scales+=g;S.earned+=g;S.silver+=sv;
+  $('awayV').textContent=[g>0?'+'+fmt(g)+' scales':'',sv>0?'+'+fmt(sv)+' silver':''].filter(Boolean).join('  ·  ');
+  const mm=Math.round(m);$('awayD').textContent=`Your crews kept watch for ${mm>=120?Math.round(mm/60)+' hours':mm+' minutes'}, and pilgrims kept arriving.`;
   $('away').hidden=false;setTimeout(()=>{$('away').hidden=true;},7000);
 }
 let hiddenAt=0;
@@ -785,20 +1035,23 @@ addEventListener('pagehide',save);
 
 /* ================= boot ================= */
 const loaded=load();
-if(!loaded)initTiles();
+if(!loaded){initTiles();initBuilds();}
 {const p=parseInt(store.get('deepvale-pix'));if([2,3,4].includes(p)){PIX=p;$('btnPix').textContent='Pixels ×'+PIX;}}
-buildTerrain(false);scatterOuter();updateTrees();analyzeWater();
+buildTerrain(false);scatterOuter();updateTrees();analyzeWater();computeVillages();village.sync();
 if(loaded&&S.fishers.length){S.fishers.forEach(f=>{if(inGrid(f.i,f.j))makeFisher(f.i,f.j,f.slot,f.c??0);});}
-else{const spot=[];for(let j=0;j<GH;j++)for(let i=0;i<GW;i++)if(tiles[idx(i,j)]===LAND&&nb8(i,j,WATER))spot.push([i,j]);
-  const s=spot[Math.floor(spot.length/2)]||[14,8];makeFisher(s[0],s[1],1,0);}
+else{const spot=[];for(let j=0;j<GH;j++)for(let i=0;i<GW;i++)if(standable(i,j)&&builds[idx(i,j)]!==BRIDGE)spot.push([i,j]);
+  spot.sort((a,b)=>Math.hypot(a[0]-WAY_I,a[1]-10)-Math.hypot(b[0]-WAY_I,b[1]-10));
+  const s=spot[0]||[14,8];makeFisher(s[0],s[1],1,0);}
 // a few fish already in the river
 {const main=comps.reduce((a,c)=>c.size>a.size?c:a,comps[0]);if(main){for(let n=0;n<3;n++)spawnFish(n<2?SP.reed:SP.koi,main,{emerge:false});}}
 if(loaded)offlineGain(Date.now()-S.t);
 resize();renderCodex();refreshUI();updateMarks();
 $('enter').addEventListener('click',()=>{started=true;$('intro').classList.add('gone');setSound(true);
   tweenTo({x:0,y:0,z:0},innerWidth<700?20:26,5.5);
-  if(!loaded||S.first){S.first=false;setTimeout(()=>log('Your fisher waits at the bank. Reedlings and koi bite for a single line.'),5200);
-    setTimeout(()=>log('Clear land along the river, dig it wider, and hire more hands for bigger fish.'),9000);}
+  if(!loaded||S.first){S.first=false;setTimeout(()=>log('Your fisher waits at the bank with a barbless line. Every fish met here is let go again.'),5200);
+    setTimeout(()=>log('Released fish shed scales. Pilgrims walk the Way to hear their tales, and leave silver.'),10000);
+    setTimeout(()=>log('Dig the river wider for bigger fish, but keep the current running through it.'),15000);}
+  else if(migrated)log('The valley has changed: fish are released now, and a village has grown by the Pilgrim Way.','gold');
   else log('Welcome back to the valley.');
 });
 
@@ -809,7 +1062,11 @@ function frame(){
   for(const f of fishes.slice()){updateFish(f,dt);updateFight(f,dt);}
   fishersState.forEach(fs=>updateFisher(fs,dt,t));
   hookTimer+=dt;if(hookTimer>.5){hookTimer=0;hookCheck();}
-  spawnTick(dt);updateCine(dt);updateSparkles(dt);updateLabels();
+  spawnTick(dt);updateCine(dt);updateSparkles(dt);updateHeat(dt);pilgrimTick(dt);
+  village.update(dt,t);wisps.update(dt,(innerHeight/PIX)/view.z);
+  updateLabels();
+  if(started&&ptrIn&&!drag)hovered=cine.fish?null:pickFish(lastPtr.x,lastPtr.y);
+  updateCard();
   if(selected){selRing.position.set(selected.x,selected.g.position.y+.02,selected.z);selRing.scale.setScalar(1+Math.sin(t*5)*.12);}
   uiT+=dt;if(uiT>.5){uiT=0;refreshUI();}
   saveT+=dt;if(saveT>10){saveT=0;save();}
@@ -818,4 +1075,4 @@ function frame(){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-if (import.meta.env.DEV) window.__dv={S,fishes,fishersState,spawnFish,SP,comps:()=>comps,view,tweenTo,startCine};
+if (import.meta.env.DEV) window.__dv={S,fishes,fishersState,spawnFish,SP,comps:()=>comps,view,tweenTo,startCine,tiles,builds,FLOW,act,worldChanged,buildsChanged,refreshUI,pickFish,toScreen,setTool,hookCheck};

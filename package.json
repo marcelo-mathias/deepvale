@@ -1,8 +1,8 @@
 {
   "name": "deepvale",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "An idle fishing game about tiny crews and giant fish, at the foot of a vast mountain.",
+  "description": "A cozy idle game of tiny crews, giant fish and river folklore, at the foot of a vast mountain.",
   "type": "module",
   "scripts": {
     "dev": "vite",

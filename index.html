@@ -18,12 +18,14 @@
   <header class="hud-top">
     <div class="purse">
       <div class="mark">DEEPVALE</div>
-      <div class="silver"><span id="coins">0</span><span class="unit">silver</span></div>
-      <div class="rate" id="rate">No catches yet</div>
+      <div class="silver"><span id="scales">0</span><span class="unit">scales</span><span id="silver" class="sv">0</span><span class="unit">silver</span></div>
+      <div class="rate" id="rate">No fish met yet</div>
+      <div class="rate" id="housing"></div>
       <div class="goal" id="goal"></div>
     </div>
     <div class="tr">
       <button class="chip" id="btnCodex" type="button">Codex<span class="n" id="codexCount">0/8</span></button>
+      <button class="chip" id="btnMap" type="button">Map</button>
       <button class="chip" id="btnSound" type="button">Sound off</button>
       <button class="chip" id="btnPix" type="button">Pixels ×3</button>
       <button class="chip" id="btnOut" type="button" aria-label="Zoom out">−</button>
@@ -35,31 +37,44 @@
 
   <ol id="log"></ol>
   <div id="tip"></div>
+  <div id="fishcard" hidden></div>
 
   <nav class="toolbar" aria-label="Tools">
-    <button class="tool" data-tool="look" id="tool-look" type="button" aria-pressed="true"><kbd>Q</kbd><span class="tn">Look</span><span class="tc small">pan · move crew</span></button>
-    <button class="tool" data-tool="clear" id="tool-clear" type="button" aria-pressed="false"><kbd>1</kbd><span class="tn">Clear land</span><span class="tc" id="cClear">0</span></button>
-    <button class="tool" data-tool="dig" id="tool-dig" type="button" aria-pressed="false"><kbd>2</kbd><span class="tn">Dig water</span><span class="tc" id="cDig">0</span></button>
-    <button class="tool" data-tool="hire" id="tool-hire" type="button" aria-pressed="false"><kbd>3</kbd><span class="tn">Hire fisher</span><span class="tc" id="cHire">0</span></button>
+    <button class="tool" data-tool="look" id="tool-look" type="button" aria-pressed="true"><kbd>Q</kbd><span class="tn">Look</span><span class="tc small">fish · move crew</span></button>
+    <button class="tool" data-tool="clear" id="tool-clear" type="button" aria-pressed="false"><kbd>1</kbd><span class="tn">Clear land</span><span class="tc" id="c-clear">0</span></button>
+    <button class="tool" data-tool="dig" id="tool-dig" type="button" aria-pressed="false"><kbd>2</kbd><span class="tn">Dig water</span><span class="tc" id="c-dig">0</span></button>
+    <button class="tool" data-tool="hire" id="tool-hire" type="button" aria-pressed="false"><kbd>3</kbd><span class="tn">Hire fisher</span><span class="tc sv" id="c-hire">0</span></button>
     <div class="sep"></div>
-    <button class="up" id="upLine" type="button"><span class="tn">Braided lines</span><span class="tl" id="lvLine">Lv 0</span><span class="tc" id="cLine">0</span></button>
-    <button class="up" id="upBait" type="button"><span class="tn">River bait</span><span class="tl" id="lvBait">Lv 0</span><span class="tc" id="cBait">0</span></button>
+    <button class="tool" data-tool="hut" id="tool-hut" type="button" aria-pressed="false"><kbd>4</kbd><span class="tn">Hut</span><span class="tc" id="c-hut">0</span></button>
+    <button class="tool" data-tool="road" id="tool-road" type="button" aria-pressed="false"><kbd>5</kbd><span class="tn">Road</span><span class="tc" id="c-road">0</span></button>
+    <button class="tool" data-tool="bridge" id="tool-bridge" type="button" aria-pressed="false"><kbd>6</kbd><span class="tn">Bridge</span><span class="tc" id="c-bridge">0</span></button>
+    <div class="sep"></div>
+    <button class="up" id="upLine" type="button"><span class="tn">Braided lines</span><span class="tl" id="lvLine">Lv 0</span><span class="tc sv" id="cLine">0</span></button>
+    <button class="up" id="upBait" type="button"><span class="tn">Offerings</span><span class="tl" id="lvBait">Lv 0</span><span class="tc sv" id="cBait">0</span></button>
   </nav>
 
   <aside id="codex" hidden>
     <button class="chip close" id="codexClose" type="button">Close</button>
     <h3>Codex</h3>
-    <p class="intro">Everything that swims the valley river. The larger ones only surface in wide water, and only take the bait when enough hands are waiting on one bank.</p>
+    <p class="intro">Everything that swims the valley river, and what the village says about it. Every fish is met on a barbless line and let go. The larger ones only surface in wide, flowing water, and only come to the line when enough hands wait on one bank. Meet a fish again and again to learn its tales.</p>
     <div id="codexList"></div>
+  </aside>
+
+  <aside id="map" hidden aria-label="Map of the river">
+    <button class="chip close" id="mapClose" type="button">Close</button>
+    <h3>The River’s Course</h3>
+    <p class="intro">From the Hollow Tarn to the sea. Only Deepvale has been charted.</p>
+    <div class="mapwrap"><canvas></canvas><div class="pins"></div></div>
+    <div class="region"></div>
   </aside>
 
   <div id="away" hidden><div class="k">While you were away</div><div class="v" id="awayV">+0</div><div class="d" id="awayD"></div></div>
 
   <div id="intro">
     <div class="intro-in">
-      <div class="eyebrow">An idle fishing game</div>
+      <div class="eyebrow">A cozy idle game of river folklore</div>
       <h1>Deepvale</h1>
-      <p>Far below the mountain, a river keeps its giants. Clear the banks, dig the water wider, and hire enough hands to bring something vast to the surface.</p>
+      <p>Far below the mountain, a river keeps its giants. Keep the current running, build a village by the water, and gather enough gentle hands to meet something vast, and let it go.</p>
       <button class="enter" id="enter" type="button">Enter the valley</button>
       <div class="hint">Drag to pan · scroll to zoom · progress saves in this browser</div>
     </div>
