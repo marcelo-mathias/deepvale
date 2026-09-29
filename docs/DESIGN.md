@@ -9,6 +9,18 @@
 5. **Respect for the river.** Nothing is killed or sold. Every fish is met on a barbless line and let go. The game is about keeping a river alive and learning what the valley says about its creatures, not about catching them.
 6. **Folklore first.** Each fish has a rumor, fixed facts and three tales. Tales are the reward for meeting fish again, and they are what draws pilgrims (and silver) to the villages.
 
+## Time (0.6)
+
+- One day = 960 s of play (`DAY_LEN`). Phases: dawn 0–.08, morning –.30, midday –.50, golden hour –.68, dusk –.78, night –.97, dawn. Seasons are 7 days, a year is 28.
+- Night darkens the scene (up to 0.7) through the same path as a giant's dusk. Windows, lamps and lanterns glow brighter as it falls.
+- Events: river mist at dawn, fireflies from dusk on, Moonscale Koi only when night > 0.3, Lantern Eel twice as likely at night.
+
+## Corners and edges (0.6)
+
+- Corners (where four tiles meet): stone lantern (+3 charm to the four tiles, needs its blueprint), lamp post (+1.5).
+- Edges (between two tiles): fence (+0.5 to both tiles), hedge (+1), low wall (+0.5). Drag to draw.
+- Stored as `S.corners["ci,cj"]` and `S.edges["h i,j" | "v i,j"]`. Named places count corner lanterns.
+
 ## Restoration (0.5)
 
 The valley was damaged: an old mill weir, a drought, years of logging. The river used to run wide and braided, and the giants left when it shrank. The player is **restoring** it, not carving a new one.

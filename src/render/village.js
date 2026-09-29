@@ -2,9 +2,11 @@
 import * as THREE from 'three';
 import { GW, GH, WATER, HUT, ROAD, BRIDGE, WAY_I, DECK_Y, WATER_Y, BED_Y, HZ, idx, tileC, inGrid } from '../world/constants.js';
 import { B, DEF_BY_CODE, STYLES } from '../data/builds.js';
+import { makeHouses } from './houses.js';
 
-export function makeVillage({ scene, rimMat, heightAt, tiles, builds, meta, emit, wayX, props, isLive, statueFish }){
+export function makeVillage({ scene, rimMat, heightAt, tiles, builds, deco, meta, emit, wayX, props, isLive, statueFish }){
   const root = new THREE.Group(); scene.add(root);
+  const houses = makeHouses({ rimMat });
   // --- shared parts
   const wallG = new THREE.BoxGeometry(.34, .2, .28).translate(0, .1, 0);
   const roofG = new THREE.ConeGeometry(.3, .2, 4, 1).rotateY(Math.PI/4).scale(1, 1, .86).translate(0, .3, 0);
@@ -45,36 +47,39 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, meta, emit
     return 0;
   }
   function hutMesh(i, j, k){
-    const r = hsh(i, j), st = STYLES[meta()[k]?.style] || STYLES.thatch, g = new THREE.Group();
+    const r = hsh(i, j), style = meta()[k]?.style || 'thatch', st = STYLES[style] || STYLES.thatch, g = new THREE.Group();
     let face = 0; for (const [a, bb, f] of [[0, 1, 0], [1, 0, Math.PI/2], [0, -1, Math.PI], [-1, 0, -Math.PI/2]]) if (isLinkish(i+a, j+bb)){ face = f; break; }
-    const body = new THREE.Group(); g.add(body);
-    const wall = new THREE.Mesh(wallG, cm(st.wall[r % 3], '#ffd9a8', .8));
-    const roof = new THREE.Mesh(meta()[k]?.style === 'cedar' ? roofSteepG : roofG, cm(st.roof[(r >> 3) % 3], '#ffcf99', .9));
-    body.add(wall, roof, new THREE.Mesh(chimG, darkM), new THREE.Mesh(doorG, darkM), new THREE.Mesh(winG, winM));
-    if (meta()[k]?.style === 'lacquer'){ const trim = new THREE.Mesh(new THREE.BoxGeometry(.36, .025, .3), cm('#2a1d14', '#ffd9a8', .5)); trim.position.y = .2; body.add(trim); }
+    if (meta()[k]?.rot !== undefined) face = meta()[k].rot * Math.PI / 2;
+    const main = houses.body(style, r), body = new THREE.Group(); body.add(main.group); g.add(body);
+    const lvl = meta()[k]?.lvl || 1;
+    // a house grows an annex, a longhouse a second one
+    if (lvl >= 2){ const an = houses.body(style, r + 1, .72); an.group.position.set(-.29, 0, -.05); an.group.rotation.y = Math.PI / 2; body.add(an.group); }
+    if (lvl >= 3){ const an = houses.body(style, r + 2, .64); an.group.position.set(.28, 0, -.1); an.group.rotation.y = -Math.PI / 2; body.add(an.group); }
     if (st.stilts){ body.position.y = .16; for (const [x, z] of [[-.15, -.12], [.15, -.12], [-.15, .12], [.15, .12]]){ const p = new THREE.Mesh(stiltG, postM); p.position.set(x, -.04, z); g.add(p); }
-      const step = new THREE.Mesh(new THREE.BoxGeometry(.1, .02, .14), plankM); step.position.set(0, .08, .2); step.rotation.x = .5; g.add(step); }
+      const step = new THREE.Mesh(new THREE.BoxGeometry(.1, .02, .16), plankM); step.position.set(0, .08, .26); step.rotation.x = .6; g.add(step); }
     g.traverse(o => { if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     const ox = ((r >> 5) % 5 - 2) * .02, oz = ((r >> 8) % 5 - 2) * .02; const c = tileC(i, j);
-    const lvl = meta()[k]?.lvl || 1; g.scale.setScalar([1.25, 1.42, 1.55][lvl - 1]);
-    if (lvl >= 2){ const an = new THREE.Group(); const w2 = new THREE.Mesh(wallG, cm(st.wall[(r + 1) % 3], '#ffd9a8', .8)), r2 = new THREE.Mesh(meta()[k]?.style === 'cedar' ? roofSteepG : roofG, cm(st.roof[(r >> 3) % 3], '#ffcf99', .9));
-      an.add(w2, r2); an.scale.set(.7, .8, .8); an.position.set(-.26, 0, -.06); body.add(an); an.traverse(o => { if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } }); }
-    if (lvl >= 3){ const an = new THREE.Group(); const w3 = new THREE.Mesh(wallG, cm(st.wall[(r + 2) % 3], '#ffd9a8', .8)), r3 = new THREE.Mesh(roofG, cm(st.roof[(r >> 4) % 3], '#ffcf99', .9));
-      an.add(w3, r3); an.scale.set(.62, .7, .7); an.position.set(.25, 0, -.12); body.add(an); an.traverse(o => { if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } }); }
+    g.scale.setScalar([1.25, 1.3, 1.34][lvl - 1]);
     g.position.set(c.x + ox * .5, heightAt(c.x, c.z) - .01, c.z + oz * .5); g.rotation.y = face; root.add(g);
-    g.updateMatrixWorld(); const cp = new THREE.Vector3(.08, .43, -.05); body.localToWorld(cp);
-    huts.push({ chim: cp, t: Math.random() * 2 });
+    g.updateMatrixWorld(); if (main.chim){ const cp = main.chim.clone(); main.group.localToWorld(cp); huts.push({ chim: cp, t: Math.random() * 2 }); }
   }
+
   // yard, lamp and edges bought for a plot (see the plot panel)
   function addSlots(k, c, b){
     const sl = meta()[k]?.slots; if (!sl) return; const y = heightAt(c.x, c.z) - .01, road = b === ROAD;
     if (sl.yard && props.Y[sl.yard]){ const o = props.Y[sl.yard](hsh(k, 7)); o.position.set(c.x + .3, heightAt(c.x + .3, c.z + .3) - .01, c.z + .3); o.rotation.y = (hsh(k, 3) % 4) * Math.PI / 2; root.add(o); }
-    if (sl.lamp){ const o = props.lamp(); o.position.set(c.x - .4, heightAt(c.x - .4, c.z - .4) - .01, c.z - .4); root.add(o); }
-    for (const [sd, a, bb] of [['n', 0, -1], ['e', 1, 0], ['s', 0, 1], ['w', -1, 0]]){ const t = sl.edges?.[sd]; if (!t) continue;
-      const o = props.edge(t); o.position.set(c.x + a * .46, y, c.z + bb * .46); o.rotation.y = a ? Math.PI / 2 : 0; root.add(o); }
+  }
+  // lanterns and lamps on corners, fences, hedges and walls on edges
+  function addDeco(){
+    const { corners, edges } = deco(); const GH2 = GH, gy = (x, z) => Math.max(heightAt(x, z), .06) - .01;
+    for (const [key, t] of Object.entries(corners)){ const [ci, cj] = key.split(',').map(Number), x = ci - GW / 2, z = cj - HZ;
+      const o = t === 'lantern' ? props.B.lantern(ci * 31 + cj) : props.lamp(); o.position.set(x, gy(x, z), z); if (t === 'lantern') o.scale.setScalar(1.15); root.add(o); }
+    for (const [key, t] of Object.entries(edges)){ const h = key[0] === 'h', [i, j] = key.slice(1).split(',').map(Number);
+      const x = h ? i - GW / 2 + .5 : i - GW / 2, z = h ? j - HZ : j - HZ + .5; const o = props.edge(t); o.position.set(x, gy(x, z), z); o.rotation.y = h ? 0 : Math.PI / 2; root.add(o); }
   }
   function sync(){
     for (const c of [...root.children]){ root.remove(c); }
+    addDeco();
     huts.length = 0;
     for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++){
       const k = idx(i, j), b = builds[k], c = tileC(i, j);
@@ -88,6 +93,14 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, meta, emit
             p.scale.y = top - bot; p.position.set(e, (top + bot) / 2, s * .17); g.add(p); } }
         g.traverse(o => { if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
         g.position.set(c.x, 0, c.z); g.rotation.y = ax === 'x' ? 0 : Math.PI/2; root.add(g);
+        // ramps down onto the bank at each open end
+        for (const [a, bb] of ax === 'x' ? [[1,0],[-1,0]] : [[0,1],[0,-1]]){ const ni = i + a, nj = j + bb;
+          if (!inGrid(ni, nj) || tiles[idx(ni, nj)] === WATER || isDeck(ni, nj)) continue;
+          const sx = c.x + a * .5, sz = c.z + bb * .5, ex = c.x + a * .92, ez = c.z + bb * .92, gy = Math.max(heightAt(ex, ez), WATER_Y + .02);
+          const len = Math.hypot(.42, gy - DECK_Y), r = new THREE.Mesh(new THREE.BoxGeometry(len, .035, .34), plankM);
+          r.position.set((sx + ex) / 2, (DECK_Y + gy) / 2, (sz + ez) / 2); const tilt = Math.atan2(gy - DECK_Y, .42);
+          if (a) r.rotation.set(0, 0, tilt * a); else r.rotation.set(0, Math.PI / 2, -tilt * bb); // local +x points to world -z after the turn
+          r.castShadow = r.receiveShadow = true; root.add(r); }
         continue;
       }
       if (b === 0 || b === ROAD) continue;
@@ -96,6 +109,7 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, meta, emit
       const opts = {};
       if (b === B.FENCE){ const f = (a, bb) => inGrid(a, bb) && builds[idx(a, bb)] === B.FENCE; opts.nb = { e: f(i+1, j), w: f(i-1, j), s: f(i, j+1), n: f(i, j-1) }; }
       if (b === B.STATUE) opts.fish = statueFish(meta()[k]?.sp || 'koi');
+      opts.lvl = meta()[k]?.lvl || 1;
       const g = props.B[d.id](r, opts);
       let y = heightAt(c.x, c.z) - .01;
       if (b === B.REED) y = WATER_Y;
@@ -103,7 +117,8 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, meta, emit
       if (b === B.PIER){ y = DECK_Y; g.rotation.y = pierAxis(i, j); }
       else if (b === B.JETTY){ const w = waterDir(i, j); g.rotation.y = Math.atan2(w.a, w.b); }
       else if (b !== B.FENCE && b !== B.REED) g.rotation.y = ((r >> 4) % 4) * Math.PI / 2 * (b === B.STONES || b === B.FLOWERS || b === B.CHERRY ? 1 : 0) + (b === B.BONES ? (r % 7) * .4 : 0);
-      if (![B.FENCE, B.REED, B.PIER, B.JETTY, B.FLOWERS, B.WEIR].includes(b)) g.scale.setScalar(1.2 * [1, 1.12, 1.25][(meta()[k]?.lvl || 1) - 1]);
+      if (![B.FENCE, B.REED, B.PIER, B.JETTY, B.FLOWERS, B.WEIR].includes(b)) g.scale.setScalar(1.2 * [1, 1.04, 1.08][(meta()[k]?.lvl || 1) - 1]);
+      if (meta()[k]?.rot !== undefined && ![B.JETTY, B.PIER, B.FENCE, B.REED, B.WEIR].includes(b)) g.rotation.y = meta()[k].rot * Math.PI / 2;
       g.position.set(c.x, y, c.z); root.add(g);
       if (b === B.SHOP){ g.updateMatrixWorld(); const cp = new THREE.Vector3(-.15, .46, -.08); g.localToWorld(cp); huts.push({ chim: cp, t: Math.random() * 2 }); }
     }
@@ -150,9 +165,16 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, meta, emit
     root.parent.add(g);
     pilgrims.push({ g, path, seg: 0, u: 0, speed: .3 + Math.random() * .12, ph: Math.random() * 6, fade: 1, target, onArrive, arrived: false });
   }
-  function yAt(x, z){ const i = Math.floor(x + GW/2), j = Math.floor(z + HZ);
-    if (inGrid(i, j) && (builds[idx(i, j)] === BRIDGE || builds[idx(i, j)] === B.PIER)) return DECK_Y + .022;
-    return Math.max(heightAt(x, z), WATER_Y + .02); }
+  // walking height: decks over water, and a smooth ramp onto them from the bank so nobody drops at the ends
+  const isDeck = (i, j) => inGrid(i, j) && (builds[idx(i, j)] === BRIDGE || builds[idx(i, j)] === B.PIER);
+  function walkY(x, z){ const i = Math.floor(x + GW/2), j = Math.floor(z + HZ), deck = DECK_Y + .022;
+    if (isDeck(i, j)) return deck;
+    const ground = Math.max(heightAt(x, z), WATER_Y + .02); let best = 9;
+    for (const [a, b] of [[1,0],[-1,0],[0,1],[0,-1]]){ if (!isDeck(i + a, j + b)) continue; const c = tileC(i + a, j + b);
+      const dx = Math.max(0, Math.abs(x - c.x) - .5), dz = Math.max(0, Math.abs(z - c.z) - .5); best = Math.min(best, Math.hypot(dx, dz)); }
+    if (best < .45){ const k = best / .45; return Math.max(ground, deck + (ground - deck) * k * k * (3 - 2 * k)); }
+    return ground; }
+  const yAt = walkY;
   function update(dt, t){
     for (const hu of huts){ hu.t -= dt; if (hu.t <= 0){ hu.t = .7 + Math.random() * .6; emit(hu.chim.x, hu.chim.y, hu.chim.z, 'smoke'); } }
     for (const p of pilgrims.slice()){
@@ -166,5 +188,6 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, meta, emit
       p.g.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
     }
   }
-  return { sync, update, spawnPilgrim, roadPath, wayOut, yAt, axis: bridgeAxis, waterDir, get pilgrimCount(){ return pilgrims.length; } };
+  function setNight(n){ winM.emissiveIntensity = 1.4 + 3.2 * n; lampM.emissiveIntensity = 2.5 + 3 * n; }
+  return { setNight, sync, update, spawnPilgrim, roadPath, wayOut, yAt, walkY, axis: bridgeAxis, waterDir, get pilgrimCount(){ return pilgrims.length; } };
 }

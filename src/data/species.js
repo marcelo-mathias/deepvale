@@ -6,7 +6,7 @@ export const SPECIES=[
  {id:'showa',name:'Ember Showa',ep:'Black lacquer and live coals. The water warms where it passes.',len:4.8,wid:.23,hgt:.14,crew:3,minWater:170,needD:1,value:100,fight:48,w:3.2,speed:.7,pattern:'showa',fin:'#231d1d',fins:.75,tail:.44,glow:'#ff8a4a',steam:true,awe:true},
  {id:'sturgeon',name:'Mossback Sturgeon',ep:'Older than the first village. Moss grows on its back like a hillside.',len:6.6,wid:.15,hgt:.1,crew:5,minWater:220,needD:1,value:340,fight:75,w:2.1,speed:.55,pattern:'moss',fin:'#4b5a3c',fins:.4,tail:.34,glow:'#8fe06a',awe:true},
  {id:'eel',name:'Lantern Eel',ep:'It carries its own light down into the deep channels.',len:7.8,wid:.07,hgt:.06,crew:6,minWater:270,needD:1,value:950,fight:95,w:1.3,speed:.6,pattern:'lantern',fin:'#2f4d8f',fins:0,tail:.12,eel:true,glow:'#8ff0ff',awe:true},
- {id:'moon',name:'Moonscale Koi',ep:'Seen once a generation, on nights the river runs silver.',len:9.6,wid:.23,hgt:.13,crew:8,minWater:330,needD:3,value:2800,fight:130,w:.8,speed:.5,pattern:'moon',fin:'#f3f6ff',fins:.8,tail:.46,glow:'#b9ccff',awe:true,minHealth:50},
+ {id:'moon',name:'Moonscale Koi',ep:'Seen once a generation, on nights the river runs silver.',len:9.6,wid:.23,hgt:.13,crew:8,minWater:330,needD:3,value:2800,fight:130,w:.8,speed:.5,pattern:'moon',fin:'#f3f6ff',fins:.8,tail:.46,glow:'#b9ccff',awe:true,minHealth:50,night:true},
  {id:'warden',name:'The Valley Warden',ep:'The river was cut to fit it.',len:15,wid:.19,hgt:.1,crew:12,minWater:420,needD:4,value:13000,fight:200,w:.35,speed:.38,pattern:'warden',fin:'#173634',fins:.6,tail:.4,glow:'#ffc861',awe:true,minHealth:70},
 ];
 export const SP=Object.fromEntries(SPECIES.map(s=>[s.id,s]));

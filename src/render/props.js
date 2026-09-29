@@ -5,7 +5,9 @@ import * as THREE from 'three';
 export function makeProps({ rimMat }){
   const M = {}, G = {};
   const mat = (c, rim = '#ffd9a8', s = .8) => (M[c + rim + s] ||= rimMat({ color: c }, rim, s));
-  const glowM = (c, e = 2.2) => (M['glow' + c + e] ||= new THREE.MeshStandardMaterial({ color: '#2a1d14', emissive: new THREE.Color(c), emissiveIntensity: e }));
+  const glows = [];
+  const glowM = (c, e = 2.2) => (M['glow' + c + e] ||= (() => { const m = new THREE.MeshStandardMaterial({ color: '#2a1d14', emissive: new THREE.Color(c), emissiveIntensity: e }); m.userData.base = e; glows.push(m); return m; })());
+  const setGlow = f => { for (const m of glows) m.emissiveIntensity = m.userData.base * f; };
   const box = (w, h, d) => (G['b' + w + h + d] ||= new THREE.BoxGeometry(w, h, d));
   const cyl = (rt, rb, h, s = 6) => (G['c' + rt + rb + h + s] ||= new THREE.CylinderGeometry(rt, rb, h, s));
   const ico = r => (G['i' + r] ||= new THREE.IcosahedronGeometry(r, 0));
@@ -174,6 +176,25 @@ export function makeProps({ rimMat }){
     const wg = G.wing ||= new THREE.PlaneGeometry(.12, .045).translate(.06, 0, 0).rotateX(-Math.PI / 2);
     const l = new THREE.Mesh(wg, m), r = new THREE.Mesh(wg, m); r.scale.x = -1; g.add(l, r); g.userData = { l, r }; return g;
   }
+  /* ---------- upgrades grow a building piece by piece instead of just scaling it ---------- */
+  function grow(name, add){ const base = B[name]; B[name] = (r, o = {}) => { const g = base(r, o), l = o.lvl || 1; if (l > 1) add(g, l, r); return finish(g); }; }
+  const kiln = (g, x, z) => { const k = put(g, new THREE.SphereGeometry(.09, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), mat('#a0583a', '#ffc79a', .6), x, 0, z); put(g, box(.04, .04, .02), glowM('#ff8a3a', 2.4), x, .03, z + .085); put(g, box(.03, .08, .03), mat(stone2), x, .11, z - .03); };
+  const crates = (g, x, z, n) => { const cc = ['#b98552', '#c9a36a', '#9a6b3f']; for (let q = 0; q < n; q++) put(g, box(.07, .06, .07), mat(cc[q % 3]), x + (q % 2) * .08, .03 + Math.floor(q / 2) * .06, z + (q % 3) * .02); };
+  const barrels = (g, x, z) => { for (const [a, b] of [[0, 0], [.07, .03], [.02, -.07]]){ put(g, cyl(.032, .032, .085, 8), mat('#7a5236'), x + a, .042, z + b); } };
+  const shed = (g, x, z, w, d, col) => { put(g, box(w, .15, d), mat('#8a6440'), x, .075, z); roof(g, w + .06, d + .06, .1, .15, col).position.set(x, .2, z); };
+  grow('market', (g, l, r) => { const s2 = B.market(r + 3); s2.scale.setScalar(.72); s2.position.set(-.3, 0, -.3); g.add(s2); crates(g, .26, .24, 3);
+    if (l >= 3){ const s3 = B.market(r + 7); s3.scale.setScalar(.72); s3.position.set(.3, 0, -.3); g.add(s3); barrels(g, -.3, .26);
+      for (let q = 0; q < 6; q++) put(g, box(.025, .03, .025), glowM('#ffc46a', 2.2), -.3 + q * .12, .36 - Math.sin(q / 5 * Math.PI) * .04, .02); } });
+  grow('post', (g, l) => { crates(g, .3, -.3, 4); put(g, cyl(.05, .05, .015, 8), mat(dark), -.32, .05, .3, 0, 0, Math.PI / 2);
+    if (l >= 3) shed(g, -.3, -.3, .26, .22, '#55605c'); });
+  grow('jetty', (g, l) => { put(g, box(.02, .4, .02), mat(dark), .1, .2, .7); put(g, box(.02, .02, .26), mat(dark), .1, .39, .6); put(g, box(.004, .15, .004), mat('#d8c9a8'), .1, .31, .48); crates(g, -.08, .78, 2);
+    if (l >= 3) shed(g, .25, -.25, .22, .2, '#6b4a2e'); });
+  grow('workshop', (g, l) => { kiln(g, .3, -.25); if (l >= 3){ shed(g, -.3, -.3, .22, .18, '#55605c'); for (let q = 0; q < 3; q++) put(g, box(.03, .04, .03), glowM('#ffb35a', 2), .3, .08 + q * .05, .22 + q * .03); } });
+  grow('woodcutter', (g, l) => { for (let q = 0; q < 6; q++){ const o = put(g, cyl(.028, .028, .3, 6), mat('#9a6b3f'), -.28 + (q % 3) * .065, .03 + Math.floor(q / 3) * .05, .3); o.rotation.set(0, 0, Math.PI / 2); }
+    if (l >= 3){ put(g, box(.02, .2, .02), mat(dark), .28, .1, .2); put(g, box(.02, .2, .02), mat(dark), .28, .1, .36); put(g, box(.02, .02, .2), mat(dark), .28, .2, .28); put(g, cyl(.03, .03, .3, 6), mat('#b98552'), .28, .12, .28, 0, 0, Math.PI / 2); } });
+  grow('claypit', (g, l) => { kiln(g, .3, .28); if (l >= 3){ for (let q = 0; q < 5; q++) put(g, cyl(.03, .04, .07, 7), mat('#c8744a'), -.3 + q * .06, .035, .32); } });
+  grow('reedbed', (g, l, r) => { const more = B.reedbed(r + 11); more.scale.set(1, 1.2, 1); g.add(more); });
+
   /* ---------- plot add-ons: yards, lamps and edges ---------- */
   const Y = {};
   Y.garden = (r) => { const g = new THREE.Group(), rnd = R(r); put(g, box(.26, .02, .2), mat('#5a4330', '#ffcf99', .2), 0, .01, 0);
@@ -187,6 +208,15 @@ export function makeProps({ rimMat }){
     for (const x of [-.09, .09]) put(g, box(.015, .06, .06), mat(dark), x, .03, 0); return finish(g); };
   Y.planter = (r) => { const g = new THREE.Group(), rnd = R(r); put(g, box(.2, .07, .12), mat('#b8683f'), 0, .035, 0);
     for (let n = 0; n < 6; n++) put(g, ico(.022), mat(['#f2b8c6', '#ffe08a', '#5f8a3e'][n % 3], '#fff', .6), -.07 + n * .028, .08, (rnd() - .5) * .05); return finish(g); };
+  Y.logs = () => { const g = new THREE.Group(); for (let n = 0; n < 7; n++){ const row = n < 4 ? 0 : 1; const o = put(g, cyl(.025, .025, .26, 5), mat(n % 2 ? '#9a6b3f' : '#8a5f36'), 0, .025 + row * .045, -.08 + (n % 4) * .052 + row * .025, 0, 0, Math.PI / 2); o.rotation.y = Math.PI / 2; } return finish(g); };
+  Y.sawhorse = () => { const g = new THREE.Group(); for (const x of [-.08, .08]){ put(g, box(.015, .12, .015), mat(dark), x, .05, -.03, 0, .4); put(g, box(.015, .12, .015), mat(dark), x, .05, .03, 0, -.4); }
+    put(g, box(.22, .02, .02), mat('#8a6440'), 0, .1, 0); put(g, cyl(.024, .024, .3, 5), mat('#b98552'), 0, .13, 0, 0, 0, Math.PI / 2); return finish(g); };
+  Y.bricks = () => { const g = new THREE.Group(); for (let n = 0; n < 9; n++) put(g, box(.06, .025, .035), mat(n % 2 ? '#b8683f' : '#c8744a'), -.07 + (n % 3) * .07, .015 + Math.floor(n / 3) * .028, (Math.floor(n / 3) % 2) * .02); return finish(g); };
+  Y.display = () => { const g = new THREE.Group(); put(g, box(.24, .02, .09), mat('#8a6440'), 0, .08, 0); for (const x of [-.1, .1]) put(g, box(.015, .08, .07), mat(dark), x, .04, 0);
+    put(g, box(.04, .05, .04), glowM('#ffb35a', 1.8), -.06, .115, 0); put(g, box(.04, .04, .03), mat('#e0b070'), .02, .11, 0); put(g, box(.03, .06, .03), mat('#c8744a'), .08, .12, 0); return finish(g); };
+  Y.crates = () => { const g = new THREE.Group(); const cc = ['#b98552', '#c9a36a', '#9a6b3f']; for (let n = 0; n < 4; n++) put(g, box(.08, .07, .08), mat(cc[n % 3]), -.05 + (n % 2) * .09, .035 + Math.floor(n / 3) * .07, -.04 + (n % 3) * .04); return finish(g); };
+  Y.hitch = () => { const g = new THREE.Group(); for (const x of [-.1, .1]) put(g, box(.02, .12, .02), mat(dark), x, .06, 0); put(g, box(.24, .02, .02), mat('#8a6440'), 0, .1, 0); return finish(g); };
+  Y.barrels = () => { const g = new THREE.Group(); for (const [x, z] of [[-.05, 0], [.05, .03], [0, -.07]]){ put(g, cyl(.035, .035, .09, 8), mat('#7a5236'), x, .045, z); put(g, cyl(.037, .037, .01, 8), mat('#3b2a1c'), x, .07, z); } return finish(g); };
   function lamp(){ const g = new THREE.Group(); put(g, cyl(.01, .014, .3, 5), mat('#3b2a1c'), 0, .15, 0); put(g, box(.05, .05, .05), glowM('#ffc46a', 3), 0, .31, 0);
     put(g, cone(.045, .04, 4), mat('#2a1d14'), 0, .355, 0, Math.PI / 4); return finish(g); }
   function edge(type){ const g = new THREE.Group();
@@ -194,5 +224,5 @@ export function makeProps({ rimMat }){
     else if (type === 'wall'){ put(g, box(.94, .07, .06), mat(stone2, '#ffe0b0', .6), 0, .035, 0); put(g, box(.94, .015, .075), mat(stone, '#ffe0b0', .6), 0, .075, 0); }
     else { for (const x of [-.45, -.15, .15, .45]) put(g, box(.022, .12, .022), mat(dark), x, .06, 0); for (const y of [.05, .1]) put(g, box(.94, .016, .014), mat('#9a7048'), 0, y, 0); }
     return finish(g); }
-  return { B, Y, lamp, edge, wagon, barge, setCargo, bird, mat };
+  return { setGlow, B, Y, lamp, edge, wagon, barge, setCargo, bird, mat };
 }

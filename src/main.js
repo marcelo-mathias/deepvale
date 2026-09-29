@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { clamp, lerp, smooth, rand, hash2, fbm, ridged, fmt, store } from './core/utils.js';
-import { GW, GH, HX, HZ, WATER_Y, BED_Y, LAND_Y, WILD, LAND, WATER, idx, tileC, inGrid, riverZ,
+import { GW, GH, HX, HZ, WATER_Y, BED_Y, LAND_Y, WILD, LAND, WATER, idx, tileC, inGrid, riverZ, setRiver, randomRiver,
   NONE, HUT, ROAD, BRIDGE, WAY_I, DECK_Y, HOUSING, mouthRows, OLD_GW, OLD_GH, OLD_OFF_I, OLD_OFF_J } from './world/constants.js';
 import { B, DEFS, DEF_BY_CODE, CATS, GOODS, GOOD_IDS, RESERVE, STYLES, STYLE_IDS, PAVES, PAVE_IDS, STATUE_FX, BLUEPRINTS,
   KEEPERS, KEEPER, BOONS, BOON, SETS, SET } from './data/builds.js';
@@ -9,6 +9,8 @@ import { makeRoads } from './render/roads.js';
 import { makeProps } from './render/props.js';
 import { makeTrade } from './game/trade.js';
 import { makeTally } from './ui/tally.js';
+import { icon } from './ui/icons.js';
+import { portrait } from './ui/portraits.js';
 import { SPECIES, SP } from './data/species.js';
 import { LORE, TALE_AT, VILLAGE_NAMES } from './data/lore.js';
 import { NOISE_GLSL, RIM_FRAG, BEND_VERT, BEND_DECL } from './render/shaders.js';
@@ -18,7 +20,7 @@ import { makeWisps } from './render/wisps.js';
 import { makeVillage } from './render/village.js';
 import { initMap } from './ui/map.js';
 
-function setSound(on){ setAudio(on); document.getElementById('btnSound').textContent = on ? 'Sound on' : 'Sound off'; }
+function setSound(on){ setAudio(on); const b=document.getElementById('btnSound'); const svg=b.querySelector('svg'); b.textContent = on ? 'Sound on' : 'Sound off'; if(svg)b.prepend(svg); }
 
 /* ================= state ================= */
 // scales: shed by released fish, pay for river and building work. silver: left by pilgrims, pays fishers and upgrades.
@@ -29,7 +31,9 @@ const S={scales:20,silver:10,tiles:null,builds:null,fishers:[],hires:0,clears:0,
 let booted=false,timeScale=1;const debugSpeed={reel:1,spawn:1,trade:1,prod:1},debugFlags={frenzy:false,allHints:false};
 const tiles=new Uint8Array(GW*GH);
 const builds=new Uint8Array(GW*GH);
-const INLET=mouthRows(0),OUTLET=mouthRows(GW-1);
+let INLET=mouthRows(0),OUTLET=mouthRows(GW-1);
+// mountains around the valley: [x, z, height, spread]; new games shift them about
+let MTS=[[-20,-40,40,12.5],[-58,-10,19,10],[14,-60,24,13],[-52,-52,16,11]];
 const wildH=new Float32Array(GW*GH);
 for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){wildH[idx(i,j)]=.2+fbm(i*.41+3,j*.41+9,3)*.42;}
 function initTiles(T=tiles){
@@ -76,9 +80,23 @@ const hemi=new THREE.HemisphereLight(new THREE.Color('#a6c8d6'),new THREE.Color(
 // the giants carry their own light; at dusk it is most of the light there is
 const giantLight=new THREE.PointLight(new THREE.Color('#ffc861'),0,10,1.4);giantLight.position.set(0,-50,0);scene.add(giantLight);
 const FOG0=new THREE.Color('#d9b995'),NIGHT_FOG=new THREE.Color('#2a3446');
-const DUSK_OF={sturgeon:.45,eel:.7,moon:1,warden:1};let dusk=0,duskLvl=0,duskT=0;
-function updateDusk(dt){duskT-=dt;const target=duskT>0?duskLvl:0;dusk+=(target-dusk)*Math.min(1,dt*(target>dusk?.45:.25));
-  sun.intensity=3.4*(1-.82*dusk);hemi.intensity=1.15*(1-.62*dusk);FOG.copy(FOG0).lerp(NIGHT_FOG,dusk*.75);U.dusk.value=dusk;
+const DUSK_OF={sturgeon:.45,eel:.7,moon:1,warden:1};let dusk=0,giantDusk=0,duskLvl=0,duskT=0;
+/* ---- the day: dawn, morning, midday, golden hour, dusk, night. One day is 16 minutes of play ---- */
+const DAY_LEN=960;
+const PHASES=[[0,'Dawn'],[.08,'Morning'],[.3,'Midday'],[.5,'Golden hour'],[.68,'Dusk'],[.78,'Night'],[.97,'Dawn']];
+const SEASONS=['Spring','Summer','Autumn','Winter'];
+const phaseName=t=>{let n='Dawn';for(const [a,b] of PHASES)if(t>=a)n=b;return n;};
+// keyframes: time, sun colour, sun strength, fog colour
+const SKY=[[0,'#ffb49a',2.4,'#d9a898'],[.08,'#ffe2c0',3.3,'#dcc2a4'],[.3,'#fff2de',3.7,'#d8cdb4'],[.5,'#ffd2a1',3.4,'#d9b995'],[.68,'#ff9f6a',2.8,'#c98f78'],[.78,'#9fb2ff',1.2,'#2a3446'],[.95,'#9fb2ff',1.2,'#2a3446'],[1,'#ffb49a',2.4,'#d9a898']].map(([t,c,i,f])=>[t,new THREE.Color(c),i,new THREE.Color(f)]);
+function skyAt(t){for(let n=0;n<SKY.length-1;n++){const a=SKY[n],b=SKY[n+1];if(t>=a[0]&&t<=b[0]){const k=(t-a[0])/(b[0]-a[0]||1);return {col:a[1].clone().lerp(b[1],k),i:lerp(a[2],b[2],k),fog:a[3].clone().lerp(b[3],k)};}}return {col:SKY[0][1].clone(),i:SKY[0][2],fog:SKY[0][3].clone()};}
+const nightOf=t=>t<.68?0:t<.78?smooth(.68,.78,t)*.7:t<.95?.7:(1-smooth(.95,1,t))*.7;
+let night=0;
+function clockTick(dt){S.clock=S.clock||{t:.12,day:1};S.clock.t+=dt/DAY_LEN;if(S.clock.t>=1){S.clock.t-=1;S.clock.day++;if(booted)log(`${calendar().season} day ${calendar().dom} begins.`);}}
+function calendar(){const d=(S.clock?.day||1)-1;return {year:Math.floor(d/28)+1,season:SEASONS[Math.floor(d/7)%4],dom:d%7+1,phase:phaseName(S.clock?.t||0)};}
+function updateDusk(dt){duskT-=dt;const target=duskT>0?duskLvl:0;giantDusk+=(target-giantDusk)*Math.min(1,dt*(target>giantDusk?.45:.25));
+  const ct=S.clock?.t??.12,sk=skyAt(ct);night=nightOf(ct);dusk=Math.max(giantDusk,night);
+  sun.color.copy(sk.col);sun.intensity=sk.i*(1-.6*giantDusk);hemi.intensity=1.15*(1-.62*dusk);FOG.copy(sk.fog).lerp(NIGHT_FOG,giantDusk*.75);U.dusk.value=dusk;
+  village.setNight(night);props.setGlow(1+night*1.6);
   // the brightest glowing giant lights the water and banks around it
   let g=null;for(const f of fishes){if(!f.sp.glow||!f.sp.awe||f.state==='leave')continue;if(!g||f.sp.len>g.sp.len)g=f;}
   if(g){const vis=clamp((g.emerge-.3)/.7,0,1)*(g.state==='release'?1-Math.min(1,g.out):1);giantLight.color.set(g.sp.glow);giantLight.position.set(g.x,WATER_Y+.35,g.z);
@@ -114,10 +132,7 @@ function outerH(x,z){
   const rise=((1-Math.exp(-d*.11))*11+d*.2)*(.65+.7*fbm(x*.05,z*.05));
   h+=rise;
   // the mountain and its shoulders
-  const md=Math.hypot(x+20,(z+40)*1.1);h+=40*Math.exp(-(md*md)/(2*12.5*12.5))*(.72+.55*ridged(x*.06,z*.06));
-  const m2=Math.hypot(x+58,z+10);h+=19*Math.exp(-(m2*m2)/(2*10*10))*(.7+.6*ridged(x*.07+5,z*.07));
-  const m3=Math.hypot(x-14,z+60);h+=24*Math.exp(-(m3*m3)/(2*13*13))*(.7+.6*ridged(x*.07+9,z*.07+2));
-  const m4=Math.hypot(x+52,z+52);h+=16*Math.exp(-(m4*m4)/(2*11*11))*(.7+.6*ridged(x*.08+1,z*.08+4));
+  MTS.forEach(([mx,mz,mh,ms],n)=>{const d=Math.hypot(x-mx,(z-mz)*(n?1:1.1));h+=mh*Math.exp(-(d*d)/(2*ms*ms))*(.7+.58*ridged(x*.06+n*4,z*.06+n*2));});
   // soft terracing gives the slopes a surveyed, topographic feel
   const tq=Math.floor(h/.9)*.9;h=lerp(h,tq+smooth(0,.9,h-tq)*.9,.35);
   // the river gorge continues beyond the valley
@@ -605,7 +620,7 @@ const statueMats={stone:rimMat({color:'#a39d92'},'#ffe6c0',1),bronze:rimMat({col
 function statueFish(id){const sp=SP[id]||SP.koi;const m=new THREE.Mesh(fishGeoCache[sp.id]||(fishGeoCache[sp.id]=fishGeometry(sp)),sp.awe?statueMats.bronze:statueMats.stone);
   m.scale.setScalar(.55/sp.len*(sp.eel?1.2:1));m.castShadow=true;return m;}
 const roads=makeRoads({scene,heightAt,isRoad:(i,j)=>builds[idx(i,j)]===ROAD,paveAt:(i,j)=>S.meta[idx(i,j)]?.pave||'dirt',linkAt,tileC,GW,GH});
-const village=makeVillage({scene,rimMat,heightAt,tiles,builds,meta:()=>S.meta,emit:wisps.emit,wayX,props,isLive:k=>isLive(k),statueFish});
+const village=makeVillage({scene,rimMat,heightAt,tiles,builds,deco:()=>({corners:S.corners||{},edges:S.edges||{}}),meta:()=>S.meta,emit:wisps.emit,wayX,props,isLive:k=>isLive(k),statueFish});
 // the Ember Showa warms the water it passes through: heat spots along its body and a short fading trail, plus rising steam
 const heatTrail=[];let heatT=0;
 function updateHeat(dt){
@@ -723,7 +738,7 @@ function canDo(tool,i,j){
     const d=DEF_BY_CODE[b];const rf={};for(const [g,v] of Object.entries(d.cost||{}))rf[g]=Math.floor(v*.5);return {ok:true,refund:rf};}
   return {ok:false};
 }
-const PAINT_TOOLS=new Set(['road','pave','b:fence','b:flowers','remove']);
+const PAINT_TOOLS=new Set(['road','pave','b:fence','b:flowers','remove','e:fence','e:hedge','e:wall']);
 // work that takes a crew: clearing, digging, and anything built bigger than decor
 const JOB_TOOLS=t=>t==='clear'||t==='dig'||t==='bridge'||t==='hut'||t==='upgrade'||(t.startsWith('b:')&&!['b:fence','b:flowers'].includes(t));
 function act(tool,i,j,quiet=false){
@@ -1021,14 +1036,16 @@ function spawnTick(dt){
   const open=comps.filter(c=>(counts[c.id]||0)<Math.max(1,Math.floor(c.size/7)));if(!open.length)return;
   let tot=open.reduce((s,c)=>s+c.size,0),r=Math.random()*tot,comp=open[0];for(const c of open){r-=c.size;if(r<=0){comp=c;break;}}
   const present=new Set(fishes.map(f=>f.sp.id));
-  const elig=SPECIES.filter(s=>s.minWater<=comp.size&&comp.maxD>=s.needD&&health>=(s.minHealth||0)&&!(s.awe&&present.has(s.id)));if(!elig.length)return;
-  const wt=s=>s.w*(S.codex[s.id]?1:1.6)*(s.crew<=fishersState.length?1:.35);
+  const elig=SPECIES.filter(s=>s.minWater<=comp.size&&comp.maxD>=s.needD&&health>=(s.minHealth||0)&&(!s.night||night>.3)&&!(s.awe&&present.has(s.id)));if(!elig.length)return;
+  const wt=s=>s.w*(S.codex[s.id]?1:1.6)*(s.crew<=fishersState.length?1:.35)*(s.id==='eel'&&night>.3?2:1);
   let W=elig.reduce((a,s)=>a+wt(s),0),rr=Math.random()*W,sp=elig[0];for(const s of elig){rr-=wt(s);if(rr<=0){sp=s;break;}}
   const f=spawnFish(sp,comp);
-  if(sp.awe&&started&&!cine.fish)startCine(f);
+  if(sp.awe&&started&&!cine.fish){const last=(S.lastCine||{})[sp.id]||0;
+    if(Date.now()-last>2*3600e3)startCine(f);else{log(`The ${S.codex[sp.id]?sp.name:'something vast'} has surfaced again.`,'gold');sfx('discover');if(DUSK_OF[sp.id]){duskLvl=DUSK_OF[sp.id]*.6;duskT=14;}}}
 }
 const cine={fish:null,t:0,saved:null,phase:0};
 function startCine(f){
+  (S.lastCine||={})[f.sp.id]=Date.now();
   cine.fish=f;cine.t=0;cine.saved={t:view.t.clone(),z:view.z};
   const known=!!S.codex[f.sp.id];
   document.getElementById('bannerKick').textContent=known?'It returns':'Something vast stirs below';
@@ -1095,6 +1112,10 @@ function updateHints(dt,t){
   for(const b of birds){b.a+=b.w*dt;b.g.position.set(b.cx+Math.cos(b.a)*b.r,b.y+Math.sin(t*.7+b.ph)*.1,b.cz+Math.sin(b.a)*b.r);b.g.rotation.y=-b.a+(b.w>0?0:Math.PI);
     const fl=Math.sin(t*9+b.ph)*.5;b.g.userData.l.rotation.z=fl;b.g.userData.r.rotation.z=-fl;}
   if(stillTiles.length&&Math.random()<dt*.8){const k=stillTiles[Math.floor(Math.random()*stillTiles.length)],c=tileC(k%GW,(k/GW)|0);sparkle(c.x+rand(-.4,.4),WATER_Y+rand(.15,.4),c.z+rand(-.4,.4),Math.random()<.5?'#6fe0d0':'#b0f070');}
+  const ct=S.clock?.t||0;
+  if((ct<.1||ct>.97)&&started&&Math.random()<dt*6){const c=comps[0];if(c){const k=c.tiles[Math.floor(Math.random()*c.tiles.length)],p=tileC(k%GW,(k/GW)|0);wisps.emit(p.x+rand(-.4,.4),WATER_Y+.05,p.z+rand(-.4,.4),'mist');}}
+  if(night>.15&&started&&Math.random()<dt*10*night){const i=Math.floor(Math.random()*GW),j=Math.floor(Math.random()*GH),k=idx(i,j);
+    if(tiles[k]!==WATER&&(nb8(i,j,WATER)||nb8(i,j,WILD))){const p=tileC(i,j);sparkle(p.x+rand(-.5,.5),rand(.25,.8),p.z+rand(-.5,.5),Math.random()<.7?'#d8ff7a':'#fff0a0');}}
   hintT-=dt;if(hintT>0)return;hintT=.35;
   for(const k of hintVis){const s=secretAt[k],c=tileC(s.i,s.j),h=SECRET_TYPES[s.type].hint;
     if(h==='smoke'&&Math.random()<.8)wisps.emit(c.x+rand(-.1,.1),.9,c.z+rand(-.1,.1),'smoke');
@@ -1148,7 +1169,7 @@ function nextCrate(){
   $('crateK').textContent=c.kind==='keeper'?'Someone would like to join you':'A crate';$('crateH').textContent=`From ${c.source}`;
   $('crateR').innerHTML='';const cards=$('crateCards');cards.innerHTML='';
   c.cards.forEach((cd,n)=>{const b=document.createElement('button');b.type='button';b.className='card '+cd.type;b.style.animationDelay=(n*.12)+'s';
-    b.innerHTML=`<div class="ct">${cd.type==='keeper'?'Keeper':cd.type==='boon'?'Blessing':cd.type==='blueprint'?'Blueprint':'Silver'}</div>${cd.glyph?`<div class="cg">${cd.glyph}</div>`:''}<div class="cn">${cd.name}</div><div class="cd">${cd.desc}</div>`;
+    b.innerHTML=`<div class="ct">${cd.type==='keeper'?'Keeper':cd.type==='boon'?'Blessing':cd.type==='blueprint'?'Blueprint':'Silver'}</div>${cd.type==='keeper'?`<img class="cport" src="${portrait(cd.id)}" alt="">`:''}<div class="cn">${cd.name}</div><div class="cd">${cd.desc}</div>`;
     b.addEventListener('click',()=>pickCard(cd));cards.appendChild(b);});
   sfx('crate');
 }
@@ -1169,7 +1190,7 @@ function pickCard(cd){
 function afterKeepers(){computeEconomy();renderKeepers();updateHintVis();}
 function renderKeepers(){
   const el=$('keepers');const n=keeperSlots();let h='';
-  for(let s=0;s<n;s++){const id=S.keepers[s];h+=id?`<div class="kp" tabindex="0"><span class="kg">${KEEPER[id].glyph}</span><div class="kt"><b>${KEEPER[id].name}</b><br>${KEEPER[id].desc}</div></div>`:`<div class="kp empty" title="An empty keeper’s cottage. Hermits in the forest and crates bring keepers."></div>`;}
+  for(let s=0;s<n;s++){const id=S.keepers[s];h+=id?`<div class="kp" tabindex="0"><img class="kimg" src="${portrait(id)}" alt=""><div class="kt"><b>${KEEPER[id].name}</b><br>${KEEPER[id].desc}</div></div>`:`<div class="kp empty" title="An empty keeper’s cottage. Hermits in the forest and crates bring keepers."></div>`;}
   el.innerHTML=h;
 }
 
@@ -1200,7 +1221,7 @@ function wishEvent(kind,d={}){
   if(w.have>=w.n){log(`The village’s wish came true: ${w.text.toLowerCase()}.`,'gold');S.wishesDone++;S.wish=null;queueCrate({source:'the village, with thanks',kind:'mixed'});setTimeout(()=>{if(!S.wish)newWish();},12000);}
   renderWish();
 }
-function renderWish(){const w=S.wish;$('wish').innerHTML=w?`<span class="wk">Village wish</span> ${w.text} <span class="wn">${fmt(Math.min(w.have,w.n))}/${fmt(w.n)}</span>`:'';$('wish').hidden=!w;}
+function renderWish(){const w=S.wish;$('wish').innerHTML=w?`<div class="gl"><span class="gi">${icon('wish')}</span><div class="gt"><b>A village wish</b><span>${w.text}</span></div><span class="gn">${fmt(Math.min(w.have,w.n))}/${fmt(w.n)}</span></div>`:'';$('wish').hidden=!w;}
 
 /* ================= named sets ================= */
 function near(k,code,r,pred){const i=k%GW,j=(k/GW)|0;const out=[];for(let b=-r;b<=r;b++)for(let a=-r;a<=r;a++){const ni=i+a,nj=j+b;if(!inGrid(ni,nj)||(!a&&!b))continue;const q=idx(ni,nj);if(builds[q]===code&&(!pred||pred(q)))out.push(q);}return out;}
@@ -1209,9 +1230,9 @@ function computeSets(){
   for(let k=0;k<GW*GH;k++){const b=builds[k];if(b===NONE)continue;
     if(b===B.JETTY&&near(k,B.NETS,2).length&&near(k,B.RACK,2).length)A.harbor=true;
     if(b===B.SHOP&&near(k,B.MARKET,3).length&&near(k,B.CLAY,3).length)A.craft=true;
-    if(b===B.LANTERN&&near(k,B.LANTERN,2).length&&near(k,B.FLOWERS,2).length&&near(k,B.CHERRY,2).length)A.garden=true;
-    if(b===BRIDGE&&near(k,B.LANTERN,1).length>=2)A.lbridge=true;
-    if(b===ROAD&&S.meta[k]?.pave==='cobble'&&near(k,B.SHRINE,1).length&&near(k,B.LANTERN,2).length)A.walk=true;
+    if(b===B.FLOWERS&&lanternsNear(k,2)>=2&&near(k,B.CHERRY,2).length)A.garden=true;
+    if(b===BRIDGE&&lanternsNear(k,1)>=2)A.lbridge=true;
+    if(b===ROAD&&S.meta[k]?.pave==='cobble'&&near(k,B.SHRINE,1).length&&lanternsNear(k,2)>=1)A.walk=true;
     if(b===B.PIER){const i=k%GW,j=(k/GW)|0;if((bAt(i+1,j)===B.PIER&&bAt(i+2,j)===B.PIER)||(bAt(i,j+1)===B.PIER&&bAt(i,j+2)===B.PIER))A.row=true;}
     if(b===B.STATUE){const sp=new Set([S.meta[k]?.sp]);near(k,B.STATUE,3).forEach(q=>sp.add(S.meta[q]?.sp));if(sp.size>=3)A.statues=true;}
   }
@@ -1249,24 +1270,34 @@ function makeWorker(){const g=new THREE.Group();const coat=wCoats[workers.length
   g.traverse(o=>{if(o.isMesh)o.castShadow=true;});g.visible=false;scene.add(g);
   const w={g,arm,state:'home',job:null,path:null,seg:0,u:0,x:0,z:0,home:-1,ph:Math.random()*6};workers.push(w);return w;}
 function pathPts(tilesArr,endPt){const pts=tilesArr.map(t=>{const c=tileC(t%GW,(t/GW)|0);return {x:c.x+rand(-.15,.15),z:c.z+rand(-.15,.15)};});if(endPt)pts.push(endPt);return pts;}
+function jobGoals(k){const i=k%GW,j=(k/GW)|0,goals=new Set();if(walkable(k))goals.add(k);else for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++){if(inGrid(i+a,j+b)&&walkable(idx(i+a,j+b)))goals.add(idx(i+a,j+b));}return goals;}
+// homes a worker could set out from, nearest first (huts, then the Pilgrim Way)
+function homesFor(k){const i=k%GW,j=(k/GW)|0,hs=[];for(let q=0;q<GW*GH;q++)if(builds[q]===HUT)hs.push(q);hs.sort((a,b)=>Math.hypot(a%GW-i,((a/GW)|0)-j)-Math.hypot(b%GW-i,((b/GW)|0)-j));hs.push(idx(WAY_I,0));return hs;}
+// returns false when no one can walk there: nobody swims, so the job waits for a bridge or pier
 function sendTo(w,jb){
-  const k=jb.k,i=k%GW,j=(k/GW)|0,c=tileC(i,j);w.home=homeFor(k);
-  const start=w.state==='home'?w.home:idx(clamp(Math.floor(w.x+HX),0,GW-1),clamp(Math.floor(w.z+HZ),0,GH-1));
+  const k=jb.k,c=tileC(k%GW,(k/GW)|0),goals=jobGoals(k);let tp=null;
+  if(w.state==='home'){for(const h of homesFor(k)){tp=tilePath(h,goals);if(tp){w.home=h;break;}}}
+  else tp=tilePath(idx(clamp(Math.floor(w.x+HX),0,GW-1),clamp(Math.floor(w.z+HZ),0,GH-1)),goals);
+  if(!tp)return false;
   if(w.state==='home'){const hc=tileC(w.home%GW,(w.home/GW)|0);w.x=hc.x;w.z=hc.z+.2;w.g.visible=true;}
-  const goals=new Set();if(walkable(k))goals.add(k);else for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++){if(inGrid(i+a,j+b)&&walkable(idx(i+a,j+b)))goals.add(idx(i+a,j+b));}
-  const tp=tilePath(start,goals);const slot=jb.crew.indexOf(w);
+  const slot=jb.crew.indexOf(w);
   let end;if(tp){const last=tp[tp.length-1];const lc=tileC(last%GW,(last/GW)|0);end=last===k?{x:c.x+(slot?.22:-.22),z:c.z+(slot?-.12:.12)}:{x:lerp(lc.x,c.x,.45)+rand(-.1,.1),z:lerp(lc.z,c.z,.45)+rand(-.1,.1)};}
-  w.path=[{x:w.x,z:w.z},...(tp?pathPts(tp.slice(1,-1)):[]),end||{x:c.x,z:c.z}];w.seg=0;w.u=0;w.state='walk';w.job=jb;
+  w.path=[{x:w.x,z:w.z},...(tp?pathPts(tp.slice(1,-1)):[]),end||{x:c.x,z:c.z}];w.seg=0;w.u=0;w.state='walk';w.job=jb;return true;
 }
 function goHome(w){if(w.state==='home')return;const h=w.home>=0&&builds[w.home]===HUT?w.home:homeFor(idx(clamp(Math.floor(w.x+HX),0,GW-1),clamp(Math.floor(w.z+HZ),0,GH-1)));w.home=h;
-  const from=idx(clamp(Math.floor(w.x+HX),0,GW-1),clamp(Math.floor(w.z+HZ),0,GH-1));const tp=tilePath(from,new Set([h]));const hc=tileC(h%GW,(h/GW)|0);
+  const from=idx(clamp(Math.floor(w.x+HX),0,GW-1),clamp(Math.floor(w.z+HZ),0,GH-1));let tp=tilePath(from,new Set([h]));
+  if(!tp){for(const h2 of homesFor(from)){tp=tilePath(from,new Set([h2]));if(tp){w.home=h2;break;}}}
+  if(!tp){w.state='home';w.g.visible=false;w.job=null;return;} // no dry way back: they slip home out of sight
+  const hc=tileC(w.home%GW,(w.home/GW)|0);
   w.path=[{x:w.x,z:w.z},...(tp?pathPts(tp.slice(1,-1)):[]),{x:hc.x,z:hc.z+.2}];w.seg=0;w.u=0;w.state='back';w.job=null;}
-function workerY(x,z){const i=Math.floor(x+HX),j=Math.floor(z+HZ);if(inGrid(i,j)&&(builds[idx(i,j)]===BRIDGE||builds[idx(i,j)]===B.PIER))return DECK_Y+.022;return Math.max(heightAt(x,z),WATER_Y)-.01;}
+function workerY(x,z){return village.walkY(x,z)-.01;}
 function workTick(dt,t){
   while(workers.length<builderCount())makeWorker();
   // hand out work: two hands per job at most, oldest job first
-  for(const jb of jobs){while(jb.crew.length<2){const idle=workers.filter(w=>!w.job&&(w.state==='home'||w.state==='back'));if(!idle.length)break;
-      const c=tileC(jb.i,jb.j);idle.sort((a,b)=>Math.hypot(a.x-c.x,a.z-c.z)-Math.hypot(b.x-c.x,b.z-c.z));const w=idle[0];jb.crew.push(w);sendTo(w,jb);}}
+  for(const jb of jobs){if(jb.wait>0){jb.wait-=dt;continue;}
+    while(jb.crew.length<2){const idle=workers.filter(w=>!w.job&&(w.state==='home'||w.state==='back'));if(!idle.length)break;
+      const c=tileC(jb.i,jb.j);idle.sort((a,b)=>Math.hypot(a.x-c.x,a.z-c.z)-Math.hypot(b.x-c.x,b.z-c.z));const w=idle[0];jb.crew.push(w);
+      if(!sendTo(w,jb)){jb.crew.pop();if(!jb.crew.length){jb.blocked=true;jb.wait=4;}break;}jb.blocked=false;}}
   for(const w of workers){
     if(w.state==='walk'||w.state==='back'){const a=w.path[w.seg],b=w.path[w.seg+1];
       if(!b){if(w.state==='back'){w.state='home';w.g.visible=false;}else w.state='work';continue;}
@@ -1299,21 +1330,57 @@ function updateSite(jb){const u=jb.site?.userData;if(!u)return;const p=clamp(jb.
   if(u.posts){const h=.05+.33*Math.min(1,p*1.6);u.posts.forEach(po=>{po.scale.y=u.water?.62+h:h;});u.beams.forEach((b,n)=>{b.visible=p>.35+n*.08;b.position.y=h*.92;});}}
 function saveJobs(){return jobs.map(j=>({tool:j.tool,i:j.i,j:j.j,sp:j.sp,style:j.style,cost:j.cost}));}
 
+/* ================= corners and edges: lanterns and lamps where tiles meet, fences and walls between them ================= */
+const CORNER={lantern:{name:'Stone lantern',cost:{scales:10,clay:2},charm:3,lock:'lantern'},lamp:{name:'Lamp post',cost:{scales:4,clay:1},charm:1.5}};
+// edges: 'h i,j' runs along x between tiles (i,j-1) and (i,j); 'v i,j' runs along z between (i-1,j) and (i,j)
+function edgeTiles(key){const h=key[0]==='h',[i,j]=key.slice(1).split(',').map(Number);const a=h?[i,j-1]:[i-1,j],b=[i,j];return [a,b].filter(([x,y])=>inGrid(x,y)).map(([x,y])=>idx(x,y));}
+function lanternsNear(k,r){const i=k%GW,j=(k/GW)|0;let n=0;for(const [key,t] of Object.entries(S.corners||{})){if(t!=='lantern')continue;const [ci,cj]=key.split(',').map(Number);if(ci>=i-r&&ci<=i+r+1&&cj>=j-r&&cj<=j+r+1)n++;}return n;}
+function snapAt(p,kind){const fx=p.x+HX,fz=p.z+HZ;
+  if(kind==='c'){const ci=Math.round(fx),cj=Math.round(fz);return {kind,key:ci+','+cj,ci,cj,x:ci-HX,z:cj-HZ};}
+  const i=Math.floor(fx),j=Math.floor(fz),ax=fx-i,az=fz-j;const d=[[az,'h',i,j],[1-az,'h',i,j+1],[ax,'v',i,j],[1-ax,'v',i+1,j]].sort((a,b)=>a[0]-b[0])[0];
+  const [,o,ei,ej]=d;return {kind,key:o+ei+','+ej,x:o==='h'?ei-HX+.5:ei-HX,z:o==='h'?ej-HZ:ej-HZ+.5,dir:o};}
+const landish=q=>tiles[q]===LAND;
+function canDeco(tl,sn){const type=tl.slice(2);
+  if(sn.kind==='c'){const tt=[[-1,-1],[0,-1],[-1,0],[0,0]].map(([a,b])=>[sn.ci+a,sn.cj+b]).filter(([x,y])=>inGrid(x,y)).map(([x,y])=>idx(x,y));
+    if(!tt.some(landish))return {ok:false,why:'Needs cleared land beside it'};const cur=S.corners?.[sn.key];
+    if(CORNER[type].lock&&!unlocked(CORNER[type].lock))return {ok:false,why:'Needs a blueprint'};
+    if(cur===type)return {ok:true,remove:true};return {ok:true,cost:CORNER[type].cost,replace:!!cur};}
+  const tt=edgeTiles(sn.key);if(!tt.some(landish))return {ok:false,why:'Needs cleared land on one side'};const cur=S.edges?.[sn.key];
+  if(cur===type)return {ok:true,remove:true};return {ok:true,cost:EDGE[type].cost,replace:!!cur};}
+function actDeco(tl,sn,quiet){const r=canDeco(tl,sn);if(!r.ok){if(!quiet){log(r.why+'.','warn');sfx('no');}return;}const type=tl.slice(2),store=sn.kind==='c'?(S.corners||={}):(S.edges||={});
+  if(r.remove){if(quiet)return;delete store[sn.key];}else{if(!pay(r.cost))return;store[sn.key]=type;if(type==='lantern')wishEvent('build',{id:'lantern'});sparkle(sn.x,.3,sn.z,'#ffe9bf');}
+  sfx('build');computeEconomy();village.sync();refreshUI();if(!quiet)save();}
+const decoMark=new THREE.Group();{const m=new THREE.MeshBasicMaterial({color:'#ffe6b0',transparent:true,opacity:.85,depthTest:false,fog:false});
+  const ring=new THREE.Mesh(new THREE.RingGeometry(.07,.11,12).rotateX(-Math.PI/2),m),bar=new THREE.Mesh(new THREE.BoxGeometry(1,.02,.06),m);decoMark.add(ring,bar);decoMark.userData={ring,bar,m};decoMark.renderOrder=11;decoMark.visible=false;scene.add(decoMark);}
+function showDeco(sn,ok){decoMark.visible=true;const u=decoMark.userData;u.ring.visible=sn.kind==='c';u.bar.visible=sn.kind==='e';u.m.color.set(ok?'#ffe6b0':'#e98a5f');
+  decoMark.position.set(sn.x,Math.max(heightAt(sn.x,sn.z),LAND_Y)+.04,sn.z);decoMark.rotation.y=sn.dir==='v'?Math.PI/2:0;}
+// old saves: stone lantern tiles, plot lamps and plot edges move onto the shared corners and edges
+function migrateDeco(){S.corners=S.corners||{};S.edges=S.edges||{};
+  for(let k=0;k<GW*GH;k++){const i=k%GW,j=(k/GW)|0;
+    if(builds[k]===B.LANTERN){builds[k]=NONE;S.corners[i+','+j]='lantern';}
+    const sl=S.meta[k]?.slots;if(!sl)continue;if(sl.lamp){S.corners[(i+1)+','+(j+1)]=S.corners[(i+1)+','+(j+1)]||'lamp';delete sl.lamp;}
+    for(const [sd,t] of Object.entries(sl.edges||{})){if(!t)continue;const key=sd==='n'?'h'+i+','+j:sd==='s'?'h'+i+','+(j+1):sd==='w'?'v'+i+','+j:'v'+(i+1)+','+j;S.edges[key]=t;}delete sl.edges;}}
+
 /* ================= plots: click a building to upgrade it and dress its yard ================= */
 const UPGRADABLE=new Set([HUT,B.WOOD,B.REED,B.CLAY,B.SHOP,B.POST,B.JETTY,B.MARKET]);
-const YARDS={garden:{name:'Vegetable patch',cost:{scales:6,reeds:2},charm:1},woodpile:{name:'Woodpile',cost:{timber:4},charm:1},well:{name:'Well',cost:{scales:10,clay:3},charm:2},
+const YARDS={logs:{name:'Log pile',cost:{timber:4},charm:.5},sawhorse:{name:'Sawhorse',cost:{timber:3},charm:.5},bricks:{name:'Brick racks',cost:{clay:4},charm:.5},display:{name:'Display bench',cost:{timber:3,clay:1},charm:1},
+  crates:{name:'Crates',cost:{timber:3},charm:.5},hitch:{name:'Hitching post',cost:{timber:2},charm:.5},barrels:{name:'Barrels',cost:{timber:3},charm:.5},
+  garden:{name:'Vegetable patch',cost:{scales:6,reeds:2},charm:1},woodpile:{name:'Woodpile',cost:{timber:4},charm:1},well:{name:'Well',cost:{scales:10,clay:3},charm:2},
   tree:{name:'Shade tree',cost:{scales:8},charm:2},bench:{name:'Bench',cost:{timber:2},charm:1},planter:{name:'Planter',cost:{clay:2},charm:1}};
 const EDGE_TYPES=[null,'fence','hedge','wall'];const EDGE={fence:{name:'Fence',cost:{timber:1},charm:.5},hedge:{name:'Hedge',cost:{scales:3},charm:1},wall:{name:'Low wall',cost:{clay:1},charm:.5}};
 const LAMP={cost:{scales:4,clay:1},charm:1};
 const SIDES=[['n',0,-1],['e',1,0],['s',0,1],['w',-1,0]];
-const plottable=k=>{const b=builds[k];if(b===B.WEIR)return true;return b!==NONE&&b!==BRIDGE&&b!==B.PIER&&b!==B.REED&&tiles[k]!==WATER;};
+// decor and things found in the forest have no plot: they are the decoration
+const plottable=k=>{const b=builds[k];if(b===B.WEIR)return true;return !!YARDS_OF[b]||UPGRADABLE.has(b);};
 function plotName(k){const b=builds[k],l=LVL(k);if(b===HUT)return ['Hut','House','Longhouse'][l-1];if(b===ROAD)return (k===idx(WAY_I,0)?'The Pilgrim Way':PAVES[S.meta[k]?.pave||'dirt'].name+' road');
   const d=DEF_BY_CODE[b];return (l>1?['','Improved ','Grand '][l-1]:'')+(d?d.name:'Plot');}
 function upgInfo(k){const b=builds[k],l=LVL(k);if(!UPGRADABLE.has(b)||l>=3)return null;
   const n=S.upgrades||0,f=Math.pow(1.12,n);const base=l===1?{scales:60,timber:10}:{scales:180,timber:25,clay:8};const cost={};for(const [g,v] of Object.entries(base))cost[g]=Math.round(v*f);
   const txt=b===HUT?(l===1?'House: +2 beds':'Longhouse: +3 more beds'):b===B.POST||b===B.JETTY?`carries ×${l===1?1.5:2}`:b===B.MARKET?`prices ×${l===1?1.25:1.5}`:`output ×${l===1?1.5:2}`;
   return {cost,txt};}
-const yardsFor=k=>builds[k]===ROAD?['bench','planter','tree']:['garden','woodpile','well','tree','bench'];
+const YARDS_OF={[HUT]:['garden','woodpile','well','tree','bench'],[ROAD]:['bench','planter','tree'],[B.WOOD]:['logs','sawhorse','tree'],[B.CLAY]:['bricks','barrels'],[B.SHOP]:['display','crates','bench'],
+  [B.POST]:['crates','hitch','barrels'],[B.JETTY]:['crates','barrels'],[B.MARKET]:['crates','barrels','bench'],[B.NETS]:['barrels','tree'],[B.RACK]:['barrels','tree']};
+const yardsFor=k=>YARDS_OF[builds[k]]||[];
 const edgeAllowed=(k,side)=>{if(builds[k]!==ROAD)return true;const [,a,b]=SIDES.find(s=>s[0]===side);const i=k%GW+a,j=((k/GW)|0)+b;if(!inGrid(i,j))return true;const nb=builds[idx(i,j)];return !(nb===ROAD||nb===BRIDGE||LINKERS.has(nb));};
 let plotK=-1;
 function openPlot(k){plotK=k;$('plot').hidden=false;renderPlot();sfx('pick');}
@@ -1321,15 +1388,13 @@ function closePlot(){plotK=-1;$('plot').hidden=true;}
 function slotsOf(k){S.meta[k]=S.meta[k]||{};return (S.meta[k].slots||={edges:{}});}
 function renderPlot(){
   const k=plotK;if(k<0)return;if(!plottable(k)&&!busy.has(k)){closePlot();return;}
-  const el=$('plot'),jb=busy.get(k),sl=S.meta[k]?.slots||{edges:{}},up=upgInfo(k);let h=`<div class="ph"><b>${plotName(k)}</b>${UPGRADABLE.has(builds[k])?`<span class="lv">Lv ${LVL(k)}</span>`:''}<button type="button" class="x" data-a="close">×</button></div>`;
+  const el=$('plot'),jb=busy.get(k),sl=S.meta[k]?.slots||{edges:{}},up=upgInfo(k);const canRot=![NONE,ROAD,BRIDGE,B.PIER,B.JETTY,B.WEIR,B.REED,B.FENCE].includes(builds[k]);let h=`<div class="ph"><b>${plotName(k)}</b>${canRot?'<button type="button" class="rot" data-a="rotate" title="Rotate (R)">↻</button>':''}${UPGRADABLE.has(builds[k])?`<span class="lv">Lv ${LVL(k)}</span>`:''}<button type="button" class="x" data-a="close">×</button></div>`;
   if(builds[k]===B.WEIR){h+=`<p class="dim">${DEFS.weir.desc}</p>`;if(!jb)h+=`<button type="button" class="pu" data-a="weir"><span>Take down the weir · valley health +15, more fish come up</span><span class="ic">${costHTML(WEIR_COST)}</span></button>`;}
   if(jb)h+=`<div class="pj">${jb.tool==='upgrade'?'Upgrading':'Workers at it'} · ${Math.floor(jb.prog*100)}%<div class="ob"><i style="width:${(jb.prog*100).toFixed(0)}%"></i></div><button type="button" class="chip" data-a="cancel">Call it off (full refund)</button></div>`;
   if(!jb&&up)h+=`<button type="button" class="pu" data-a="upgrade"><span>Upgrade · ${up.txt}</span><span class="ic">${costHTML(up.cost)}</span></button>`;
   if((!jb||jb.tool==='upgrade')&&builds[k]!==B.WEIR){
-    h+=`<div class="pr"><span class="pl">Yard</span>${yardsFor(k).map(y=>`<button type="button" data-y="${y}" aria-pressed="${sl.yard===y}" title="${YARDS[y].name}: +${YARDS[y].charm} charm around it">${YARDS[y].name}</button>`).join('')}${sl.yard?'<button type="button" data-y="">clear</button>':''}</div>`;
-    h+=`<div class="pr"><span class="pl">Lamp</span><button type="button" data-a="lamp" aria-pressed="${!!sl.lamp}">${sl.lamp?'Lit':'Add a lamp'}</button><span class="dim">${sl.lamp?'':costHTML(LAMP.cost)}</span></div>`;
-    h+=`<div class="pr"><span class="pl">Edges</span>${SIDES.map(([sd])=>edgeAllowed(k,sd)?`<button type="button" data-e="${sd}" title="Click to change">${sd.toUpperCase()}: ${sl.edges?.[sd]?EDGE[sl.edges[sd]].name:'—'}</button>`:'').join('')}</div>`;
-    h+=`<div class="dim small">Charm here ${charm[k].toFixed(1)} · yards, lamps and edges add charm</div>`;}
+    if(yardsFor(k).length)h+=`<div class="pr"><span class="pl">Yard</span>${yardsFor(k).map(y=>`<button type="button" data-y="${y}" aria-pressed="${sl.yard===y}" title="${YARDS[y].name}: +${YARDS[y].charm} charm around it">${YARDS[y].name}</button>`).join('')}${sl.yard?'<button type="button" data-y="">clear</button>':''}</div>`;
+    h+=`<div class="dim small">Charm here ${charm[k].toFixed(1)} · lanterns and fences go on corners and edges (Build → Decor)</div>`;}
   el.innerHTML=h;
   el.querySelectorAll('[data-a]').forEach(b=>b.addEventListener('click',()=>plotAct(b.dataset.a)));
   el.querySelectorAll('[data-y]').forEach(b=>b.addEventListener('click',()=>plotYard(b.dataset.y)));
@@ -1337,6 +1402,7 @@ function renderPlot(){
 }
 const WEIR_COST={scales:150,timber:20};
 function plotAct(a){const k=plotK;if(a==='close'){closePlot();return;}
+  if(a==='rotate'){rotateAt(k);return;}
   if(a==='weir'){if(!pay(WEIR_COST))return;queueJob({tool:'weir',i:k%GW,j:(k/GW)|0,cost:WEIR_COST});renderPlot();refreshUI();save();return;}
   if(a==='cancel'){cancelJob(k);renderPlot();refreshUI();return;}
   if(a==='upgrade'){const up=upgInfo(k);if(!up||!pay(up.cost))return;S.upgrades=(S.upgrades||0)+1;queueJob({tool:'upgrade',i:k%GW,j:(k/GW)|0,cost:up.cost});sfx('pluck');renderPlot();refreshUI();save();return;}
@@ -1348,8 +1414,9 @@ function afterSlot(){sfx('build');buildsChanged();renderPlot();refreshUI();save(
 function positionPlot(){if(plotK<0)return;const c=tileC(plotK%GW,(plotK/GW)|0);const p=toScreen(c.x,.3,c.z);const el=$('plot');
   const w=el.offsetWidth,h=el.offsetHeight;let l=p.x+30,t=p.y-h/2;if(l+w>innerWidth-12)l=p.x-w-30;el.style.left=Math.max(12,l)+'px';el.style.top=clamp(t,70,innerHeight-h-90)+'px';}
 function slotCharm(){for(let k=0;k<GW*GH;k++){const sl=S.meta[k]?.slots;if(!sl||builds[k]===NONE)continue;
-  if(sl.yard&&YARDS[sl.yard])spread(k,1,q=>charm[q]+=YARDS[sl.yard].charm);if(sl.lamp)spread(k,1,q=>charm[q]+=LAMP.charm);
-  for(const e of Object.values(sl.edges||{}))if(e)charm[k]+=EDGE[e].charm;}}
+  if(sl.yard&&YARDS[sl.yard])spread(k,1,q=>charm[q]+=YARDS[sl.yard].charm);}
+  for(const [key,t] of Object.entries(S.corners||{})){const [ci,cj]=key.split(',').map(Number);for(const [a,b] of [[-1,-1],[0,-1],[-1,0],[0,0]])if(inGrid(ci+a,cj+b))charm[idx(ci+a,cj+b)]+=CORNER[t].charm;}
+  for(const [key,t] of Object.entries(S.edges||{})){for(const q of edgeTiles(key))charm[q]+=EDGE[t].charm;}}
 
 /* ================= camera ================= */
 let tween=null;
@@ -1422,7 +1489,8 @@ canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);
   drag={x:e.clientX,y:e.clientY,moved:0,btn:e.button,pinch:pointers.size===2?pinchDist():0,zoom:view.z,paint:started&&e.button===0&&PAINT_TOOLS.has(tool)&&e.pointerType!=='touch'&&!selected,painted:new Set()};
   if(drag.paint)paintAt(e.clientX,e.clientY);});
 // paint tools (roads, paving, fences, flowers, remove) lay a line of tiles as you drag
-function paintAt(cx,cy){const p=groundAt(cx,cy);if(!p)return;const i=Math.floor(p.x+HX),j=Math.floor(p.z+HZ);if(!inGrid(i,j))return;const k=idx(i,j);
+function paintAt(cx,cy){const p=groundAt(cx,cy);if(!p)return;
+  if(tool.startsWith('e:')){const sn=snapAt(p,'e');if(drag.painted.has(sn.key))return;drag.painted.add(sn.key);actDeco(tool,sn,drag.painted.size>1);hover(cx,cy);return;}const i=Math.floor(p.x+HX),j=Math.floor(p.z+HZ);if(!inGrid(i,j))return;const k=idx(i,j);
   if(drag.painted.has(k))return;drag.painted.add(k);
   if(tool==='road'&&builds[k]===ROAD&&drag.painted.size>1)return; // dragging over roads never lifts them
   act(tool,i,j,drag.painted.size>1);hover(cx,cy);}
@@ -1440,6 +1508,7 @@ canvas.addEventListener('pointermove',e=>{
 canvas.addEventListener('pointerup',e=>{pointers.delete(e.pointerId);
   if(drag&&drag.paint&&drag.painted.size)save();
   else if(drag&&drag.moved<=6&&drag.btn===0&&started){click(e.clientX,e.clientY);}
+  else if(drag&&drag.moved<=6&&drag.btn===2&&started){setTool('look');$('drawer').hidden=true;closePlot();selected=null;selRing.visible=false;updateMarks();}
   if(!pointers.size)drag=null;});
 canvas.addEventListener('pointerleave',()=>{ptrIn=false;tip.style.display='none';hoverLoop.visible=false;hovered=null;setPreview([]);updateCard();});
 canvas.addEventListener('wheel',e=>{e.preventDefault();view.z=clamp(view.z*Math.exp(e.deltaY*.0012),ZMIN,ZMAX);cancelAuto();},{passive:false});
@@ -1452,6 +1521,7 @@ addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('button')&&
   if(k==='q'||k==='escape'){setTool('look');pinned=null;updateCard();}
   if(e.target.closest&&e.target.closest('input'))return;
   const T={'1':'clear','2':'dig','3':'hire','4':'hut','5':'road','6':'bridge','x':'remove'};if(T[k])setTool(T[k]);
+  if(k==='r')rotateAt(plotK>=0?plotK:hoverK);
   if(k==='b')toggleDrawer();if(k==='t')toggleTrade();if(k==='`'||k==='f9')toggleDebug();
   if(k==='escape'){$('drawer').hidden=true;$('trade').hidden=true;closePlot();}
   if(k==='c')toggleCodex();if(k==='m')regionMap.toggle();if(k==='='||k==='+')view.z=clamp(view.z/1.2,ZMIN,ZMAX);if(k==='-')view.z=clamp(view.z*1.2,ZMIN,ZMAX);});
@@ -1544,6 +1614,9 @@ function vehicleLine(v){const nm=v.kind==='wagon'?'Wagon':'Barge';
   if(v.state==='out')return `${nm} on its way out · ${trade.load(v)} goods`;
   if(v.state==='away')return `${nm} away ${v.kind==='wagon'?'up the Way':'downriver'} · back in ${Math.ceil(v.t)}s`;
   return `${nm} coming home`;}
+let hoverK=-1;
+function rotateAt(k){if(k<0||!inGrid(k%GW,(k/GW)|0))return;const b=builds[k];if(b===NONE||b===ROAD||b===BRIDGE||b===B.PIER||b===B.JETTY||b===B.WEIR||b===B.REED||b===B.FENCE)return;
+  S.meta[k]={...(S.meta[k]||{})};S.meta[k].rot=((S.meta[k].rot??-1)+1)%4;village.sync();sfx('pluck');save();}
 function hover(cx,cy){
   lastPtr={x:cx,y:cy};ptrIn=true;
   const p=groundAt(cx,cy);if(!p){hoverLoop.visible=false;tip.style.display='none';return;}
@@ -1551,10 +1624,13 @@ function hover(cx,cy){
   hovered=cine.fish?null:pickFish(cx,cy);canvas.style.cursor=hovered?'pointer':'crosshair';
   let html='';
   if(!inGrid(i,j)){hoverLoop.visible=false;setPreview([]);}
-  else{const c=tileC(i,j),k=idx(i,j),t=tiles[k],b=builds[k];hoverLoop.visible=true;
+  else{const c=tileC(i,j),k=idx(i,j),t=tiles[k],b=builds[k];hoverLoop.visible=true;hoverK=k;
     hoverLoop.position.set(c.x,(t===WATER?(b===BRIDGE?DECK_Y:WATER_Y):heightAt(c.x,c.z))+.03,c.z);
-    const useTool=selected?'move':tool;
-    if(useTool!=='look'){const r=canDo(useTool,i,j),cur=COST[useTool]||'scales';
+    const useTool=selected?'move':tool;decoMark.visible=false;
+    if(useTool.startsWith('c:')||useTool.startsWith('e:')){hoverLoop.visible=false;setPreview([]);const sn=snapAt(p,useTool[0]),r=canDeco(useTool,sn);showDeco(sn,r.ok&&(!r.cost||afford(r.cost)));
+      const nm=useTool[0]==='c'?CORNER[useTool.slice(2)].name:EDGE[useTool.slice(2)].name;
+      html=`<div>${r.remove?'Remove '+nm.toLowerCase():nm}${r.ok&&r.cost?' · '+costHTML(r.cost):''}</div>`+(r.ok?`<div class="dim">${useTool[0]==='c'?'Snaps to the corner where tiles meet':'Snaps to the edge between tiles · drag to draw a line'}</div>`:`<div class="bad">${r.why}</div>`);}
+    else if(useTool!=='look'){const r=canDo(useTool,i,j),cur=COST[useTool]||'scales';
       const cobj=r.cost||r.refund||(r.c?{[cur]:r.c}:null);
       hoverLoop.material.color.set(r.ok&&(!cobj||r.refund||afford(cobj))?(useTool==='remove'?'#e9a07a':'#ffe6b0'):'#e98a5f');
       const names={clear:'Clear land',dig:r.restore?'Restore the old channel':'Dig a new channel',hire:'Hire fisher',move:'Move fisher here',hut:r.restyle?`Restyle as ${STYLES[S.hutStyle].name.toLowerCase()}`:`Build a ${STYLES[S.hutStyle].name.toLowerCase()} hut`,road:r.lift?'Lift this road':'Lay road',bridge:'Build a bridge',pave:`Pave with ${PAVES[S.pave].name.toLowerCase()}`,remove:'Remove',scout:'Send a crow'};
@@ -1563,7 +1639,7 @@ function hover(cx,cy){
       if(useTool==='dig'&&r.ok)html+=`<div class="dim">Water only lives if the current runs through it</div>`;
       if(useTool==='clear'&&r.ok)html+=`<div class="dim">+${3+(has('garrow')?3:0)} timber</div>`;
       const pv=r.ok?previewFor(useTool,i,j):null;setPreview(pv?pv.marks:[]);if(pv?.sum)html+=`<div class="pvs">${pv.sum}</div>`;}
-    else if(busy.has(k)){const jb=busy.get(k);hoverLoop.material.color.set('#ffe6b0');setPreview([]);html=`<div>${jb.tool==='clear'?'Clearing':jb.tool==='dig'?'Digging':jb.tool==='upgrade'?'Upgrading':'Building'} · ${Math.floor(jb.prog*100)}%</div><div class="dim">${jb.crew.length?jb.crew.length+' at work':'Waiting for free hands'} · click for details</div>`;}
+    else if(busy.has(k)){const jb=busy.get(k);hoverLoop.material.color.set('#ffe6b0');setPreview([]);html=`<div>${jb.tool==='clear'?'Clearing':jb.tool==='dig'?'Digging':jb.tool==='upgrade'?'Upgrading':'Building'} · ${Math.floor(jb.prog*100)}%</div><div class="${jb.blocked?'bad':'dim'}">${jb.blocked?'No dry way there: needs a bridge or pier':jb.crew.length?jb.crew.length+' at work':'Waiting for free hands'} · click for details</div>`;}
     else{hoverLoop.material.color.set('#ffe6b0');setPreview([]);const d=DEF_BY_CODE[b];
       if(b===HUT){const lk=linkedHuts().some(h=>h.k===k),vn=S.hutVillage[k],v=villages.find(v=>v.name===vn),st=STYLES[S.meta[k]?.style||'thatch'].name;
         html=`<div>${vn?`A ${st.toLowerCase()} hut in ${vn}`:`A ${st.toLowerCase()} hut`} · houses ${HOUSING} fishers</div><div class="${lk?'dim':'bad'}">${lk?'Pilgrims visit by the Way':'Not joined to the Pilgrim Way'}</div>`+
@@ -1602,9 +1678,10 @@ function click(cx,cy){
   if(tool==='look'){if(!inGrid(i,j)){closePlot();return;}const on=fishersOn(i,j).filter(f=>f.state==='idle');
     if(on.length){closePlot();selected=on[on.length-1];selRing.visible=true;updateMarks();log('Pick a spot at the water’s edge, or a bridge, for this fisher.');return;}
     const k=idx(i,j);if(plottable(k)||busy.has(k))openPlot(k);else closePlot();return;}
+  if(tool.startsWith('c:')||tool.startsWith('e:')){actDeco(tool,snapAt(p,tool[0]));hover(cx,cy);return;}
   act(tool,i,j);hover(cx,cy);
 }
-function setTool(t){tool=t;selected=null;selRing.visible=false;setPreview([]);tip.style.display='none';
+function setTool(t){tool=t;decoMark.visible=false;selected=null;selRing.visible=false;setPreview([]);tip.style.display='none';
   document.querySelectorAll('.tool').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===t||(b.dataset.tool==='build'&&(t.startsWith('b:')||t==='pave'||t==='scout')))));
   document.querySelectorAll('#drawer .item').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===t)));updateMarks();}
 document.querySelectorAll('.tool').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.tool==='build'){toggleDrawer();return;}setTool(b.dataset.tool);}));
@@ -1642,6 +1719,7 @@ function updateLabels(){
 const villageLbl=new Map();
 function incomeRate(){const now=Date.now();S.income=S.income.filter(([t])=>now-t<15*60e3);if(!S.income.length)return 0;
   const span=Math.max(120e3,now-S.income[0][0]);return S.income.reduce((s,[,v])=>s+v,0)/(span/60e3);}
+function nextGoalTitle(){const sp=SPECIES.find(s=>!S.codex[s.id]);return !sp?'The whole river':sp.crew<=2?'Meet the '+sp.name:'Something larger';}
 function nextGoal(){
   const sp=SPECIES.find(s=>!S.codex[s.id]);if(!sp)return 'Every fish of the valley has been met. Keep listening: there are tales still untold.';
   const best=comps.reduce((a,c)=>c.size>a.size?c:a,{size:0,maxD:0});const parts=[];
@@ -1659,11 +1737,17 @@ function refreshUI(){
   $('scales').textContent=fmt(S.scales);$('silver').textContent=fmt(S.silver);
   const r=incomeRate(),sr=silverIncomeRate(),lh=linkedHuts().length;
   $('rate').textContent=`${r>0?`~${r<10?r.toFixed(1):fmt(r)} scales / min`:'No fish met yet'} · ${sr>0?`~${sr<10?sr.toFixed(1):fmt(sr)} silver / min from trade`:'no trade yet'}`;
-  $('housing').textContent=`${fishersState.length} / ${housing()} fishers housed · ${hutCount()} hut${hutCount()>1?'s':''}${lh<hutCount()?` (${lh} on the Way)`:''} · ${allTales()} tale${allTales()===1?'':'s'} told · ${workers.filter(w=>w.job).length}/${builderCount()} builders busy${jobs.length>workers.filter(w=>w.job).length?`, ${jobs.filter(j=>!j.crew.length).length} waiting`:''}`;
-  $('health').innerHTML=`Valley health <b>${health}</b><span class="hb"><i style="width:${health}%"></i></span>`;$('health').title=`River restored ${healthParts.river.toFixed(0)}/35 · forest kept ${healthParts.forest.toFixed(0)}/30 · backwaters ${healthParts.wetland.toFixed(0)}/20 · weir ${healthParts.weir}/15. The Moonscale needs 50, the Warden 70.`;
-  $('goods').innerHTML=GOOD_IDS.map(g=>{const rt=goodRate(g);return `<span class="gd" title="${GOODS[g].name}${rt?` · +${rt.toFixed(1)} / min`:''}"><i style="background:${GOODS[g].col}"></i>${fmt(S.goods[g]||0)}<em>${GOODS[g].name.toLowerCase()}</em></span>`;}).join('');
-  const tl=tideWindow()-(Date.now()-S.tide.t);$('tide').hidden=!(S.tide.n>0&&tl>0);if(S.tide.n>0&&tl>0)$('tide').innerHTML=`Good tide <b>×${(1+TIDE_STEP*S.tide.n).toFixed(2)}</b><span class="tb"><i style="width:${(tl/tideWindow()*100).toFixed(0)}%"></i></span>`;
-  const g=nextGoal();if(g!==lastGoal){$('goal').innerHTML=g;lastGoal=g;}
+  $('housing').textContent=`${fishersState.length} / ${housing()} fishers housed · ${hutCount()} hut${hutCount()>1?'s':''}${lh<hutCount()?` (${lh} on the Way)`:''}`;
+  const cal=calendar();$('calY').textContent='Year '+cal.year;$('calS').textContent=cal.season;$('calD').textContent=cal.dom;$('calP').textContent=cal.phase;
+  $('stSub').textContent=(villages[0]?villages[0].name:'A valley on the Pilgrim Way')+' · '+(night>.3?'night falls':cal.phase.toLowerCase());
+  $('talesN').textContent=String(allTales()).padStart(2,'0');
+  const busyW=workers.filter(w=>w.job).length,waiting=jobs.filter(j=>!j.crew.length).length;
+  $('builders').innerHTML=barRow('builders','Builders',`${busyW}/${builderCount()}${waiting?` · ${waiting} waiting`:''}`,builderCount()?busyW/builderCount():0,'#c9a36a');
+  $('health').innerHTML=barRow('health','Valley health',health+' / 100',health/100,'#9fd68a');$('health').title=`River restored ${healthParts.river.toFixed(0)}/35 · forest kept ${healthParts.forest.toFixed(0)}/30 · backwaters ${healthParts.wetland.toFixed(0)}/20 · weir ${healthParts.weir}/15. The Moonscale needs 50, the Warden 70.`;
+  $('goods').innerHTML=GOOD_IDS.map(g=>{const rt=goodRate(g);return `<span class="gd" title="${GOODS[g].name}${rt?` · +${rt.toFixed(1)} / min`:''}" style="--gc:${GOODS[g].col}">${icon(g)}<b>${fmt(S.goods[g]||0)}</b><em>${GOODS[g].name.toLowerCase()}</em></span>`;}).join('');
+  const tl=tideWindow()-(Date.now()-S.tide.t),tOn=S.tide.n>0&&tl>0;$('tide').innerHTML=barRow('tide','Good tide',tOn?'×'+(1+TIDE_STEP*S.tide.n).toFixed(2):'—',tOn?tl/tideWindow():0,'#8fdcc0');
+  renderOrdersGoal();
+  const g=nextGoal();if(g!==lastGoal){$('goal').innerHTML=`<div class="gl"><span class="gi">${icon('fish')}</span><div class="gt"><b>${nextGoalTitle()}</b><span>${g}</span></div></div>`;lastGoal=g;}
   for(const t of ['clear','dig','hire','hut','road','bridge']){const c=cost[t]();$('c-'+t).textContent=fmt(c);$('tool-'+t).classList.toggle('poor',S[COST[t]]<c);}
   $('cLine').textContent=fmt(cost.line());$('cBait').textContent=fmt(cost.bait());$('lvLine').textContent='Lv '+S.lineLv;$('lvBait').textContent='Lv '+S.baitLv;
   $('upLine').disabled=S.silver<cost.line();$('upBait').disabled=S.silver<cost.bait();
@@ -1672,6 +1756,8 @@ function refreshUI(){
   if(!$('trade').hidden)renderTrade();
   if(!$('drawer').hidden)updateDrawerCosts();
 }
+function barRow(ic,label,val,frac,col){return `<span class="bi" style="color:${col}">${icon(ic)}</span><span class="bl">${label}</span><span class="bv">${val}</span><span class="bt"><i style="width:${(clamp(frac,0,1)*100).toFixed(0)}%;background:${col}"></i></span>`;}
+function renderOrdersGoal(){const os=(S.orders||[]).slice(0,2);const h=os.map(o=>`<div class="gl"><span class="gi">${icon('order')}</span><div class="gt"><b>${o.regionName}</b><span>Send ${o.qty} ${GOODS[o.good].name.toLowerCase()} by ${o.route==='north'?'wagon':'barge'}</span></div><span class="gn">${o.got}/${o.qty}</span></div>`).join('');if($('goalOrders').innerHTML!==h)$('goalOrders').innerHTML=h;}
 function silverIncomeRate(){const now=Date.now();S.sIncome=S.sIncome.filter(([t])=>now-t<15*60e3);if(!S.sIncome.length)return 0;
   const span=Math.max(180e3,now-S.sIncome[0][0]);return S.sIncome.reduce((s,[,v])=>s+v,0)/(span/60e3);}
 
@@ -1688,7 +1774,9 @@ function drawerItems(){
     return it;}
   const it=[];
   if(drawerTab==='work')it.push({tool:'scout',key:'scout',name:'Send a crow',desc:'Scouts a spot with a sign above the trees and finds what is there, without cutting the forest.',cost:{silver:10}});
-  for(const [id,d] of Object.entries(DEFS)){if(d.cat!==drawerTab)continue;
+  if(drawerTab==='decor'){for(const [id,c] of Object.entries(CORNER))it.push({tool:'c:'+id,key:'c'+id,name:c.name,desc:c.lock&&!unlocked(c.lock)?'Needs a blueprint.':`Goes on a corner where tiles meet. +${c.charm} charm to the tiles around it.`,lock:!!(c.lock&&!unlocked(c.lock)),cost:c.cost});
+    for(const [id,e] of Object.entries(EDGE))it.push({tool:'e:'+id,key:'e'+id,name:e.name,desc:`Goes on the edge between two tiles. Drag to draw a line. +${e.charm} charm to both tiles.`,cost:e.cost,paint:true});}
+  for(const [id,d] of Object.entries(DEFS)){if(d.cat!==drawerTab||id==='lantern'||id==='fence')continue;
     if(id==='statue'){const met=SPECIES.filter(s=>S.codex[s.id]);
       if(!met.length)it.push({tool:'b:statue',key:'statue',name:'Fish statue',desc:'Meet a fish first. Statues are carved after fish you have met.',lock:true});
       for(const sp of met)it.push({tool:'b:statue',key:'statue:'+sp.id,name:`${sp.name} statue`,desc:`Nearby, ${STATUE_FX[sp.id].txt}. +4 charm.`,cost:buildCost('statue'),on:()=>{S.statueSp=sp.id;},sel:()=>tool==='b:statue'&&S.statueSp===sp.id});
@@ -1810,6 +1898,7 @@ function toggleDebug(){if(!DEBUG_OK)return;const d=$('debug');d.hidden=!d.hidden
 function renderDebug(){
   const d=$('debug');const spOpts=SPECIES.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
   d.innerHTML=`<div class="dh">Debug <span class="dim">(\` to close)</span></div>
+  <div class="dg"><span>Clock</span>${[["Dawn",.01],["Midday",.35],["Golden",.55],["Dusk",.7],["Night",.82]].map(([n,v])=>`<button type="button" data-clock="${v}">${n}</button>`).join("")}</div>
   <div class="dg"><span>Time</span>${[1,2,4,8,16].map(n=>`<button type="button" data-ts="${n}" aria-pressed="${timeScale===n}">×${n}</button>`).join('')}</div>
   <div class="dg"><button type="button" data-a="frenzy" aria-pressed="${debugFlags.frenzy}">Fish frenzy</button><button type="button" data-a="hints" aria-pressed="${debugFlags.allHints}">Show all hints</button></div>
   <div class="dg"><span>Give</span><button type="button" data-a="scales">+1k scales</button><button type="button" data-a="silver">+1k silver</button><button type="button" data-a="goods">+100 goods</button><button type="button" data-a="rich">+100k all</button></div>
@@ -1818,6 +1907,7 @@ function renderDebug(){
   <div class="dg"><span>World</span><button type="button" data-a="clear">Clear 9×9 at view</button><button type="button" data-a="find">Find all secrets</button><button type="button" data-a="fishers">+6 fishers</button></div>
   <div class="dg"><span>Trade</span><button type="button" data-a="ship">Send vehicles now</button><button type="button" data-a="back">Bring them home</button><button type="button" data-a="wish">Grant wish</button><button type="button" data-a="tide">Tide ×1.5</button><button type="button" data-a="work">Finish all work</button></div>
   <div class="dg"><button type="button" data-a="reset" class="warn">${resetArm?'Click again: wipe save':'Reset save'}</button></div>`;
+  d.querySelectorAll('[data-clock]').forEach(b=>b.addEventListener('click',()=>{S.clock.t=+b.dataset.clock;}));
   d.querySelectorAll('[data-ts]').forEach(b=>b.addEventListener('click',()=>{timeScale=+b.dataset.ts;renderDebug();}));
   d.querySelectorAll('[data-a]').forEach(b=>b.addEventListener('click',()=>debugAct(b.dataset.a)));
 }
@@ -1849,9 +1939,26 @@ function debugAct(a){
   computeEconomy();renderDrawer();refreshUI();renderDebug();save();
 }
 
+/* ---- icons on the toolbar and chips ---- */
+{const T={look:'look',clear:'clear',dig:'dig',hire:'hire',hut:'hut',road:'road',bridge:'bridge',build:'build',remove:'remove'};
+  document.querySelectorAll('.tool').forEach(b=>{const n=T[b.dataset.tool];if(n)b.insertAdjacentHTML('afterbegin',`<span class="ti">${icon(n)}</span>`);});
+  $('upLine').insertAdjacentHTML('afterbegin',`<span class="ti">${icon('line')}</span>`);$('upBait').insertAdjacentHTML('afterbegin',`<span class="ti">${icon('bait')}</span>`);
+  for(const [id,n] of [['btnTrade','trade'],['btnCodex','codex'],['btnMap','map'],['btnSound','sound']])$(id).insertAdjacentHTML('afterbegin',icon(n));
+  $('coinSc').insertAdjacentHTML('afterbegin',icon('scales'));$('coinSv').insertAdjacentHTML('afterbegin',icon('silver'));
+  $('emb').innerHTML=icon('fish','big');$('goalsIc').innerHTML=icon('wish');
+  document.querySelectorAll('.tool').forEach(b=>{const k=b.querySelector('kbd');if(k)b.title=`${b.querySelector('.tn').textContent} (${k.textContent})`;});
+  $('goals').querySelector('h3').addEventListener('click',()=>{$('goals').classList.toggle('collapsed');store.set('deepvale-goals',$('goals').classList.contains('collapsed')?'1':'');});
+  if(store.get('deepvale-goals'))$('goals').classList.add('collapsed');}
+
 /* ================= boot ================= */
 const loaded=load();
-if(!loaded){initTiles();initBuilds();}
+// the valley's shape: saved games keep theirs (old saves the original valley); new games roll one from a seed
+function applyMap(map){if(!map)return;setRiver(map.river);MTS=map.mts;INLET=mouthRows(0);OUTLET=mouthRows(GW-1);}
+function rollMap(seed){let s=seed>>>0||1;const R=()=>(s=(s*1664525+1013904223)>>>0)/4294967296;
+  return {seed,river:randomRiver(seed),mts:[[-32+R()*24,-42+R()*6,34+R()*12,11+R()*3],[-60+R()*10,-14+R()*10,16+R()*6,9+R()*2],[4+R()*20,-62+R()*8,20+R()*8,12+R()*2],[-56+R()*10,-54+R()*8,14+R()*6,10+R()*2]]};}
+if(loaded)applyMap(S.map);
+else{const pend=+store.get('deepvale-nextmap')||0;S.map=rollMap(pend||1+Math.floor(Math.random()*999999));store.set('deepvale-nextmap','');applyMap(S.map);S.seed=S.map.seed;initTiles();initBuilds();}
+$('valleyNo').textContent=S.map?`Valley no. ${S.map.seed}`:'The first valley';$('reroll').hidden=loaded;
 {const p=parseInt(store.get('deepvale-pix'));if([2,3,4].includes(p)){PIX=p;$('btnPix').textContent='Pixels ×'+PIX;}}
 initSecrets();
 buildTerrain(false);scatterOuter();updateTrees();analyzeWater();computeVillages();computeEconomy();village.sync();trade.sync();trade.topUpOrders();updateHintVis();
@@ -1862,13 +1969,15 @@ else{const spot=[];for(let j=0;j<GH;j++)for(let i=0;i<GW;i++)if(standable(i,j)&&
 // a few fish already in the river
 {const main=comps.reduce((a,c)=>c.size>a.size?c:a,comps[0]);if(main){for(let n=0;n<4;n++)spawnFish(n<3?SP.reed:SP.koi,main,{emerge:false});}}
 if(!S.weirGone&&!builds.includes(B.WEIR))placeWeir();
+migrateDeco();
 computeEconomy();roads.sync();updateLilies();
 booted=true;
 // work that was still going when the valley was closed gets finished while you were away
 if(loaded&&Array.isArray(S.jobs)){const js=S.jobs;S.jobs=[];for(const jb of js){if(inGrid(jb.i,jb.j))applyJob({...jb,quiet:true});}}
-if(loaded)offlineGain(Date.now()-S.t);
+if(loaded){const away=Math.min(8*3600e3,Date.now()-S.t)/1000;if(away>0&&S.clock){S.clock.t+=away/DAY_LEN;S.clock.day+=Math.floor(S.clock.t);S.clock.t%=1;}offlineGain(Date.now()-S.t);}
 resize();renderCodex();refreshUI();updateMarks();renderKeepers();renderWish();
 if(!S.wish)setTimeout(()=>{if(!S.wish)newWish();},loaded?4000:30000);
+$('reroll').addEventListener('click',()=>{store.set('deepvale-nextmap',String(1+Math.floor(Math.random()*999999)));removeEventListener('pagehide',save);location.reload();});
 $('enter').addEventListener('click',()=>{started=true;$('intro').classList.add('gone');setSound(true);
   tweenTo({x:0,y:0,z:-2},innerWidth<700?24:32,5.5);
   if(!loaded||S.first){S.first=false;setTimeout(()=>log('Your fisher waits at the bank with a barbless line. Every fish met here is let go again.'),5200);
@@ -1884,7 +1993,7 @@ const clock=new THREE.Clock();let saveT=0,uiT=0;
 function simStep(dt,t){
   for(const f of fishes.slice()){updateFish(f,dt);updateFight(f,dt);}
   hookTimer+=dt;if(hookTimer>.5){hookTimer=0;hookCheck();}
-  spawnTick(dt);pilgrimTick(dt);productionTick(dt);trade.update(dt,t);village.update(dt,t);workTick(dt,t);
+  clockTick(dt);spawnTick(dt);pilgrimTick(dt);productionTick(dt);trade.update(dt,t);village.update(dt,t);workTick(dt,t);
 }
 function frame(){
   const dt=Math.min(.1,clock.getDelta());U.time.value+=dt;const t=U.time.value;
@@ -1904,4 +2013,4 @@ function frame(){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-if (import.meta.env.DEV) window.__dv={S,fishes,fishersState,spawnFish,SP,comps:()=>comps,view,tweenTo,startCine,tiles,builds,FLOW,act,worldChanged,buildsChanged,refreshUI,pickFish,toScreen,setTool,hookCheck,trade,secrets:()=>secrets,queueCrate,debugAct,canDo,villages:()=>villages,producers:()=>producers,activeSets:()=>activeSets,setTimeScale:n=>{timeScale=n;},hintVis,newWish,linkedOf,tally,sfx,simStep,jobs,workers,openPlot};
+if (import.meta.env.DEV) window.__dv={S,fishes,fishersState,spawnFish,SP,comps:()=>comps,view,tweenTo,startCine,tiles,builds,FLOW,act,worldChanged,buildsChanged,refreshUI,pickFish,toScreen,setTool,hookCheck,trade,secrets:()=>secrets,queueCrate,debugAct,canDo,villages:()=>villages,producers:()=>producers,activeSets:()=>activeSets,setTimeScale:n=>{timeScale=n;},hintVis,newWish,linkedOf,tally,sfx,simStep,jobs,workers,openPlot,snapAt:(p,k)=>snapAt(p,k),actDeco:(t,s)=>actDeco(t,s),corners:()=>S.corners,edges:()=>S.edges};

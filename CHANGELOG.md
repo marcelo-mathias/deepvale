@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.0 — days, homes and a new face
+
+- A new look for the interface: engraved dark panels with gold hairlines, and parchment for documents. A status cluster with the calendar (year, season, day, time of day), scales, silver, valley health, good tide and builders as bars, and tales told. Goods as chips. A tracked goals card (next fish, village wish, two orders) that folds away. Line icons on the toolbar, chips and goods.
+- Pixel-art portraits for all fourteen keepers, in their slots and on crate cards
+- Day and night: a 16-minute day (dawn, morning, midday, golden hour, dusk, night), 7-day seasons, 4 seasons a year. Morning mist on the river, fireflies at dusk, lit windows and lamps at night. The Moonscale Koi only surfaces at night; the Lantern Eel comes more often then.
+- Houses have their own shapes and surfaces: thatch (plank walls, round straw roof, flower box), cedar (log walls, steep shingled A-frame, stone chimney), stilt (reed walls on posts, porch and ladder), lacquer (white plaster in a timber frame, red tiled roof with upturned eaves, door lanterns). Upgrades add a wing, then a second one.
+- Trade and work buildings grow piece by piece: a market gets a second and third stall, crates, barrels and a string of lanterns; the trading post, jetty, workshop, woodcutter, clay pit and reed bed each gain their own additions
+- Stone lanterns and lamp posts go on corners where tiles meet; fences, hedges and low walls go on the edges between tiles (drag to draw a line). Old lantern tiles and plot lamps and edges move onto them.
+- Plot panels only offer what fits the building: homes get gardens and wells, a woodcutter a log pile and sawhorse, a clay pit brick racks, a market crates and barrels. Decor has no panel.
+- Rotate buildings with R or the ↻ button
+- Right-click cancels the current tool
+- Giant sightings play the full cinematic the first time, then only if two hours have passed
+- Workers never walk on water: a job across the river waits for a bridge or pier ("No dry way there")
+- Ramps at the ends of bridges, and a smooth step onto decks, so walkers no longer drop and pop at the banks
+- Random starting valleys: new games roll the river's course and the mountains from a seed ("Valley no. …", with "Another valley" on the intro screen). Saved games keep their valley.
+- Debug: jump the clock to dawn, midday, golden hour, dusk or night
+
 ## 0.5.0 — the river remembers
 
 - Restoration: the valley was damaged, and the river used to be wider. Its old beds show as dry, sunken strips of scrub beside the river. Digging them out costs 40% of a new channel ("Restore the old channel"); one runs close beside the main river, so restoring it and the strip between opens a reach wide enough for the Warden.
