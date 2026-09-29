@@ -4,7 +4,7 @@ import { GW, GH, WATER, HUT, ROAD, BRIDGE, WAY_I, DECK_Y, WATER_Y, BED_Y, HZ, id
 import { B, DEF_BY_CODE, STYLES } from '../data/builds.js';
 import { makeHouses } from './houses.js';
 
-export function makeVillage({ scene, rimMat, heightAt, tiles, builds, deco, meta, emit, wayX, props, isLive, statueFish }){
+export function makeVillage({ scene, rimMat, heightAt, tiles, builds, deco, meta, wayPts, emit, wayX, props, isLive, statueFish }){
   const root = new THREE.Group(); scene.add(root);
   const houses = makeHouses({ rimMat });
   // --- shared parts
@@ -134,7 +134,7 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, deco, meta
   const pStaff = new THREE.CylinderGeometry(.006, .006, .26, 3).translate(.06, .13, .02);
   const pLamp = new THREE.BoxGeometry(.03, .03, .03).translate(.06, .25, .02);
   const pilgrims = [];
-  const wayOut = () => { const o = []; for (let z = -HZ - 12; z < -HZ + .01; z += 1) o.push({ x: wayX(z), z }); return o; };
+  const wayOut = () => wayPts().filter((p, n, a) => n % 2 === 0 || n === a.length - 1).map(p => ({ x: p.x, z: p.z })).reverse(); // from far up the mountain down to the valley
   // path over road and bridge tiles from the Way entrance to a tile next to the target
   function roadPath(target){
     const start = idx(WAY_I, 0); if (!isLinkish(WAY_I, 0)) return null;

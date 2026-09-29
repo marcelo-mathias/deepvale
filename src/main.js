@@ -20,7 +20,7 @@ import { makeWisps } from './render/wisps.js';
 import { makeVillage } from './render/village.js';
 import { initMap } from './ui/map.js';
 
-function setSound(on){ setAudio(on); const b=document.getElementById('btnSound'); const svg=b.querySelector('svg'); b.textContent = on ? 'Sound on' : 'Sound off'; if(svg)b.prepend(svg); }
+function setSound(on){ setAudio(on); const b=document.getElementById('btnSound'); const svg=b.querySelector('svg'); b.classList.toggle('off',!on); b.setAttribute('aria-pressed',on); b.title = on ? 'Sound on (click to mute)' : 'Sound off (click to play)'; if(svg&&!b.contains(svg))b.prepend(svg); }
 
 /* ================= state ================= */
 // scales: shed by released fish, pay for river and building work. silver: left by pilgrims, pays fishers and upgrades.
@@ -40,6 +40,12 @@ function initTiles(T=tiles){
   for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const c=tileC(i,j);const d=Math.abs(c.z-riverZ(c.x));T[idx(i,j)]=d<1.6?WATER:WILD;}
   // a little clearing on the north bank, mid-valley
   for(let i=WAY_I-2;i<=WAY_I+2;i++){for(let j=0;j<GH;j++){const c=tileC(i,j);const d=c.z-riverZ(c.x);if(d<0&&d>-2.8&&T[idx(i,j)]===WILD)T[idx(i,j)]=LAND;}}
+  // every rolled valley also has a few natural meadows and forest ponds of its own
+  const seed=S.map?.seed;if(!seed)return;let s=(seed^0x9e3779b9)>>>0;const R=()=>(s=(s*1664525+1013904223)>>>0)/4294967296;
+  const blob=(n,minRiver,rmin,rmax,type)=>{for(let q=0;q<n;q++)for(let t=0;t<40;t++){const i=3+Math.floor(R()*(GW-6)),j=2+Math.floor(R()*(GH-4)),c=tileC(i,j);
+      if(Math.abs(c.z-riverZ(c.x))<minRiver||Math.abs(i-WAY_I)<4)continue;const rx=rmin+R()*(rmax-rmin),rz=rmin+R()*(rmax-rmin);
+      for(let b=-3;b<=3;b++)for(let a=-3;a<=3;a++){if((a/rx)**2+(b/rz)**2>1||!inGrid(i+a,j+b))continue;const k=idx(i+a,j+b);if(T[k]===WILD)T[k]=type;}break;}};
+  blob(2+Math.floor(R()*3),4,1.3,2.6,LAND);blob(1+Math.floor(R()*2),5,.9,1.6,WATER);
 }
 // the Pilgrim Way comes down from the north edge to a first hut near the clearing
 function initBuilds(){
@@ -132,7 +138,8 @@ function outerH(x,z){
   const rise=((1-Math.exp(-d*.11))*11+d*.2)*(.65+.7*fbm(x*.05,z*.05));
   h+=rise;
   // the mountain and its shoulders
-  MTS.forEach(([mx,mz,mh,ms],n)=>{const d=Math.hypot(x-mx,(z-mz)*(n?1:1.1));h+=mh*Math.exp(-(d*d)/(2*ms*ms))*(.7+.58*ridged(x*.06+n*4,z*.06+n*2));});
+  // mountains fade out toward the valley edge, so the slope rises over foothills instead of a sheer wall
+  const foot=smooth(0,10,d);MTS.forEach(([mx,mz,mh,ms],n)=>{const q=Math.hypot(x-mx,(z-mz)*(n?1:1.1));h+=foot*mh*Math.exp(-(q*q)/(2*ms*ms))*(.7+.58*ridged(x*.06+n*4,z*.06+n*2));});
   // soft terracing gives the slopes a surveyed, topographic feel
   const tq=Math.floor(h/.9)*.9;h=lerp(h,tq+smooth(0,.9,h-tq)*.9,.35);
   // the river gorge continues beyond the valley
@@ -145,7 +152,7 @@ function outerH(x,z){
 function heightAt(x,z){
   const dx=Math.max(0,Math.abs(x)-HX),dz=Math.max(0,Math.abs(z)-HZ),d=Math.hypot(dx,dz);
   if(d<=0)return innerH(x,z);
-  if(d<1.6)return lerp(innerH(clamp(x,-HX,HX),clamp(z,-HZ,HZ)),outerH(x,z),smooth(0,1.6,d));
+  if(d<2.4)return lerp(innerH(clamp(x,-HX,HX),clamp(z,-HZ,HZ)),outerH(x,z),smooth(0,2.4,d));
   return outerH(x,z);
 }
 function axisArr(inner){const L=[];for(let v=-118;v<-inner-.6;v+=1.3)L.push(v);const M=[];for(let v=-inner;v<=inner+1e-6;v+=.25)M.push(+v.toFixed(3));return L.concat(M,L.map(v=>-v).reverse());}
@@ -171,6 +178,13 @@ const OLDBED=C('#a39a7a'),PATCH=C('#a89468'),CLAYC=C('#a0583a'),REDC=C('#9a5a3a'
 function onRoad(i,j,fx,fz){const w=.27,cx=Math.abs(fx-.5)<w,cz=Math.abs(fz-.5)<w;if(cx&&cz)return true;
   return (cx&&fz<.5&&linkAt(i,j-1))||(cx&&fz>.5&&linkAt(i,j+1))||(cz&&fx<.5&&linkAt(i-1,j))||(cz&&fx>.5&&linkAt(i+1,j));}
 function wayX(z){return tileC(WAY_I,0).x+Math.sin(z*.45+1)*.9*smooth(-HZ,-HZ-4,z);}
+// the Pilgrim Way leaves the valley and climbs the slope in switchbacks, as a staircase
+function wayCtrl(){const x0=tileC(WAY_I,0).x;return [[x0,-HZ],[x0,-HZ-1.4],[x0+2.3,-HZ-3.8],[x0-2.0,-HZ-6.8],[x0+2.2,-HZ-9.8],[x0-1.6,-HZ-12.8],[x0+.6,-HZ-15.6],[x0+.6,-HZ-19]];}
+let WAYP=null;
+function wayPath(){if(WAYP)return WAYP;const c=wayCtrl(),pts=[];
+  for(let n=0;n<c.length-1;n++){const [ax,az]=c[n],[bx,bz]=c[n+1],L=Math.hypot(bx-ax,bz-az),m=Math.max(1,Math.round(L/.3));for(let s=0;s<m;s++)pts.push({x:lerp(ax,bx,s/m),z:lerp(az,bz,s/m)});}
+  const e=c[c.length-1];pts.push({x:e[0],z:e[1]});return (WAYP=pts);}
+function wayDist(x,z){const c=wayCtrl();let best=9;for(let n=0;n<c.length-1;n++){const [ax,az]=c[n],[bx,bz]=c[n+1],vx=bx-ax,vz=bz-az,t=clamp(((x-ax)*vx+(z-az)*vz)/(vx*vx+vz*vz),0,1);best=Math.min(best,Math.hypot(x-ax-vx*t,z-az-vz*t));}return best;}
 const fract=v=>v-Math.floor(v);
 function colorAt(x,z,h,ny,out){
   const n=fbm(x*.7,z*.7,2);
@@ -193,7 +207,7 @@ function colorAt(x,z,h,ny,out){
     return;}
   if(inside&&deposit[idx(i,j)]&&tiles[idx(i,j)]===WILD&&h>WATER_Y+.13){out.copy(PAL.wild).lerp(REDC,.55);out.multiplyScalar(.9+n*.2);return;}
   // the Pilgrim Way continues north out of the valley
-  if(!inside&&z<-HZ&&z>-HZ-14&&Math.abs(x-wayX(z))<.3&&h<6){out.copy(PAL.path).multiplyScalar(.85+n*.2);return;}
+  if(!inside&&z<-HZ&&z>-HZ-20&&wayDist(x,z)<.42){out.copy(PAL.rock2).lerp(PAL.path,.4).multiplyScalar(.85+n*.2);return;}
   if(inside||h<1.2){out.copy(PAL.wild).lerp(PAL.wild2,smooth(.3,.7,n));out.multiplyScalar(.9+n*.2);}
   else{out.copy(PAL.hill).lerp(PAL.dry,smooth(3,12,h+n*3));}
   const strata=.86+.14*Math.sin(h*4.2+fbm(x*.3,z*.3,2)*3);
@@ -312,7 +326,7 @@ water.position.y=WATER_Y;water.renderOrder=2;scene.add(water);
 /* ================= trees & rocks ================= */
 const coneG=new THREE.ConeGeometry(.17,.5,6).translate(0,.42,0);
 const trunkG=new THREE.CylinderGeometry(.025,.035,.2,4).translate(0,.1,0);
-const MAXT=12000;
+const MAXT=15500;
 const foliage=new THREE.InstancedMesh(coneG,rimMat({color:'#ffffff'},'#ffc98a',.7),MAXT);
 const trunks=new THREE.InstancedMesh(trunkG,rimMat({color:'#5a4330'},'#ffc98a',.3),MAXT);
 foliage.castShadow=trunks.castShadow=true;foliage.receiveShadow=true;
@@ -322,14 +336,23 @@ const treeCols=['#2f5a2b','#3c6b30','#27502a','#4a7a36','#6d7f33','#8a7a2e'].map
 function addTree(x,z,s,tile){trees.push({x,z,s,tile,col:treeCols[Math.random()<.9?Math.floor(Math.random()*4):4+Math.floor(Math.random()*2)],r:Math.random()*6});}
 for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const c=tileC(i,j);const n=2+Math.floor(hash2(i*3.1,j*7.7)*3);
   for(let k=0;k<n;k++)addTree(c.x+rand(-.38,.38),c.z+rand(-.38,.38),rand(.9,1.5),idx(i,j));}
-function scatterOuter(){let tries=0;
+// a thick band of forest on the foothills first, so the slopes rising from the valley are wooded, not bare
+function scatterFoothills(){let tries=0,n=0;
+  while(n<3200&&trees.length<MAXT-40&&tries<40000){tries++;const x=rand(-HX-14,HX+14),z=rand(-HZ-16,HZ+10);
+    const dd=Math.hypot(Math.max(0,Math.abs(x)-HX),Math.max(0,Math.abs(z)-HZ));if(dd<.9||dd>14)continue;
+    if(z<-HZ&&z>-HZ-21&&wayDist(x,z)<.75)continue;if(Math.abs(z-riverZ(x))<3.2)continue;
+    const h=heightAt(x,z);if(h<.3||h>18)continue;const e=.4,sl=Math.hypot(heightAt(x+e,z)-heightAt(x-e,z),heightAt(x,z+e)-heightAt(x,z-e));if(sl>2.2)continue;
+    if(fbm(x*.11+5,z*.11-9,3)<.34)continue;addTree(x,z,rand(1,1.8)*(1-h/40),-1);n++;}
+}
+function scatterOuter(){scatterFoothills();let tries=0;
   while(trees.length<MAXT-40&&tries<90000){tries++;const x=rand(-100,100),z=rand(-100,72);
     if(Math.abs(x)<HX+.8&&Math.abs(z)<HZ+.8)continue;
-    if(z<-HZ&&z>-HZ-15&&Math.abs(x-wayX(z))<.7)continue;
+    if(z<-HZ&&z>-HZ-21&&wayDist(x,z)<.75)continue;
     if(Math.abs(z-riverZ(x))<3.2&&Math.abs(x)>HX)continue;
-    const h=heightAt(x,z);if(h<.3||h>15)continue;
-    const e=.4,nx=heightAt(x+e,z)-heightAt(x-e,z),nz=heightAt(x,z+e)-heightAt(x,z-e);if(Math.hypot(nx,nz)>.9)continue;
-    if(fbm(x*.09+11,z*.09-3,3)<.46)continue;
+    const h=heightAt(x,z);if(h<.3||h>21)continue;
+    const e=.4,nx=heightAt(x+e,z)-heightAt(x-e,z),nz=heightAt(x,z+e)-heightAt(x,z-e),sl=Math.hypot(nx,nz);if(sl>1.7)continue;
+    const dd=Math.hypot(Math.max(0,Math.abs(x)-HX),Math.max(0,Math.abs(z)-HZ));
+    if(fbm(x*.09+11,z*.09-3,3)<(dd<9?.3:.46)+sl*.08)continue;
     addTree(x,z,rand(1.1,2.1)*(1-h/30),-1);}
 }
 const m4=new THREE.Matrix4(),q4=new THREE.Quaternion(),s4=new THREE.Vector3(),p4=new THREE.Vector3(),yAxis=new THREE.Vector3(0,1,0);
@@ -620,7 +643,7 @@ const statueMats={stone:rimMat({color:'#a39d92'},'#ffe6c0',1),bronze:rimMat({col
 function statueFish(id){const sp=SP[id]||SP.koi;const m=new THREE.Mesh(fishGeoCache[sp.id]||(fishGeoCache[sp.id]=fishGeometry(sp)),sp.awe?statueMats.bronze:statueMats.stone);
   m.scale.setScalar(.55/sp.len*(sp.eel?1.2:1));m.castShadow=true;return m;}
 const roads=makeRoads({scene,heightAt,isRoad:(i,j)=>builds[idx(i,j)]===ROAD,paveAt:(i,j)=>S.meta[idx(i,j)]?.pave||'dirt',linkAt,tileC,GW,GH});
-const village=makeVillage({scene,rimMat,heightAt,tiles,builds,deco:()=>({corners:S.corners||{},edges:S.edges||{}}),meta:()=>S.meta,emit:wisps.emit,wayX,props,isLive:k=>isLive(k),statueFish});
+const village=makeVillage({scene,rimMat,heightAt,tiles,builds,wayPts:()=>wayPath(),deco:()=>({corners:S.corners||{},edges:S.edges||{}}),meta:()=>S.meta,emit:wisps.emit,wayX,props,isLive:k=>isLive(k),statueFish});
 // the Ember Showa warms the water it passes through: heat spots along its body and a short fading trail, plus rising steam
 const heatTrail=[];let heatT=0;
 function updateHeat(dt){
@@ -1821,7 +1844,7 @@ $('btnMap').addEventListener('click',()=>regionMap.toggle());
 $('btnTrade').addEventListener('click',toggleTrade);$('tradeClose').addEventListener('click',toggleTrade);$('mapClose').addEventListener('click',()=>regionMap.toggle());
 $('btnIn').addEventListener('click',()=>{view.z=clamp(view.z/1.3,ZMIN,ZMAX);cancelAuto();});
 $('btnOut').addEventListener('click',()=>{view.z=clamp(view.z*1.3,ZMIN,ZMAX);cancelAuto();});
-$('btnPix').addEventListener('click',()=>{PIX=PIX===3?2:PIX===2?4:3;$('btnPix').textContent='Pixels ×'+PIX;resize();store.set('deepvale-pix',String(PIX));});
+$('btnPix').addEventListener('click',()=>{PIX=PIX===3?2:PIX===2?4:3;$('btnPix').textContent='×'+PIX;resize();store.set('deepvale-pix',String(PIX));});
 const thumbCache={};
 function renderCodex(){
   const L=$('codexList');L.innerHTML='';const best=comps.reduce((a,c)=>c.size>a.size?c:a,{size:0,maxD:0});
@@ -1848,9 +1871,13 @@ document.getElementById('btnSound').addEventListener('click',()=>setSound(!isSou
 
 /* ================= save / load / offline ================= */
 const SAVE_KEY='deepvale-save-v1';
-function save(){S.jobs=saveJobs();S.t=Date.now();S.tiles=Array.from(tiles);S.builds=Array.from(builds);S.fishers=fishersState.map(f=>({i:f.i,j:f.j,slot:f.slot,c:f.color}));store.set(SAVE_KEY,JSON.stringify(S));}
+let noSave=false;const WIPE_KEY='deepvale-wipe';
+// wiping: drop the save, leave a marker that boot honours even if something saves on the way out, and roll a new valley
+function wipeSave(){noSave=true;try{localStorage.removeItem(SAVE_KEY);}catch(e){}store.set(WIPE_KEY,'1');store.set('deepvale-nextmap',String(1+Math.floor(Math.random()*999999)));location.replace(location.pathname+location.search);}
+function save(){if(noSave||store.get(WIPE_KEY))return;S.jobs=saveJobs();S.t=Date.now();S.tiles=Array.from(tiles);S.builds=Array.from(builds);S.fishers=fishersState.map(f=>({i:f.i,j:f.j,slot:f.slot,c:f.color}));store.set(SAVE_KEY,JSON.stringify(S));}
 let migrated='';
 function load(){
+  if(store.get(WIPE_KEY)){try{localStorage.removeItem(SAVE_KEY);localStorage.removeItem(WIPE_KEY);}catch(e){}return false;}
   const raw=store.get(SAVE_KEY);if(!raw)return false;
   try{const d=JSON.parse(raw);if(!d.tiles)return false;
     // 0.1 saves had one currency (silver from selling fish): it becomes scales
@@ -1890,6 +1917,8 @@ function offlineGain(ms){
 let hiddenAt=0;
 document.addEventListener('visibilitychange',()=>{if(document.hidden){hiddenAt=Date.now();save();}else if(hiddenAt){offlineGain(Date.now()-hiddenAt);hiddenAt=0;refreshUI();}});
 addEventListener('pagehide',save);
+// another open tab wiped the valley: stop this one from writing its old save back
+addEventListener('storage',e=>{if(e.key===WIPE_KEY&&e.newValue)noSave=true;});
 
 /* ================= debug tools ================= */
 // ` or F9 opens it in dev builds, or in any build with ?debug in the address
@@ -1906,7 +1935,7 @@ function renderDebug(){
   <div class="dg"><span>Crates</span><button type="button" data-a="crate">Crate</button><button type="button" data-a="hermit">Keeper</button><button type="button" data-a="unlock">Unlock all</button><button type="button" data-a="slot">+1 keeper slot</button></div>
   <div class="dg"><span>World</span><button type="button" data-a="clear">Clear 9×9 at view</button><button type="button" data-a="find">Find all secrets</button><button type="button" data-a="fishers">+6 fishers</button></div>
   <div class="dg"><span>Trade</span><button type="button" data-a="ship">Send vehicles now</button><button type="button" data-a="back">Bring them home</button><button type="button" data-a="wish">Grant wish</button><button type="button" data-a="tide">Tide ×1.5</button><button type="button" data-a="work">Finish all work</button></div>
-  <div class="dg"><button type="button" data-a="reset" class="warn">${resetArm?'Click again: wipe save':'Reset save'}</button></div>`;
+  <div class="dg">${resetArm?'<span>Wipe this valley?</span><button type="button" data-a="wipe" class="warn">Yes, start over</button><button type="button" data-a="keep">Keep it</button>':'<button type="button" data-a="reset" class="warn">Reset save</button>'}</div>`;
   d.querySelectorAll('[data-clock]').forEach(b=>b.addEventListener('click',()=>{S.clock.t=+b.dataset.clock;}));
   d.querySelectorAll('[data-ts]').forEach(b=>b.addEventListener('click',()=>{timeScale=+b.dataset.ts;renderDebug();}));
   d.querySelectorAll('[data-a]').forEach(b=>b.addEventListener('click',()=>debugAct(b.dataset.a)));
@@ -1914,7 +1943,7 @@ function renderDebug(){
 let resetArm=false;
 function debugAct(a){
   const main=()=>comps.reduce((x,c)=>c.size>x.size?c:x,comps[0]);
-  if(a==='frenzy')debugFlags.frenzy=!debugFlags.frenzy,debugSpeed.spawn=debugFlags.frenzy?6:1,debugSpeed.reel=debugFlags.frenzy?4:1;
+  if(a==='frenzy'){debugFlags.frenzy=!debugFlags.frenzy;debugSpeed.spawn=debugFlags.frenzy?6:1;debugSpeed.reel=debugFlags.frenzy?4:1;}
   if(a==='hints'){debugFlags.allHints=!debugFlags.allHints;updateHintVis();}
   if(a==='scales')S.scales+=1000;if(a==='silver')S.silver+=1000;
   if(a==='goods')for(const g of GOOD_IDS)S.goods[g]+=100;
@@ -1934,9 +1963,24 @@ function debugAct(a){
   if(a==='wish'&&S.wish){S.wish.have=S.wish.n-1;wishEvent(S.wish.kind,{sp:S.wish.sp,id:S.wish.id,n:S.wish.n});}
   if(a==='tide'){S.tide.n=10;S.tide.t=Date.now();}
   if(a==='work')for(const jb of jobs.slice())finishJob(jb);
-  if(a==='reset'){if(!resetArm){resetArm=true;renderDebug();setTimeout(()=>{resetArm=false;if(!$('debug').hidden)renderDebug();},3000);return;}
-    store.set(SAVE_KEY,'');removeEventListener('pagehide',save);location.reload();return;}
+  if(a==='reset'||a==='keep'){resetArm=a==='reset';renderDebug();return;}
+  if(a==='wipe'){wipeSave();return;}
   computeEconomy();renderDrawer();refreshUI();renderDebug();save();
+}
+
+/* ---- the mountain staircase on the Pilgrim Way ---- */
+function buildStairs(){
+  const g=new THREE.Group(),P=wayPath(),stepM=rimMat({color:'#9a948a'},'#ffe0b0',.7),stepM2=rimMat({color:'#8a847a'},'#ffe0b0',.7),woodM=rimMat({color:'#6b4a2e'},'#ffd29a',.6),railM=rimMat({color:'#8a6440'},'#ffd29a',.6);
+  const stepG=new THREE.BoxGeometry(1,1,1),postG=new THREE.CylinderGeometry(.018,.022,1,5),up=new THREE.Vector3(0,1,0),v=new THREE.Vector3();
+  const beam=(a,b,m,r=.014)=>{const L=a.distanceTo(b);const o=new THREE.Mesh(new THREE.CylinderGeometry(r,r,L,4),m);o.position.copy(a).add(b).multiplyScalar(.5);o.quaternion.setFromUnitVectors(up,v.copy(b).sub(a).normalize());g.add(o);};
+  let prevPosts=null;
+  for(let n=0;n<P.length-1;n++){const a=P[n],b=P[n+1],ha=heightAt(a.x,a.z),hb=heightAt(b.x,b.z),dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz),ang=Math.atan2(dx,dz);
+    if(a.z>-HZ-.3)continue;
+    const top=Math.max(ha,hb)+.03,s=new THREE.Mesh(stepG,n%2?stepM:stepM2);s.scale.set(.52,.08+Math.abs(hb-ha)+.25,L+.02);s.position.set((a.x+b.x)/2,top-s.scale.y/2,(a.z+b.z)/2);s.rotation.y=ang;g.add(s);
+    if(n%3===0){const px=Math.cos(ang)*.3,pz=-Math.sin(ang)*.3,posts=[];
+      for(const sd of [-1,1]){const x=a.x+px*sd,z=a.z+pz*sd,y=Math.max(heightAt(x,z),top-.05),p=new THREE.Mesh(postG,woodM);p.scale.y=.26;p.position.set(x,y+.13,z);g.add(p);posts.push(new THREE.Vector3(x,y+.24,z));}
+      if(prevPosts)for(let q=0;q<2;q++)beam(prevPosts[q],posts[q],railM);prevPosts=posts;}}
+  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});scene.add(g);
 }
 
 /* ---- icons on the toolbar and chips ---- */
@@ -1955,13 +1999,15 @@ const loaded=load();
 // the valley's shape: saved games keep theirs (old saves the original valley); new games roll one from a seed
 function applyMap(map){if(!map)return;setRiver(map.river);MTS=map.mts;INLET=mouthRows(0);OUTLET=mouthRows(GW-1);}
 function rollMap(seed){let s=seed>>>0||1;const R=()=>(s=(s*1664525+1013904223)>>>0)/4294967296;
-  return {seed,river:randomRiver(seed),mts:[[-32+R()*24,-42+R()*6,34+R()*12,11+R()*3],[-60+R()*10,-14+R()*10,16+R()*6,9+R()*2],[4+R()*20,-62+R()*8,20+R()*8,12+R()*2],[-56+R()*10,-54+R()*8,14+R()*6,10+R()*2]]};}
+  const mts=[[-44+R()*54,-44+R()*10,28+R()*22,10+R()*5],[-64+R()*14,-24+R()*26,12+R()*12,8+R()*4],[-8+R()*36,-66+R()*12,18+R()*14,11+R()*4],[-60+R()*14,-58+R()*12,12+R()*10,9+R()*3]];
+  if(R()<.6)mts.push([10+R()*24,-40+R()*8,20+R()*14,9+R()*3]); // sometimes a second peak to the north-east
+  return {seed,river:randomRiver(seed),mts};}
 if(loaded)applyMap(S.map);
 else{const pend=+store.get('deepvale-nextmap')||0;S.map=rollMap(pend||1+Math.floor(Math.random()*999999));store.set('deepvale-nextmap','');applyMap(S.map);S.seed=S.map.seed;initTiles();initBuilds();}
 $('valleyNo').textContent=S.map?`Valley no. ${S.map.seed}`:'The first valley';$('reroll').hidden=loaded;
-{const p=parseInt(store.get('deepvale-pix'));if([2,3,4].includes(p)){PIX=p;$('btnPix').textContent='Pixels ×'+PIX;}}
+{const p=parseInt(store.get('deepvale-pix'));if([2,3,4].includes(p)){PIX=p;$('btnPix').textContent='×'+PIX;}}
 initSecrets();
-buildTerrain(false);scatterOuter();updateTrees();analyzeWater();computeVillages();computeEconomy();village.sync();trade.sync();trade.topUpOrders();updateHintVis();
+buildTerrain(false);buildStairs();scatterOuter();updateTrees();analyzeWater();computeVillages();computeEconomy();village.sync();trade.sync();trade.topUpOrders();updateHintVis();
 if(loaded&&S.fishers.length){S.fishers.forEach(f=>{if(inGrid(f.i,f.j))makeFisher(f.i,f.j,f.slot,f.c??0);});}
 else{const spot=[];for(let j=0;j<GH;j++)for(let i=0;i<GW;i++)if(standable(i,j)&&builds[idx(i,j)]!==BRIDGE)spot.push([i,j]);
   spot.sort((a,b)=>Math.hypot(a[0]-WAY_I,a[1]-15)-Math.hypot(b[0]-WAY_I,b[1]-15));
@@ -1977,7 +2023,7 @@ if(loaded&&Array.isArray(S.jobs)){const js=S.jobs;S.jobs=[];for(const jb of js){
 if(loaded){const away=Math.min(8*3600e3,Date.now()-S.t)/1000;if(away>0&&S.clock){S.clock.t+=away/DAY_LEN;S.clock.day+=Math.floor(S.clock.t);S.clock.t%=1;}offlineGain(Date.now()-S.t);}
 resize();renderCodex();refreshUI();updateMarks();renderKeepers();renderWish();
 if(!S.wish)setTimeout(()=>{if(!S.wish)newWish();},loaded?4000:30000);
-$('reroll').addEventListener('click',()=>{store.set('deepvale-nextmap',String(1+Math.floor(Math.random()*999999)));removeEventListener('pagehide',save);location.reload();});
+$('reroll').addEventListener('click',wipeSave);
 $('enter').addEventListener('click',()=>{started=true;$('intro').classList.add('gone');setSound(true);
   tweenTo({x:0,y:0,z:-2},innerWidth<700?24:32,5.5);
   if(!loaded||S.first){S.first=false;setTimeout(()=>log('Your fisher waits at the bank with a barbless line. Every fish met here is let go again.'),5200);

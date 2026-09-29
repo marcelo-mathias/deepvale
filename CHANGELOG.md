@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.2 — soft glass
+
+- The HUD is lighter. The heavy engraved and parchment panels are gone; every surface is now a faint tint over a background blur, with rounded corners.
+- The top of the screen is one slim row of separate pills across the full width: date and purse on the left, the three meters in the middle, and the menu buttons on the right. Goods sit in a small pill underneath.
+- Tracked goals moved to the right side, narrower and quieter. Click the header to fold them away.
+- The toolbar spans the bottom of the screen, with its groups spread apart.
+- Sound is an icon toggle, and the pixel button just shows ×2, ×3 or ×4. On narrower windows, lower-priority details (tales, the subtitle, meter labels) fold away.
+- Fixed: Reset save didn't always wipe the save. It now asks for confirmation inline (no timer), removes the save, and leaves a marker that the next boot honours even if something saves on the way out. Other open tabs of the game stop saving when one of them wipes. "Another valley" on the title screen uses the same path.
+- Fixed: toggling Fish frenzy in the debug panel no longer resets the speed values on every other debug action.
+
+## 0.6.1 — foothills and the stair
+
+- The land no longer rises from the valley edge as a sheer wall: mountains fade out over the first ten tiles, so the valley is ringed by wooded foothills. A dense band of forest now covers those slopes.
+- The Pilgrim Way leaves the valley as a stone staircase in switchbacks, with wooden posts and rails; pilgrims and wagons climb it.
+- New valleys vary much more: wider range of river bends and positions, mountains placed anywhere around the north and west (sometimes a second peak), and a few natural meadows and forest ponds of their own.
+- Resetting the save (debug) or choosing "Another valley" now really starts a new valley; closing the page no longer wrote the old save back. Resetting also rolls a new map.
+
 ## 0.6.0 — days, homes and a new face
 
 - A new look for the interface: engraved dark panels with gold hairlines, and parchment for documents. A status cluster with the calendar (year, season, day, time of day), scales, silver, valley health, good tide and builders as bars, and tales told. Goods as chips. A tracked goals card (next fish, village wish, two orders) that folds away. Line icons on the toolbar, chips and goods.
