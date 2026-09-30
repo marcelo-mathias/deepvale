@@ -1,5 +1,69 @@
 # Changelog
 
+## 0.8.0 — a new face
+
+**Type and menus**
+- The interface is set in Milonga (titles, menu labels, headings) and Karma (reading text), both from Google Fonts. Mint (`--accent`) is the one interface colour; gold stays for scales and costs.
+- The top bar follows the new design: a dark fade across the top of the screen with flat menu items (icon and Milonga label), a count badge on Trade, and a dot on Codex when there is a fish you haven't looked up yet. Sound and pixel size moved into a new Settings menu.
+- The same menu-item style is used everywhere a choice is made: the top bar, the tools along the bottom (now on a matching dark fade), the build drawer's tabs, the settings options and the close buttons.
+  - Hover: a mint line draws out from the middle under the label.
+  - Active (the open menu, the chosen tool or tab): the label turns mint and a small glowing diamond, like a pin on the map, pops in beneath it.
+- The Trade and Codex sheets now sit between the top and bottom bars, so the menus stay reachable while they are open.
+
+**Settings**
+- A new Settings dialog, reachable from the top bar and the title screen: valley name, sound, pixel size (×2 / ×3 / ×4), a controls reminder, and starting a new valley (with an inline confirmation).
+
+**Name your valley**
+- Name your valley in Settings, or click its name at the top left. The name replaces "Deepvale" on the title screen, at the top of the screen and in the browser tab, and the title screen offers to "Return to" it.
+
+**The title screen**
+- The title is alive. Its letters rise in one by one, then bob gently like something on water. A band of light sweeps across it every few seconds, faster while you hover. Letters near the cursor lift, tilt and glow mint, and throw off glints.
+- Four-pointed glints, the same sparkle as treasure in the forest, bloom around the title. They burst from the edges of the buttons on hover, while a shine passes over "Enter the valley".
+- Slow motes and fireflies drift up over the valley, leaning away from the cursor, and the camera drifts slowly over the valley behind.
+- The HUD stays hidden until you enter. All of this respects "reduce motion" in the system settings.
+
+## 0.7.2 — layered pines
+
+- Trees are now built in four tiers, each narrower than the one below and turned against it. Every tier is darker underneath and catches light toward its tip, so the forest reads as layered boughs instead of single cones. The cones are open underneath, where they are never seen, which keeps the triangle count down.
+- Heights vary: stout pines, tall thin spruces (about 30%), and now and then an old giant (about 6%) standing above the canopy.
+- Dev builds expose `THREE`, `makeFishMesh` and `U` on `window.__dv`, for rendering marketing art.
+
+## 0.7.1 — statues raised by folklore
+
+- Statues can be raised twice, but only with the folklore of their own fish. The first raising needs the fish's 2nd tale: the carving is recast in bronze, the blessing grows ×1.5, and a pair of stone lanterns and small offerings appear. The second needs its 3rd tale: the carving is gilded, the blessing doubles and reaches one tile further, and a ring of light and two banners in the fish's colour go up. Until the tale is known, the statue's panel shows the next step and which tale it's waiting for.
+- Choose each statue's base in its panel: round, square or triangle. The terrace, its edging stones and the stepped plinth all follow the shape. Changing it is free.
+- Statue names follow their level: Stone, Bronze or Gilded River Koi, and so on. Raised statues also cast lamplight at night.
+
+## 0.7.0 — the Tale House, statue gardens, a quieter river
+
+**The Tale House**
+- Every village now starts with a Tale House on the Way: the valley's museum of folklore. Pilgrims come down to hear the tales and leave silver in the tale box, more for every tale you know. They no longer wander to huts; they go to the Tale House or to market stalls.
+- It grows as you learn tales. A banner goes up on the front for every fish you meet. At 6 tales it gains an east wing with carved fish on plinths, at 12 a lantern tower, at 18 a west wing and a string of paper lanterns, and with every tale known a gilded fish on the ridge. The tooltip shows the tales told, the silver per pilgrim, and when it grows next.
+- Older saves get one built next to the Way on load, with a note in the log. You can build more for new villages (Build → Work & trade).
+
+**Statues**
+- A statue now fills its tile: a paved terrace edged with stones, a stepped plinth banded in the fish's colour, and the carving leaping from a stone wave, much bigger than before.
+- Each fish gets its own garden. The Reedling has a lily pond and reeds, the River Koi a koi pond with a red gate. The Stonebelly Carp has river stones and clay pots, the Ember Showa glowing braziers, and the Mossback Sturgeon moss mounds, ferns and a fallen log. The Lantern Eel has a dark channel with glowing stones, the Moonscale Koi a raked white garden under a moon arch, and the Valley Warden a ring of standing stones.
+
+**Sound**
+- The river no longer hisses. The old noise bed is replaced by what running water mostly is: small bubbles ringing and rising in pitch as they close (Minnaert resonance), in little gurgling clusters. Under them sits a soft low murmur, with the odd plop and a slow lap at the bank. In a side-by-side recording the high-frequency hiss is about 12 dB lower and the whole mix about 6 dB quieter.
+- The wind is gentler, with more quiet between gusts. Strong gusts make the old trunks creak.
+- Workers can be heard: axes in green wood while clearing, spades while digging, mallets while building. Falling trees creak and come down in the leaves. Sounds are panned to where they happen on screen and fade as you zoom out.
+
+## 0.6.5 — lamplight and bloom
+
+- Lamps now cast real light at night. Stone lanterns, corner lanterns and road lamps each throw a warm pool of light. So do lit hut windows, workshops, markets, trading posts and shrines, and every fisher sets down a small lantern. The light falls on the ground, roads, houses, trees and the riverbed alike, flickers gently, and is a little stronger around bigger huts.
+- Bloom: lamps, windows and glowing fish bleed a soft glow into their surroundings. It is barely there by day, grows with dusk and night, and also rises when a giant darkens the sky.
+- Night is a little deeper away from the lights, so the lit village stands out.
+- Toned down slightly after a first look: softer pools, gentler bloom, and a little less darkening away from the lights.
+- How it works: the lights are added in the post pass, using each pixel's world position rebuilt from the depth buffer. No building materials had to change. The 40 lights nearest the centre of the view are used at a time; the light types and their colour, radius and strength are in `src/render/lamps.js`. Bloom is in `src/render/bloom.js`.
+
+## 0.6.4 — one clean stylesheet
+
+- `src/style.css` has been rewritten as a single, ordered stylesheet with no `!important` overrides (only `[hidden]` keeps one). It has eight sections: tokens, base, HUD, toolbar, world overlays, panels, screens and responsive. Checked against screenshots of every panel: the look is unchanged.
+- Every colour, surface, font and radius is a variable in the `:root` block at the top. Change `--glass`, `--edge`, `--txt` or `--gold2` there and every panel follows.
+- All panels share one glass surface rule. Old rules from 0.1–0.6 that no longer matched anything have been removed.
+
 ## 0.6.3 — chests, clearer crafting, orders that ship
 
 - Old chests now surface at the forest's edge every few minutes (up to two at a time). They glint brightly. Send a crow or clear the tile to open one: most hold drawings for something you can't build yet, and the rest hold a crate.

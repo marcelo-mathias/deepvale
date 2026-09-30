@@ -32,6 +32,7 @@ export const ICON = {
   fish: P('<path d="M3 12c3-5 10-6 15-1l3-3v8l-3-3c-5 5-12 4-15-1z"/><circle cx="8" cy="11" r=".6" fill="currentColor"/>'),
   sun: P('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/>'),
   moon: P('<path d="M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z"/>'),
+  settings: P('<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/><circle cx="12" cy="12" r="6.5"/>'),
   keeper: P('<circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/>'),
 };
 export const icon = (name, cls = '') => (ICON[name] || '').replace('class="ic-svg"', `class="ic-svg ${cls}"`);

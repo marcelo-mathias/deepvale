@@ -4,7 +4,7 @@ import { GW, GH, WATER, HUT, ROAD, BRIDGE, WAY_I, DECK_Y, WATER_Y, BED_Y, HZ, id
 import { B, DEF_BY_CODE, STYLES } from '../data/builds.js';
 import { makeHouses } from './houses.js';
 
-export function makeVillage({ scene, rimMat, heightAt, tiles, builds, deco, meta, wayPts, emit, wayX, props, isLive, statueFish }){
+export function makeVillage({ scene, rimMat, heightAt, tiles, builds, deco, meta, wayPts, emit, wayX, props, isLive, statueFish, lore }){
   const root = new THREE.Group(); scene.add(root);
   const houses = makeHouses({ rimMat });
   // --- shared parts
@@ -108,7 +108,8 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, deco, meta
       const r = hsh(i, j);
       const opts = {};
       if (b === B.FENCE){ const f = (a, bb) => inGrid(a, bb) && builds[idx(a, bb)] === B.FENCE; opts.nb = { e: f(i+1, j), w: f(i-1, j), s: f(i, j+1), n: f(i, j-1) }; }
-      if (b === B.STATUE) opts.fish = statueFish(meta()[k]?.sp || 'koi');
+      if (b === B.STATUE){ opts.sp = meta()[k]?.sp || 'koi'; opts.base = meta()[k]?.base || 'round'; opts.fish = statueFish(opts.sp, meta()[k]?.lvl || 1); }
+      if (b === B.TALEHALL) Object.assign(opts, lore());
       opts.lvl = meta()[k]?.lvl || 1;
       const g = props.B[d.id](r, opts);
       let y = heightAt(c.x, c.z) - .01;
@@ -117,7 +118,7 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, deco, meta
       if (b === B.PIER){ y = DECK_Y; g.rotation.y = pierAxis(i, j); }
       else if (b === B.JETTY){ const w = waterDir(i, j); g.rotation.y = Math.atan2(w.a, w.b); }
       else if (b !== B.FENCE && b !== B.REED) g.rotation.y = ((r >> 4) % 4) * Math.PI / 2 * (b === B.STONES || b === B.FLOWERS || b === B.CHERRY ? 1 : 0) + (b === B.BONES ? (r % 7) * .4 : 0);
-      if (![B.FENCE, B.REED, B.PIER, B.JETTY, B.FLOWERS, B.WEIR].includes(b)) g.scale.setScalar(1.2 * [1, 1.04, 1.08][(meta()[k]?.lvl || 1) - 1]);
+      if (![B.FENCE, B.REED, B.PIER, B.JETTY, B.FLOWERS, B.WEIR].includes(b)) g.scale.setScalar((b === B.STATUE ? 1.05 : b === B.TALEHALL ? 1.32 : 1.2) * [1, 1.04, 1.08][(meta()[k]?.lvl || 1) - 1]);
       if (meta()[k]?.rot !== undefined && ![B.JETTY, B.PIER, B.FENCE, B.REED, B.WEIR].includes(b)) g.rotation.y = meta()[k].rot * Math.PI / 2;
       g.position.set(c.x, y, c.z); root.add(g);
       if (b === B.SHOP){ g.updateMatrixWorld(); const cp = new THREE.Vector3(-.15, .46, -.08); g.localToWorld(cp); huts.push({ chim: cp, t: Math.random() * 2 }); }

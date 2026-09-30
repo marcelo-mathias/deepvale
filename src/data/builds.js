@@ -4,7 +4,7 @@ export const B = {
   NONE:0, HUT:1, ROAD:2, BRIDGE:3,
   WOOD:4, REED:5, CLAY:6, SHOP:7, POST:8, JETTY:9, MARKET:10,
   NETS:11, RACK:12, LANTERN:13, STATUE:14, FLOWERS:15, FENCE:16, CHERRY:17, PIER:18,
-  SHRINE:19, STONES:20, BONES:21, WEIR:22,
+  SHRINE:19, STONES:20, BONES:21, WEIR:22, TALEHALL:23,
 };
 
 /* ---------- goods ---------- */
@@ -39,6 +39,7 @@ export const DEFS = {
   workshop:   { code:B.SHOP,   cat:'work', name:'Workshop',   on:'land',  road:true, cost:{scales:60,timber:12}, grow:1.4, desc:'Where lanterns and carvings come from: 2 reeds + 1 clay make a paper lantern, 3 timber make a carving. Click it to choose what it makes.' },
   post:       { code:B.POST,   cat:'work', name:'Trading post', on:'land', road:true, cost:{scales:40,timber:6}, grow:1.6, desc:'Keeps a wagon. It carries goods up the Pilgrim Way to Birchmere and the Tarn, and comes back with silver.' },
   jetty:      { code:B.JETTY,  cat:'work', name:'Jetty',      on:'flowbank', cost:{scales:50,timber:10}, grow:1.6, desc:'Keeps a barge. It rides the current east to the Ashfen and the Salt Mouth, where goods fetch more.' },
+  talehall:   { code:B.TALEHALL, cat:'work', name:'Tale House', on:'land', road:true, cost:{scales:80,timber:16}, grow:1.8, charm:[2,2], desc:'The village’s museum of folklore. Pilgrims come down the Way to hear the tales and leave silver in the tale box. It grows as you learn more tales: banners, a wing, a lantern tower.' },
   market:     { code:B.MARKET, cat:'work', name:'Market stall', on:'land', road:true, cost:{scales:45,timber:8}, grow:1.35, desc:'Pilgrims who come for the tales buy the lanterns and carvings your workshops make. Charm around it raises prices.' },
   // --- fishing
   pier:       { code:B.PIER,   cat:'fish', name:'Pier',       on:'shore', cost:{scales:15,timber:3},   grow:1.12, desc:'A short plank walk over the water. Fishers can stand on it, no road needed.' },
@@ -49,7 +50,7 @@ export const DEFS = {
   fence:      { code:B.FENCE,  cat:'decor', name:'Fence',      on:'land', cost:{timber:1},             grow:1,    charm:[1,1], paint:true, desc:'Joins up with fences next to it. +1 charm.' },
   lantern:    { code:B.LANTERN,cat:'decor', name:'Stone lantern', on:'land', cost:{scales:10,clay:2},   grow:1.06, lock:true, charm:[3,2], desc:'+3 charm around it, and it glows.' },
   cherry:     { code:B.CHERRY, cat:'decor', name:'Cherry tree', on:'land', cost:{scales:12,clay:1},    grow:1.06, lock:true, charm:[3,2], desc:'+3 charm around it.' },
-  statue:     { code:B.STATUE, cat:'decor', name:'Fish statue', on:'land', cost:{scales:80,clay:6},    grow:1.3,  charm:[4,2], desc:'Carved after a fish you have met. Each one blesses the tiles around it in its own way.' },
+  statue:     { code:B.STATUE, cat:'decor', name:'Fish statue', on:'land', cost:{scales:80,clay:6},    grow:1.3,  charm:[4,2], desc:'A carving of a fish you have met, on a garden terrace dressed for it: a lily pond for the koi, embers for the Showa, standing stones for the Warden. Each blesses the tiles around it in its own way.' },
   // found in the forest, never built
   shrine:     { code:B.SHRINE, cat:'found', name:'Old shrine',  charm:[5,3], desc:'Fish take the line 20% more often within 3 tiles.' },
   stones:     { code:B.STONES, cat:'found', name:'Standing stones', charm:[3,2], desc:'One more keeper can live in the valley.' },

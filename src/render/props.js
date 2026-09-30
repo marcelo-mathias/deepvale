@@ -108,11 +108,94 @@ export function makeProps({ rimMat }){
       put(g, box(.025, .12, .025), mat(dark), a * .45, .06, b * .45);
       for (const y of [.05, .11]){ const rail = put(g, box(a ? .5 : .018, .018, b ? .5 : .018), mat('#9a7048'), a * .23, y, b * .23); } }
     return finish(g); };
-  B.statue = (r, o = {}) => { const g = new THREE.Group();
-    put(g, box(.22, .08, .22), mat(stone2, '#ffe0b0', .7), 0, .04, 0);
-    put(g, box(.16, .06, .16), mat(stone, '#ffe0b0', .7), 0, .11, 0);
-    if (o.fish){ o.fish.position.set(0, .3, 0); o.fish.rotation.set(-.5, .6, .15); g.add(o.fish); }
+  /* ---------- fish statues: a carved fish on a stepped plinth, in a small garden terrace dressed for that fish ---------- */
+  const FISH_COL = { reed: '#b8c2a4', koi: '#d8483a', carp: '#b07a3a', showa: '#ff8a4a', sturgeon: '#7a9a4a', eel: '#6fd8f0', moon: '#e4ebff', warden: '#e8b84a' };
+  const disc = (r, h, seg = 14) => (G['d' + r + h + seg] ||= new THREE.CylinderGeometry(r, r, h, seg));
+  const pondM = () => (M.pond ||= (() => { const m = new THREE.MeshStandardMaterial({ color: '#244f55', roughness: .15, metalness: .1 }); return m; })());
+  const pebbles = (g, rnd, n, cols, x0, z0, spread) => { for (let q = 0; q < n; q++) put(g, ico(.018 + rnd() * .014), mat(cols[q % cols.length], '#ffffff', .5), x0 + (rnd() - .5) * spread, .025, z0 + (rnd() - .5) * spread).scale.y = .55; };
+  const reedClump = (g, rnd, x, z, n = 7, cols = ['#7f9a4a', '#98a857', '#b9ae62']) => { for (let q = 0; q < n; q++){ const h = .1 + rnd() * .14; put(g, box(.01, h, .01), mat(cols[q % cols.length], '#fff0b0', .6), x + (rnd() - .5) * .08, h / 2, z + (rnd() - .5) * .08, 0, (rnd() - .5) * .3, (rnd() - .5) * .3); } };
+  const pond = (g, x, z, rad) => { put(g, disc(rad + .025, .03), mat(stone2, '#ffe0b0', .5), x, .018, z); put(g, disc(rad, .012), pondM(), x, .034, z); };
+  const pads = (g, rnd, x, z, rad, n = 3) => { for (let q = 0; q < n; q++){ const a = rnd() * 6.28, d = rnd() * rad * .7; put(g, disc(.028, .004, 7), mat('#4f7a36', '#fff0b0', .5), x + Math.cos(a) * d, .042, z + Math.sin(a) * d); } };
+  const THEME = {
+    reed: (g, rnd) => { pond(g, .22, .2, .14); pads(g, rnd, .22, .2, .14); for (const [x, z] of [[-.3, .22], [-.26, -.28], [.3, -.26], [.34, .02]]) reedClump(g, rnd, x, z); },
+    koi: (g, rnd) => { pond(g, .2, .2, .17); pads(g, rnd, .2, .2, .17, 4);
+      for (let q = 0; q < 2; q++){ const f = put(g, box(.05, .012, .018), mat(q ? '#f3efe6' : '#d8483a', '#ffffff', .8), .16 + q * .09, .045, .16 + q * .07, rnd() * 6); }
+      pebbles(g, rnd, 9, ['#d8483a', '#f3efe6', '#9a948a'], -.22, -.24, .2); put(g, box(.03, .12, .03), mat('#b03a2c'), -.3, .06, .26); put(g, box(.03, .12, .03), mat('#b03a2c'), -.18, .06, .3); put(g, box(.16, .02, .03), mat('#b03a2c'), -.24, .125, .28, .35); },
+    carp: (g, rnd) => { pebbles(g, rnd, 16, ['#9a948a', '#7d786f', '#b0a89a'], .0, .26, .6); for (const [x, z, s] of [[-.28, -.22, 1], [-.2, -.3, .8], [.3, -.24, .9]]){ put(g, cyl(.035 * s, .045 * s, .08 * s, 7), mat('#c8744a'), x, .04 * s + .015, z); } put(g, ico(.07), mat(stone2, '#ffe0b0', .5), .28, .05, .12).scale.set(1.3, .6, 1); },
+    showa: (g, rnd) => { for (const [x, z] of [[-.28, .24], [.28, .24], [.28, -.26], [-.28, -.26]]){ put(g, box(.07, .06, .07), mat('#3a3232', '#ffb080', .5), x, .045, z); put(g, ico(.028), glowM('#ff8a4a', 2.6), x, .085, z); }
+      pebbles(g, rnd, 12, ['#231d1d', '#3a3232', '#5a2a1a'], 0, .25, .5); },
+    sturgeon: (g, rnd) => { for (let q = 0; q < 5; q++){ const a = q / 5 * 6.28 + rnd(); put(g, ico(.07 + rnd() * .04), mat(q % 2 ? '#5f7a3e' : '#6b8a45', '#e0ffb0', .5), Math.cos(a) * .32, .02, Math.sin(a) * .32).scale.y = .45; }
+      const lg = put(g, cyl(.035, .04, .34, 6), mat('#6b4a2e'), -.22, .045, .26, .4, 0, Math.PI / 2); put(g, box(.2, .012, .05), mat('#6b8a45'), -.22, .085, .26, .4);
+      for (const [x, z] of [[.3, .22], [.26, -.28], [-.32, -.18]]) for (let q = 0; q < 4; q++) put(g, cone(.02, .1, 4), mat('#4f7a36', '#e0ffb0', .6), x + (rnd() - .5) * .06, .05, z + (rnd() - .5) * .06, 0, (rnd() - .5) * .8, (rnd() - .5) * .8); },
+    eel: (g, rnd) => { for (let q = 0; q < 7; q++){ const a = -1.2 + q * .45; put(g, box(.1, .012, .06), mat('#1d3a4a', '#8ff0ff', .5), Math.cos(a) * .32, .03, Math.sin(a) * .32, -a); }
+      for (let q = 0; q < 4; q++){ const a = -1 + q * .8; put(g, ico(.022), glowM('#8ff0ff', 2.4), Math.cos(a) * .3, .05, Math.sin(a) * .3); } reedClump(g, rnd, -.3, -.24, 6, ['#3f5a4a', '#56705a']); },
+    moon: (g, rnd) => { put(g, disc(.4, .012, 18), mat('#e8e6dc', '#ffffff', .6), 0, .025, 0);
+      for (let q = 0; q < 4; q++) put(g, new THREE.TorusGeometry(.2 + q * .05, .004, 3, 24, Math.PI * 1.2), mat('#cfccc0'), 0, .033, 0, 0, Math.PI / 2);
+      const arch = put(g, new THREE.TorusGeometry(.2, .018, 5, 18, Math.PI), mat('#f1f3fa', '#dfe6ff', 1.2), 0, .03, -.3); for (let q = 0; q < 3; q++) put(g, ico(.022), glowM('#b9ccff', 2.4), -.3 + q * .3, .05, .3); },
+    warden: (g, rnd) => { for (let q = 0; q < 7; q++){ const a = q / 7 * 6.28, h = .22 + rnd() * .14; put(g, box(.06, h, .045), mat(q % 2 ? stone : stone2, '#ffe0b0', .7), Math.cos(a) * .36, h / 2, Math.sin(a) * .36, -a, (rnd() - .5) * .12, (rnd() - .5) * .12); }
+      for (let q = 0; q < 4; q++){ const a = q * 1.57 + .4; put(g, ico(.02), glowM('#ffc861', 2.2), Math.cos(a) * .22, .04, Math.sin(a) * .22); } },
+  };
+  // o.sp: which fish, o.lvl: 1–3 (raised with its tales), o.base: 'round' | 'square' | 'tri'
+  B.statue = (r, o = {}) => { const g = new THREE.Group(), rnd = R(r), sp = o.sp || 'koi', lvl = o.lvl || 1, base = o.base || 'round', fc = FISH_COL[sp] || '#c9a36a';
+    const seg = base === 'tri' ? 3 : base === 'square' ? 4 : 16, rot = base === 'square' ? Math.PI / 4 : base === 'tri' ? Math.PI / 6 : 0;
+    const slab = (rad, h, y, m) => put(g, new THREE.CylinderGeometry(rad, rad, h, seg), m, 0, y, 0, rot);
+    // the terrace, edged with stones along its outline
+    const tr = base === 'square' ? .64 : base === 'tri' ? .56 : .46;
+    slab(tr, .03, .005, mat('#8e877c', '#ffe0b0', .5));
+    const edgePts = []; const corners = Array.from({ length: seg }, (_, q) => { const a = rot + q / seg * 6.283 + Math.PI / 2 * 0; return [Math.sin(a) * tr, Math.cos(a) * tr]; });
+    const perSide = base === 'round' ? 1 : base === 'square' ? 5 : 6;
+    for (let q = 0; q < seg; q++){ const [x0, z0] = corners[q], [x1, z1] = corners[(q + 1) % seg];
+      for (let t = 0; t < perSide; t++){ const u = t / perSide; edgePts.push([x0 + (x1 - x0) * u, z0 + (z1 - z0) * u, Math.atan2(x1 - x0, z1 - z0)]); } }
+    edgePts.forEach(([x, z, a], q) => put(g, box(.05, .035, .07), mat(q % 2 ? stone : stone2, '#ffe0b0', .5), x * .98, .02, z * .98, a));
+    (THEME[sp] || THEME.koi)(g, rnd);
+    // stepped plinth in the same shape, banded in the fish's colour
+    const pr = base === 'round' ? 1 : base === 'square' ? 1.4 : 1.25;
+    slab(.13 * pr, .06, .05, mat(stone2, '#ffe0b0', .7));
+    slab(.1 * pr, .07, .115, mat(stone, '#ffe0b0', .7));
+    slab(.102 * pr, .012, .14, mat(lvl >= 3 ? '#e8b84a' : fc, '#ffffff', lvl >= 3 ? 1.2 : .8));
+    slab(.075 * pr, .04, .17, mat(stone2, '#ffe0b0', .7));
+    // raised once: a pair of stone lanterns and offerings in the fish's colour
+    if (lvl >= 2){ for (const x of [-.24, .24]){ const l = B.lantern(r + (x > 0 ? 1 : 2)); l.scale.setScalar(.8); l.position.set(x, .02, .3); g.add(l); }
+      for (let q = 0; q < 3; q++) put(g, ico(.018), mat(fc, '#ffffff', .8), -.05 + q * .05, .21, .06); }
+    // raised twice: a halo of light behind the carving and banners on poles
+    if (lvl >= 3){ put(g, new THREE.TorusGeometry(.2, .012, 5, 24), glowM(fc === '#e4ebff' ? '#b9ccff' : fc, 1.6), 0, .38, -.06);
+      for (const x of [-.34, .34]){ put(g, cyl(.008, .008, .42, 4), mat(dark), x, .21, -.2); put(g, box(.06, .14, .006), mat(fc, '#ffffff', .9), x + .035, .34, -.2); } }
+    // the carving rides a stone wave, as if leaping from it
+    put(g, cyl(.018, .032, .13, 6), mat(stone, '#ffe0b0', .7), 0, .245, 0, 0, .15, .1);
+    put(g, ico(.045), mat(stone, '#ffe0b0', .7), .015, .3, 0).scale.set(1.3, .6, 1);
+    if (o.fish){ o.fish.position.set(0, .35, 0); o.fish.rotation.set(-.3, .5, .1); g.add(o.fish); }
     return finish(g); };
+
+  /* ---------- the tale house: the valley's folklore museum. It grows as tales are learned ----------
+     o.tales: tales known in all; o.met: ids of fish met (each gets a banner) */
+  B.talehall = (r, o = {}) => { const g = new THREE.Group(), T = o.tales || 0, met = o.met || [];
+    put(g, box(.62, .04, .44), mat(stone2, '#ffe0b0', .6), 0, .02, -.04);
+    put(g, box(.5, .24, .32), mat('#a67c52'), 0, .16, -.07);
+    for (const x of [-.24, -.08, .08, .24]) put(g, box(.022, .24, .02), mat(dark), x, .16, .092);
+    put(g, box(.52, .022, .02), mat(dark), 0, .27, .092);
+    roof(g, .6, .42, .24, .28, '#5a3a2a').position.z = -.07;
+    put(g, box(.09, .15, .01), mat('#2a1d14'), 0, .115, .096);
+    // porch with lanterns, a signboard and the tale box
+    put(g, box(.34, .02, .15), mat(wood), 0, .05, .17);
+    for (const x of [-.15, .15]){ put(g, box(.02, .2, .02), mat(dark), x, .14, .235); put(g, box(.032, .04, .032), glowM('#ffc46a', 2.6), x, .19, .255); }
+    put(g, box(.36, .018, .17), mat('#6b4a2e', '#ffcf99', .9), 0, .25, .17, 0, .22);
+    put(g, box(.16, .045, .012), mat('#c9a36a', '#fff0c0', .9), 0, .29, .258);
+    put(g, box(.05, .055, .045), mat('#7a5236'), .22, .08, .25); put(g, box(.03, .005, .01), mat('#2a1d14'), .22, .109, .25);
+    // a banner on the front for every fish met
+    met.slice(0, 8).forEach((id, n) => { const x = -.21 + (n % 4) * .045 + (n >= 4 ? .27 : 0); put(g, box(.03, .08, .005), mat(FISH_COL[id] || '#c9a36a', '#ffffff', .9), x, .19, .1); put(g, box(.036, .006, .006), mat(dark), x, .232, .1); });
+    // more tales, more house: an east wing with carved fish on plinths out front
+    if (T >= 6){ put(g, box(.18, .18, .24), mat('#9a7048'), .34, .1, -.12); const rw = roof(g, .22, .28, .15, .19, '#5a3a2a'); rw.position.set(.34, .265, -.12);
+      met.slice(0, 3).forEach((id, n) => { const x = .26 + n * .08; put(g, box(.045, .06, .045), mat(stone, '#ffe0b0', .6), x, .05, .12); put(g, box(.06, .02, .018), mat(FISH_COL[id] || '#c9a36a', '#ffffff', .9), x, .09, .12, .3, 0, .25); }); }
+    // a lantern tower to call pilgrims down the Way
+    if (T >= 12){ put(g, box(.11, .44, .11), mat('#8a6440'), -.33, .22, -.2); put(g, box(.07, .06, .012), glowM('#ffc46a', 2.6), -.33, .38, -.143);
+      put(g, cone(.1, .12, 4), mat('#5a3a2a', '#ffcf99', .9), -.33, .5, -.2, Math.PI / 4); put(g, cyl(.006, .006, .1, 3), mat(dark), -.33, .6, -.2); put(g, box(.05, .03, .004), mat(FISH_COL[met[0]] || '#c9a36a'), -.305, .62, -.2); }
+    // a west wing and a string of paper lanterns across the yard
+    if (T >= 18){ put(g, box(.16, .16, .2), mat('#9a7048'), -.35, .08, .12); const rw = roof(g, .2, .24, .13, .16, '#5a3a2a'); rw.position.set(-.35, .225, .12);
+      for (let q = 0; q < 6; q++) put(g, box(.022, .03, .022), glowM(['#ffc46a', '#ff9a5a', '#fff0b0'][q % 3], 2.2), -.25 + q * .1, .33 - Math.sin(q / 5 * Math.PI) * .04, .3); }
+    // every tale known: a gilded ridge fish
+    if (T >= 24){ put(g, box(.1, .03, .02), mat('#e8b84a', '#fff0c0', 1.2), 0, .42, -.07, 0, 0, .15); }
+    return finish(g); };
+
   B.pier = (r, o = {}) => { const g = new THREE.Group();
     put(g, box(.34, .035, 1.02), mat('#8a6440', '#ffd29a', .8), 0, .02, 0);
     for (const x of [-.15, .15]) for (const z of [-.4, 0, .4]) put(g, cyl(.02, .025, 1.1, 5), mat(dark), x, -.5, z);

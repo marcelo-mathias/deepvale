@@ -32,29 +32,47 @@ function initAudio(){
 const loop = (buf) => { const s = AC.createBufferSource(); s.buffer = buf; s.loop = true; s.start(0, Math.random() * 2); return s; };
 const out = (node, wetAmt = .25) => { node.connect(dry); if (wetAmt > 0){ const g = AC.createGain(); g.gain.value = wetAmt; node.connect(g).connect(wet); } };
 
-/* ---------- the river: a noise bed plus hundreds of tiny bubbles ---------- */
+/* ---------- the river ----------
+   Running water is mostly bubbles, not hiss: each small air pocket rings for a few hundredths of a second
+   at a pitch set by its size, and the pitch rises as it closes (the Minnaert resonance). A brook is those
+   rings in little clusters, over a quiet low murmur, with the odd plop and a slow lap at the bank. */
+function bubbleAt(dest, t, f, d, g, pan){
+  const o = AC.createOscillator(), gn = AC.createGain(), p = AC.createStereoPanner(); p.pan.value = pan;
+  o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * R(1.35, 1.8), t + d);
+  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(g, t + .003); gn.gain.exponentialRampToValueAtTime(.0001, t + d);
+  o.connect(gn).connect(p).connect(dest); o.start(t); o.stop(t + d + .02);
+}
 function startWater(){
-  const bus = AC.createGain(); bus.gain.value = .0; out(bus, .15); amb.water = bus;
-  const bed = loop(brownBuf), bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 520; bp.Q.value = .6;
-  const bg = AC.createGain(); bg.gain.value = .5; bed.connect(bp).connect(bg).connect(bus);
-  const hiss = loop(noiseBuf), hp = AC.createBiquadFilter(); hp.type = 'bandpass'; hp.frequency.value = 2600; hp.Q.value = .8;
-  const hg = AC.createGain(); hg.gain.value = .025; hiss.connect(hp).connect(hg).connect(bus);
-  // slow wander so it never sounds like a loop
-  const lfo = AC.createOscillator(); lfo.frequency.value = .07; const lg = AC.createGain(); lg.gain.value = 140; lfo.connect(lg).connect(bp.frequency); lfo.start();
-  const bubble = () => {
-    if (soundOn && AC.state === 'running'){
-      const t = AC.currentTime, n = 1 + Math.floor(Math.random() * 3);
-      for (let k = 0; k < n; k++){
-        const t0 = t + k * R(.02, .07), f = R(420, 1300), d = R(.03, .09);
-        const o = AC.createOscillator(), g = AC.createGain(), p = AC.createStereoPanner(); p.pan.value = R(-.7, .7);
-        o.frequency.setValueAtTime(f, t0); o.frequency.exponentialRampToValueAtTime(f * R(1.5, 2.4), t0 + d);
-        g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(R(.006, .02), t0 + .004); g.gain.exponentialRampToValueAtTime(.0001, t0 + d);
-        o.connect(g).connect(p).connect(bus); o.start(t0); o.stop(t0 + d + .02);
-      }
+  const bus = AC.createGain(); bus.gain.value = .0; out(bus, .07); amb.water = bus;
+  // the murmur: brown noise kept low and soft, swelling very slowly
+  const bed = loop(brownBuf), lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 360; lp.Q.value = .3;
+  const bg = AC.createGain(); bg.gain.value = .16; bed.connect(lp).connect(bg).connect(bus);
+  const lfo = AC.createOscillator(); lfo.frequency.value = .045; const lg = AC.createGain(); lg.gain.value = 90; lfo.connect(lg).connect(lp.frequency); lfo.start();
+  const alfo = AC.createOscillator(); alfo.frequency.value = .027; const ag = AC.createGain(); ag.gain.value = .06; alfo.connect(ag).connect(bg.gain); alfo.start();
+  // gurgles: a few bubbles at a time around a pitch that wanders, with pauses in between
+  let centre = 900;
+  const gurgle = () => {
+    if (soundOn && AC.state === 'running' && !document.hidden){
+      const t = AC.currentTime + .02, n = 2 + Math.floor(Math.random() * 6), pan = R(-.75, .75);
+      centre = Math.min(1500, Math.max(520, centre * R(.88, 1.14)));
+      for (let k = 0; k < n; k++) bubbleAt(bus, t + k * R(.025, .1), centre * R(.8, 1.25), R(.022, .055), R(.008, .022) * (1 - k / n * .45), pan + R(-.12, .12));
+      if (Math.random() < .08) bubbleAt(bus, t + R(0, .2), R(230, 420), R(.09, .14), R(.022, .035), R(-.6, .6)); // a plop
     }
-    setTimeout(bubble, R(40, 190));
+    setTimeout(gurgle, R(90, 650));
   };
-  bubble();
+  gurgle();
+  // a slow lap against the bank now and then
+  const lap = () => {
+    if (soundOn && AC.state === 'running' && !document.hidden){
+      const t = AC.currentTime + .02, s = AC.createBufferSource(); s.buffer = brownBuf; const f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = R(500, 800);
+      const g = AC.createGain(), p = AC.createStereoPanner(); p.pan.value = R(-.6, .6); const up = R(.25, .45), down = R(.6, 1.1);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(R(.05, .09), t + up); g.gain.linearRampToValueAtTime(0, t + up + down);
+      s.connect(f).connect(g).connect(p).connect(bus); s.start(t, Math.random() * 2); s.stop(t + up + down + .05);
+      for (let k = 0; k < 3; k++) bubbleAt(bus, t + up * .8 + k * R(.04, .12), R(700, 1200), R(.02, .04), R(.006, .012), p.pan.value);
+    }
+    setTimeout(lap, R(1800, 5200));
+  };
+  setTimeout(lap, 1200);
 }
 /* ---------- wind in the pines: slow swells ---------- */
 function startWind(){
@@ -65,14 +83,63 @@ function startWind(){
   const swell = () => {
     const t = AC.currentTime, dur = R(5, 11), peak = R(.35, 1);
     lp.frequency.cancelScheduledValues(t); lp.frequency.setTargetAtTime(300 + peak * 500, t, dur / 3);
-    hg.gain.cancelScheduledValues(t); hg.gain.setTargetAtTime(.006 * peak * windLevel(), t, dur / 3); hg.gain.setTargetAtTime(.001, t + dur * .6, dur / 3);
-    g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(.14 * peak * windLevel(), t, dur / 3); g.gain.setTargetAtTime(.05 * windLevel(), t + dur * .6, dur / 3);
+    hg.gain.cancelScheduledValues(t); hg.gain.setTargetAtTime(.0028 * peak * windLevel(), t, dur / 3); hg.gain.setTargetAtTime(.0004, t + dur * .6, dur / 3);
+    g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(.085 * peak * windLevel(), t, dur / 3); g.gain.setTargetAtTime(.022 * windLevel(), t + dur * .6, dur / 3);
+    // strong gusts make the old trunks creak
+    if (soundOn && peak > .55 && Math.random() < .55) setTimeout(() => soundOn && creak(AC.currentTime + .05, R(-.8, .8), R(.6, 1)), dur * R(250, 500));
     setTimeout(swell, dur * 1000);
   };
   swell();
 }
 const windLevel = () => 0.6 + Math.min(1, view.zoom / 80) * .8;
 const waterLevel = () => Math.max(.25, 1.1 - view.zoom / 90);
+
+/* ---------- wood: creaks, chops, knocks ----------
+   A creak is stick-slip friction: an irregular train of tiny clicks, heard through the resonance of the trunk. */
+function creak(t, pan = 0, g = 1, dur = R(.7, 1.6)){
+  const o = AC.createOscillator(); o.type = 'sawtooth';
+  const f0 = R(24, 46), steps = 24, curve = new Float32Array(steps); let f = f0;
+  for (let n = 0; n < steps; n++){ f = Math.max(14, f * R(.9, 1.12)); curve[n] = f; }
+  o.frequency.setValueCurveAtTime(curve, t, dur);
+  const b1 = AC.createBiquadFilter(); b1.type = 'bandpass'; b1.frequency.value = R(380, 650); b1.Q.value = 7;
+  const b2 = AC.createBiquadFilter(); b2.type = 'bandpass'; b2.frequency.value = R(1100, 1600); b2.Q.value = 5;
+  const gn = AC.createGain(), p = AC.createStereoPanner(); p.pan.value = pan;
+  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(.05 * g, t + dur * .35); gn.gain.linearRampToValueAtTime(.035 * g, t + dur * .7); gn.gain.linearRampToValueAtTime(0, t + dur);
+  const m = AC.createGain(); m.gain.value = .5; o.connect(b1).connect(gn); o.connect(b2).connect(m).connect(gn); gn.connect(p); out(p, .4);
+  o.start(t); o.stop(t + dur + .05);
+}
+function thunk(t, f0, f1, d, g, pan){
+  const o = AC.createOscillator(), gn = AC.createGain(), p = AC.createStereoPanner(); p.pan.value = pan;
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + d);
+  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(g, t + .002); gn.gain.exponentialRampToValueAtTime(.0001, t + d);
+  o.connect(gn).connect(p); out(p, .2); o.start(t); o.stop(t + d + .02);
+}
+// sounds from the workers and the world, placed left/right on screen and quieter when far away
+export function worldSound(kind, pan = 0, vol = 1){
+  if (!AC || !soundOn || AC.state !== 'running' || document.hidden || vol <= .02) return; const t = AC.currentTime + .01, v = vol;
+  switch (kind){
+    case 'chop': // an axe in green wood
+      thunk(t, R(170, 210), 90, .09, .07 * v, pan);
+      noiseHit(t, { f: R(1300, 1800), q: 1.4, dur: .06, g: .045 * v, pan });
+      noiseHit(t + .005, { f: R(560, 700), q: 9, dur: .14, g: .035 * v, pan });
+      break;
+    case 'dig': { // a spade: scrape in, then the soil lands
+      const fl = noiseHit(t, { f: 2400, q: 1.2, dur: .16, g: .03 * v, attack: .03, pan }); fl.frequency.exponentialRampToValueAtTime(900, t + .15);
+      noiseHit(t + .17, { f: 260, q: .8, dur: .12, g: .06 * v, type: 'lowpass', pan });
+      break; }
+    case 'hammer': // a mallet on a peg
+      thunk(t, R(480, 560), R(420, 470), .06, .045 * v, pan);
+      noiseHit(t, { f: 2600, q: 2, dur: .03, g: .035 * v, pan });
+      break;
+    case 'fall': // the trunk gives, then comes down in the leaves
+      creak(t, pan, .9 * v, .65);
+      noiseHit(t + .7, { f: 380, q: .7, dur: .6, g: .1 * v, type: 'lowpass', pan });
+      noiseHit(t + .72, { f: 3200, q: .6, dur: .8, g: .025 * v, pan, attack: .05 });
+      thunk(t + .72, 90, 45, .25, .08 * v, pan);
+      break;
+    case 'creak': creak(t, pan, v); break;
+  }
+}
 
 /* ---------- birdsong ---------- */
 function chirp(t, f0, f1, d, g, pan){
