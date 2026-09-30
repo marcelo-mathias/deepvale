@@ -66,12 +66,18 @@ export function makeTrade(ctx){
     v.mesh.position.set(x, y, z); if (h !== undefined) v.mesh.rotation.y = h;
   }
   const load = v => GOOD_IDS.reduce((s, g) => s + (v.cargo[g] || 0), 0);
-  function available(){ const o = {}; for (const g of GOOD_IDS) o[g] = Math.max(0, Math.floor((S.goods[g] || 0) - (S.reserve[g] ?? 0))); return o; }
+  // goods held back from trade entirely (the Send toggle in the trade panel)
+  const held = g => S.ship && S.ship[g] === false;
+  function available(){ const o = {}; for (const g of GOOD_IDS) o[g] = held(g) ? 0 : Math.max(0, Math.floor((S.goods[g] || 0) - (S.reserve[g] ?? 0))); return o; }
+  // what open orders on a route still need, per good
+  function wanted(route){ const w = {}; for (const o of S.orders || []) if (o.route === route && o.got < o.qty) w[o.good] = (w[o.good] || 0) + o.qty - o.got; return w; }
   function fill(v){
     const cap = ctx.capacity(v.kind, v.home); const av = available(); v.cargo = {}; let n = 0;
-    // most valuable first
-    for (const g of [...GOOD_IDS].sort((a, b) => GOODS[b].price - GOODS[a].price)){
-      const take = Math.min(av[g], cap - n); if (take <= 0) continue; v.cargo[g] = take; S.goods[g] -= take; n += take; }
+    const take = (g, q) => { q = Math.min(q, av[g], cap - n); if (q <= 0) return; v.cargo[g] = (v.cargo[g] || 0) + q; S.goods[g] -= q; av[g] -= q; n += q; };
+    // first what the orders on this route are waiting for, then the rest, most valuable first
+    const w = wanted(v.kind === 'wagon' ? 'north' : 'east');
+    for (const g of GOOD_IDS) if (w[g]) take(g, w[g]);
+    for (const g of [...GOOD_IDS].sort((a, b) => GOODS[b].price - GOODS[a].price)) take(g, cap);
     return n;
   }
   function showCargo(v){
@@ -152,5 +158,6 @@ export function makeTrade(ctx){
     while (S.orders.filter(o => o.route === 'north').length < 2) S.orders.push(newOrder('north'));
     while (S.orders.filter(o => o.route === 'east').length < 1) S.orders.push(newOrder('east'));
   }
-  return { sync, update, vehicles, topUpOrders, available, load, canBarge: k => !!bargeRoute(k), hasWagonRoute: k => !!wagonRoute(k) };
+  const sendNow = v => v.state === 'load' && depart(v) && ((v.t = 0), true);
+  return { sync, update, vehicles, topUpOrders, available, wanted, load, sendNow, canBarge: k => !!bargeRoute(k), hasWagonRoute: k => !!wagonRoute(k) };
 }

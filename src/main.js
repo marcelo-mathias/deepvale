@@ -27,7 +27,7 @@ function setSound(on){ setAudio(on); const b=document.getElementById('btnSound')
 // goods: timber, reeds, clay (raw) and carvings, lanterns (crafted). meta: per-tile extras {style, pave, sp}. counts: how many of each build (for costs).
 const S={scales:20,silver:10,tiles:null,builds:null,fishers:[],hires:0,clears:0,digs:0,huts:0,bridges:0,lineLv:0,baitLv:0,codex:{},hutVillage:{},earned:0,income:[],t:Date.now(),first:true,
   goods:{timber:10,reeds:0,clay:0,carvings:0,lanterns:0},reserve:{...RESERVE},meta:{},counts:{},keepers:[],boons:{},unlocked:{},seed:0,found:[],deposits:[],
-  orders:[],ordersDone:0,shipments:0,wish:null,wishesDone:0,wishBase:null,tide:{n:0,t:0},sets:{},small:0,sIncome:[],hutStyle:'thatch',pave:'gravel',statueSp:null,crates:0,v:3};
+  orders:[],ordersDone:0,shipments:0,wish:null,wishesDone:0,wishBase:null,tide:{n:0,t:0},sets:{},small:0,sIncome:[],hutStyle:'thatch',pave:'gravel',statueSp:null,crates:0,ship:{},drops:[],dropT:0,v:3};
 let booted=false,timeScale=1;const debugSpeed={reel:1,spawn:1,trade:1,prod:1},debugFlags={frenzy:false,allHints:false};
 const tiles=new Uint8Array(GW*GH);
 const builds=new Uint8Array(GW*GH);
@@ -885,14 +885,23 @@ function computeEconomy(){computeHealth();
     rate*=(1+(prodBoost[b][k]||0))*[1,1.5,2][LVL(k)-1];producers.push({k,code:b,good,rate,prog:shopProg.get(k)||0});}
 }
 const shopProg=new Map();
+// what a workshop turns into what
+const RECIPE={lanterns:{reeds:2,clay:1},carvings:{timber:3}};
+const canMake=g=>Object.entries(RECIPE[g]).every(([r,q])=>(S.goods[r]||0)>=q);
+const recipeTxt=g=>Object.entries(RECIPE[g]).map(([r,q])=>q+' '+GOODS[r].name.toLowerCase()).join(' + ');
+// a workshop set to "whatever is needed" makes what open orders are short of, else whichever is scarcer
+function craftOrder(k){const m=S.meta[k]?.make;if(m==='lanterns'||m==='carvings')return [m];
+  const w={...trade.wanted('north')};for(const [g,q] of Object.entries(trade.wanted('east')))w[g]=(w[g]||0)+q;
+  const short=g=>(w[g]||0)-(S.goods[g]||0);
+  const first=short('carvings')>0||short('lanterns')>0?(short('carvings')>=short('lanterns')?'carvings':'lanterns'):((S.goods.lanterns||0)<=(S.goods.carvings||0)?'lanterns':'carvings');
+  return [first,first==='lanterns'?'carvings':'lanterns'];}
 function productionTick(dt){
   for(const p of producers){
     if(p.good!=='craft'){S.goods[p.good]+=p.rate*dt/60;continue;}
     let g=(shopProg.get(p.k)||0)+p.rate*dt/60;
-    if(g>=1){const G=S.goods;
-      if(G.reeds>=2&&G.clay>=1){G.reeds-=2;G.clay-=1;G.lanterns+=1;g-=1;craftPuff(p.k,'#ffb35a');}
-      else if(G.timber>=3+S.reserve.timber*0){G.timber-=3;G.carvings+=1;g-=1;craftPuff(p.k,'#e0b070');}
-      else g=1;}
+    if(g>=1){const opts=craftOrder(p.k),mk=opts.find(canMake);
+      if(mk){for(const [r,q] of Object.entries(RECIPE[mk]))S.goods[r]-=q;S.goods[mk]+=1;g-=1;p.stall=null;p.making=mk;craftPuff(p.k,GOODS[mk].col);}
+      else{g=1;p.stall=opts.map(recipeTxt).join(', or ');}}
     shopProg.set(p.k,g);
   }
 }
@@ -1110,6 +1119,7 @@ function pristineTiles(){const t=new Uint8Array(GW*GH);initTiles(t);return t;}
 function initSecrets(){
   if(!S.seed)S.seed=1+Math.floor(Math.random()*2**30);
   secrets=makeSecrets(S.seed,pristineTiles()).filter(s=>tiles[s.k]===WILD||S.found.includes(s.k));
+  S.drops=(S.drops||[]).filter(d=>tiles[d.k]===WILD&&!S.found.includes(d.k)&&!secrets.some(s=>s.k===d.k));secrets.push(...S.drops);
   for(const s of secrets){secretAt[s.k]=s;if(s.type==='clay')deposit[s.k]=1;}
   const pt=pristineTiles();oldCh.set(makeChannels(S.seed,pt));wild0=pt.reduce((a,t)=>a+(t===WILD?1:0),0);
   trees.forEach((t,n)=>{if(t.tile>=0&&oldCh[t.tile]&&hash2(n*.37,t.tile*.11)<.7)t.gone=true;}); // the dry beds are only scrub
@@ -1117,6 +1127,16 @@ function initSecrets(){
 }
 let wild0=1;
 const hintVis=new Set();
+// old chests surface at the forest's edge every few minutes, so there is always something to look for
+function dropChest(){
+  if((S.drops||[]).length>=2)return false;
+  const cand=[];for(let k=0;k<GW*GH;k++){if(tiles[k]!==WILD||secretAt[k]||busy.has(k))continue;const i=k%GW,j=(k/GW)|0;let dmin=9;
+    for(let b=-5;b<=5;b++)for(let a=-5;a<=5;a++){const ni=i+a,nj=j+b;if(inGrid(ni,nj)&&tiles[idx(ni,nj)]!==WILD)dmin=Math.min(dmin,Math.max(Math.abs(a),Math.abs(b)));}
+    if(dmin>=2&&dmin<=5)cand.push(k);}
+  if(!cand.length)return false;const k=cand[Math.floor(Math.random()*cand.length)];
+  const d={type:'chest',i:k%GW,j:(k/GW)|0,k,r:Math.random()};S.drops.push(d);secrets.push(d);secretAt[k]=d;updateHintVis();
+  log('Something glints at the edge of the forest: an old chest, half sunk in the moss. Send a crow, or clear the tile.','gold');return true;}
+function dropTick(dt){S.dropT=(S.dropT||0)+dt;if(S.dropT<(S.dropNext||150))return;S.dropT=0;S.dropNext=200+Math.random()*160;dropChest();}
 function updateHintVis(){
   hintVis.clear();const R=has('quill')?11:7;
   for(const s of secrets){if(S.found.includes(s.k)||tiles[s.k]!==WILD)continue;let near=false;
@@ -1142,7 +1162,7 @@ function updateHints(dt,t){
   hintT-=dt;if(hintT>0)return;hintT=.35;
   for(const k of hintVis){const s=secretAt[k],c=tileC(s.i,s.j),h=SECRET_TYPES[s.type].hint;
     if(h==='smoke'&&Math.random()<.8)wisps.emit(c.x+rand(-.1,.1),.9,c.z+rand(-.1,.1),'smoke');
-    else if(h==='glint'&&Math.random()<.25)sparkle(c.x+rand(-.3,.3),rand(.6,1.1),c.z+rand(-.3,.3),'#fff0c0');
+    else if(h==='glint'&&Math.random()<(s.type==='chest'?.7:.25))sparkle(c.x+rand(-.3,.3),rand(.6,1.1),c.z+rand(-.3,.3),'#fff0c0');
     else if(h==='light'){if(Math.random()<.5)sparkle(c.x+rand(-.4,.4),rand(.8,1.4),c.z+rand(-.4,.4),'#ffe9a0');if(Math.random()<.3)wisps.emit(c.x,.9,c.z,'mist');}}
 }
 function revealAt(k){
@@ -1157,6 +1177,9 @@ function revealAt(k){
     stones:()=>{builds[k]=B.STONES;toast('Standing stones',`A ring of old stones. Another keeper can live in the valley now (<b>${keeperSlots()}</b> in all).`);renderKeepers();},
     shrine:()=>{builds[k]=B.SHRINE;toast('An old shrine','Candles still burn in it. Nobody admits to lighting them. Fish take the line more often within 3 tiles.');},
     clay:()=>{toast('A seam of red clay','A clay pit dug here would give three times as much.');},
+    chest:()=>{S.drops=(S.drops||[]).filter(d=>d.k!==k);const left=BLUEPRINTS.filter(b=>!unlocked(b.id));
+      if(left.length&&Math.random()<.7){const b=left[Math.floor(Math.random()*left.length)];S.unlocked[b.id]=true;renderDrawer();toast('An old chest',`Under the lid, wrapped in oilcloth: drawings for <b>${b.name}</b>. You can build them now.`);}
+      else{toast('An old chest','Rope, oilcloth and something heavy inside.');queueCrate({source:'an old chest',kind:'mixed'});}},
     grove:()=>{toast('An old cedar grove','Tall straight trunks. The woodcutters take <b>20 timber</b> from it.');},
   };
   T[s.type]();if(s.type==='bones'||s.type==='stones'||s.type==='shrine'){buildsChanged();}
@@ -1227,7 +1250,7 @@ function newWish(){
   opts.push({kind:'build',id:'flowers',n:3,text:'Plant 3 flower beds'});
   if(!S.counts.woodcutter)opts.push({kind:'build',id:'woodcutter',n:1,text:'Set up a woodcutter at the forest’s edge'});
   if(!S.counts.market)opts.push({kind:'build',id:'market',n:1,text:'Open a market stall by a road'});
-  if(!S.counts.workshop&&S.counts.market)opts.push({kind:'build',id:'workshop',n:1,text:'Open a workshop'});
+  if(!S.counts.workshop&&(S.counts.market||(S.orders||[]).some(o=>!GOODS[o.good].raw)))opts.push({kind:'build',id:'workshop',n:1,text:'Open a workshop'});
   if(unlocked('lantern'))opts.push({kind:'build',id:'lantern',n:2,text:'Light 2 stone lanterns'});
   if(unlocked('cherry'))opts.push({kind:'build',id:'cherry',n:2,text:'Plant 2 cherry trees'});
   if(S.statueSp)opts.push({kind:'build',id:'statue',n:1,text:'Carve a fish statue'});
@@ -1415,12 +1438,17 @@ function renderPlot(){
   if(builds[k]===B.WEIR){h+=`<p class="dim">${DEFS.weir.desc}</p>`;if(!jb)h+=`<button type="button" class="pu" data-a="weir"><span>Take down the weir · valley health +15, more fish come up</span><span class="ic">${costHTML(WEIR_COST)}</span></button>`;}
   if(jb)h+=`<div class="pj">${jb.tool==='upgrade'?'Upgrading':'Workers at it'} · ${Math.floor(jb.prog*100)}%<div class="ob"><i style="width:${(jb.prog*100).toFixed(0)}%"></i></div><button type="button" class="chip" data-a="cancel">Call it off (full refund)</button></div>`;
   if(!jb&&up)h+=`<button type="button" class="pu" data-a="upgrade"><span>Upgrade · ${up.txt}</span><span class="ic">${costHTML(up.cost)}</span></button>`;
+  if(builds[k]===B.SHOP&&!jb){const m=S.meta[k]?.make||'auto',p=producers.find(p=>p.k===k);
+    h+=`<div class="pr"><span class="pl">Makes</span>${[['auto','What’s needed'],['lanterns','Lanterns'],['carvings','Carvings']].map(([v,n])=>`<button type="button" data-mk="${v}" aria-pressed="${m===v}">${n}</button>`).join('')}</div>`;
+    h+=`<div class="dim small">Lantern: ${recipeTxt('lanterns')} · Carving: ${recipeTxt('carvings')}${p?` · ${p.rate.toFixed(1)} a minute`:''}</div>`;
+    if(p?.stall)h+=`<div class="small" style="color:var(--ember)">Waiting for ${p.stall}.</div>`;}
   if((!jb||jb.tool==='upgrade')&&builds[k]!==B.WEIR){
     if(yardsFor(k).length)h+=`<div class="pr"><span class="pl">Yard</span>${yardsFor(k).map(y=>`<button type="button" data-y="${y}" aria-pressed="${sl.yard===y}" title="${YARDS[y].name}: +${YARDS[y].charm} charm around it">${YARDS[y].name}</button>`).join('')}${sl.yard?'<button type="button" data-y="">clear</button>':''}</div>`;
     h+=`<div class="dim small">Charm here ${charm[k].toFixed(1)} · lanterns and fences go on corners and edges (Build → Decor)</div>`;}
   el.innerHTML=h;
   el.querySelectorAll('[data-a]').forEach(b=>b.addEventListener('click',()=>plotAct(b.dataset.a)));
   el.querySelectorAll('[data-y]').forEach(b=>b.addEventListener('click',()=>plotYard(b.dataset.y)));
+  el.querySelectorAll('[data-mk]').forEach(b=>b.addEventListener('click',()=>{S.meta[k]={...(S.meta[k]||{}),make:b.dataset.mk};sfx('pluck');renderPlot();save();}));
   el.querySelectorAll('[data-e]').forEach(b=>b.addEventListener('click',()=>plotEdge(b.dataset.e)));
 }
 const WEIR_COST={scales:150,timber:20};
@@ -1780,7 +1808,17 @@ function refreshUI(){
   if(!$('drawer').hidden)updateDrawerCosts();
 }
 function barRow(ic,label,val,frac,col){return `<span class="bi" style="color:${col}">${icon(ic)}</span><span class="bl">${label}</span><span class="bv">${val}</span><span class="bt"><i style="width:${(clamp(frac,0,1)*100).toFixed(0)}%;background:${col}"></i></span>`;}
-function renderOrdersGoal(){const os=(S.orders||[]).slice(0,2);const h=os.map(o=>`<div class="gl"><span class="gi">${icon('order')}</span><div class="gt"><b>${o.regionName}</b><span>Send ${o.qty} ${GOODS[o.good].name.toLowerCase()} by ${o.route==='north'?'wagon':'barge'}</span></div><span class="gn">${o.got}/${o.qty}</span></div>`).join('');if($('goalOrders').innerHTML!==h)$('goalOrders').innerHTML=h;}
+// the one next step that stands between the player and an order
+function orderHint(o){const g=o.good,nm=GOODS[g].name.toLowerCase();
+  if(o.route==='north'&&!builds.includes(B.POST))return 'Build a trading post beside a road: it keeps the wagon (Build → Work & trade).';
+  if(o.route==='east'&&!builds.includes(B.JETTY))return 'Build a jetty on flowing water: it keeps the barge (Build → Work & trade).';
+  if(!GOODS[g].raw){if(!builds.includes(B.SHOP))return `${GOODS[g].name} are made in a workshop by a road (Build → Work & trade).`;
+    if((S.goods[g]||0)<1&&!canMake(g))return `The workshop needs ${recipeTxt(g)} for each one.`;}
+  else{const code={timber:B.WOOD,reeds:B.REED,clay:B.CLAY}[g];
+    if(!builds.includes(code)&&(S.goods[g]||0)<o.qty-o.got)return {timber:'A woodcutter at the forest’s edge makes timber.',reeds:'Reed beds grow reeds. Build one on still water (a pond or a dead-end channel).',clay:'A clay pit on the riverbank digs clay.'}[g];}
+  if(S.ship?.[g]===false)return `Sending ${nm} is switched off in Trade.`;
+  return '';}
+function renderOrdersGoal(){const os=(S.orders||[]).slice(0,2);const h=os.map(o=>{const hint=orderHint(o);return `<div class="gl"><span class="gi">${icon('order')}</span><div class="gt"><b>${o.regionName}</b><span>Send ${o.qty} ${GOODS[o.good].name.toLowerCase()} by ${o.route==='north'?'wagon':'barge'}</span>${hint?`<span class="still">${hint}</span>`:''}</div><span class="gn">${o.got}/${o.qty}</span></div>`;}).join('');if($('goalOrders').innerHTML!==h)$('goalOrders').innerHTML=h;}
 function silverIncomeRate(){const now=Date.now();S.sIncome=S.sIncome.filter(([t])=>now-t<15*60e3);if(!S.sIncome.length)return 0;
   const span=Math.max(180e3,now-S.sIncome[0][0]);return S.sIncome.reduce((s,[,v])=>s+v,0)/(span/60e3);}
 
@@ -1826,12 +1864,15 @@ function updateDrawerCosts(){$('drawerItems').querySelectorAll('.item').forEach(
 function toggleTrade(){const d=$('trade');d.hidden=!d.hidden;if(!d.hidden){$('drawer').hidden=true;renderTrade();}}
 function renderTrade(){
   const g=GOOD_IDS.map(id=>`<tr><td><i class="sw" style="background:${GOODS[id].col}"></i>${GOODS[id].name}</td><td class="n">${fmt(S.goods[id]||0)}</td><td class="n dim">${goodRate(id)?'+'+goodRate(id).toFixed(1)+'/min':''}</td>
-    <td class="n dim">${price(id,'wagon').toFixed(0)} · ${price(id,'barge').toFixed(0)}</td><td class="rs">${GOODS[id].raw?`<button type="button" data-g="${id}" data-d="-2">−</button><span>${S.reserve[id]}</span><button type="button" data-g="${id}" data-d="2">+</button>`:''}</td></tr>`).join('');
-  const vs=trade.vehicles.length?trade.vehicles.map(v=>`<li class="${v.state==='stuck'?'bad':''}">${vehicleLine(v)}</li>`).join(''):'<li class="dim">No trading posts or jetties yet. Build them from Build → Work & trade.</li>';
+    <td class="n dim">${price(id,'wagon').toFixed(0)} · ${price(id,'barge').toFixed(0)}</td><td class="rs">${GOODS[id].raw?`<button type="button" data-g="${id}" data-d="-2">−</button><span>${S.reserve[id]}</span><button type="button" data-g="${id}" data-d="2">+</button>`:''}</td>
+    <td><button type="button" class="snd" data-s="${id}" aria-pressed="${S.ship[id]!==false}">${S.ship[id]!==false?'Send':'Hold'}</button></td></tr>`).join('');
+  const vs=trade.vehicles.length?trade.vehicles.map((v,n)=>`<li class="${v.state==='stuck'?'bad':''}">${vehicleLine(v)}${v.state==='load'&&(v.ready||0)>0?` <button type="button" class="chip snow" data-v="${n}">Send now</button>`:''}</li>`).join(''):'<li class="dim">No trading posts or jetties yet. Build them from Build → Work & trade.</li>';
   const os=(S.orders||[]).map(o=>`<li><div><b>${o.regionName}</b> wants <b>${o.qty} ${GOODS[o.good].name.toLowerCase()}</b> <span class="dim">by ${o.route==='north'?'wagon':'barge'}</span></div><div class="ob"><i style="width:${(o.got/o.qty*100).toFixed(0)}%"></i></div><div class="dim">${o.got}/${o.qty} · pays +${fmt(o.reward)} silver and a crate</div></li>`).join('');
-  $('tradeBody').innerHTML=`<table><thead><tr><th>Goods</th><th class="n">Stock</th><th class="n">Made</th><th class="n">Wagon · barge</th><th>Keep back</th></tr></thead><tbody>${g}</tbody></table>
-    <p class="dim small">Workshops use reeds, clay and timber first; wagons and barges take what is above the keep-back amount.</p>
+  $('tradeBody').innerHTML=`<table><thead><tr><th>Goods</th><th class="n">Stock</th><th class="n">Made</th><th class="n">Wagon · barge</th><th>Keep back</th><th></th></tr></thead><tbody>${g}</tbody></table>
+    <p class="dim small">Wagons and barges load what open orders on their route are waiting for first, then the most valuable goods. They take only what is above the keep-back amount, and nothing that is on Hold. Workshops can use the kept-back goods.</p>
     <h4>Wagons &amp; barges</h4><ul class="vs">${vs}</ul><h4>Orders from along the river</h4><ul class="os">${os}</ul>`;
+  $('tradeBody').querySelectorAll('[data-s]').forEach(b=>b.addEventListener('click',()=>{const g=b.dataset.s;S.ship[g]=S.ship[g]===false;renderTrade();renderOrdersGoal();save();}));
+  $('tradeBody').querySelectorAll('[data-v]').forEach(b=>b.addEventListener('click',()=>{const v=trade.vehicles[+b.dataset.v];if(v&&trade.sendNow(v)){sfx('pluck');refreshUI();}renderTrade();}));
   $('tradeBody').querySelectorAll('.rs button').forEach(b=>b.addEventListener('click',()=>{const g=b.dataset.g;S.reserve[g]=clamp(S.reserve[g]+ +b.dataset.d,0,200);renderTrade();save();}));
 }
 $('upLine').title='Crews bring fish in 30% faster per level';$('upBait').title='Rice and song left at the water: fish arrive and take the line 25% more often per level';
@@ -1932,7 +1973,7 @@ function renderDebug(){
   <div class="dg"><button type="button" data-a="frenzy" aria-pressed="${debugFlags.frenzy}">Fish frenzy</button><button type="button" data-a="hints" aria-pressed="${debugFlags.allHints}">Show all hints</button></div>
   <div class="dg"><span>Give</span><button type="button" data-a="scales">+1k scales</button><button type="button" data-a="silver">+1k silver</button><button type="button" data-a="goods">+100 goods</button><button type="button" data-a="rich">+100k all</button></div>
   <div class="dg"><span>Fish</span><select id="dbgSp">${spOpts}</select><button type="button" data-a="spawn">Spawn</button><button type="button" data-a="meet">Meet all ×12</button></div>
-  <div class="dg"><span>Crates</span><button type="button" data-a="crate">Crate</button><button type="button" data-a="hermit">Keeper</button><button type="button" data-a="unlock">Unlock all</button><button type="button" data-a="slot">+1 keeper slot</button></div>
+  <div class="dg"><span>Crates</span><button type="button" data-a="crate">Crate</button><button type="button" data-a="hermit">Keeper</button><button type="button" data-a="unlock">Unlock all</button><button type="button" data-a="slot">+1 keeper slot</button><button type="button" data-a="chest">Chest</button></div>
   <div class="dg"><span>World</span><button type="button" data-a="clear">Clear 9×9 at view</button><button type="button" data-a="find">Find all secrets</button><button type="button" data-a="fishers">+6 fishers</button></div>
   <div class="dg"><span>Trade</span><button type="button" data-a="ship">Send vehicles now</button><button type="button" data-a="back">Bring them home</button><button type="button" data-a="wish">Grant wish</button><button type="button" data-a="tide">Tide ×1.5</button><button type="button" data-a="work">Finish all work</button></div>
   <div class="dg">${resetArm?'<span>Wipe this valley?</span><button type="button" data-a="wipe" class="warn">Yes, start over</button><button type="button" data-a="keep">Keep it</button>':'<button type="button" data-a="reset" class="warn">Reset save</button>'}</div>`;
@@ -1950,6 +1991,7 @@ function debugAct(a){
   if(a==='rich'){S.scales+=1e5;S.silver+=1e5;for(const g of GOOD_IDS)S.goods[g]+=1e5/10;}
   if(a==='spawn'){const sp=SP[$('dbgSp').value];const c=comps.filter(c=>c.maxD>=sp.needD).sort((x,y)=>y.size-x.size)[0]||main();if(c){const f=spawnFish(sp,c);if(sp.awe)startCine(f);}}
   if(a==='meet'){for(const sp of SPECIES)S.codex[sp.id]=Math.max(12,S.codex[sp.id]||0);S.statueSp=S.statueSp||'koi';renderCodex();}
+  if(a==='chest'&&!dropChest())log('No room for a chest (two are already out, or no forest edge).','warn');
   if(a==='crate')queueCrate({source:'the debug fairy',kind:'mixed'});
   if(a==='hermit')queueCrate({source:'the debug fairy',kind:'keeper'});
   if(a==='unlock')for(const b of BLUEPRINTS)S.unlocked[b.id]=true;
@@ -2039,7 +2081,7 @@ const clock=new THREE.Clock();let saveT=0,uiT=0;
 function simStep(dt,t){
   for(const f of fishes.slice()){updateFish(f,dt);updateFight(f,dt);}
   hookTimer+=dt;if(hookTimer>.5){hookTimer=0;hookCheck();}
-  clockTick(dt);spawnTick(dt);pilgrimTick(dt);productionTick(dt);trade.update(dt,t);village.update(dt,t);workTick(dt,t);
+  clockTick(dt);spawnTick(dt);if(started)dropTick(dt);pilgrimTick(dt);productionTick(dt);trade.update(dt,t);village.update(dt,t);workTick(dt,t);
 }
 function frame(){
   const dt=Math.min(.1,clock.getDelta());U.time.value+=dt;const t=U.time.value;

@@ -11,6 +11,7 @@ export const SECRET_TYPES = {
   shrine:    { n:2, hint:'light', hintTxt:'A soft light hangs over the treetops here.' },
   clay:      { n:4, hint:'soil',  hintTxt:'The soil under the ferns is red.' },
   grove:     { n:3, hint:'none',  hintTxt:'Old cedars, taller than the rest.' },
+  chest:     { n:0, hint:'glint', hintTxt:'The corner of an old chest pokes out of the moss.' }, // dropped over time, not placed at the start
 };
 
 function mulberry(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }

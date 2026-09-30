@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.3 — chests, clearer crafting, orders that ship
+
+- Old chests now surface at the forest's edge every few minutes (up to two at a time). They glint brightly. Send a crow or clear the tile to open one: most hold drawings for something you can't build yet, and the rest hold a crate.
+- Workshops are easier to find and control. Click one to choose what it makes: What's needed (the default), Lanterns or Carvings. What's needed makes whatever open orders are short of. Before, a workshop always made lanterns when it could, so carvings rarely appeared. The panel shows both recipes and says what the workshop is waiting for when it runs out.
+- Wagons and barges now load whatever open orders on their route are waiting for first, then the most valuable goods. Before, cheap goods like reeds were loaded last and often never went out.
+- The trade panel has a Send / Hold toggle for each good, and a "Send now" button on any wagon or barge that has something ready.
+- Tracked orders show the next step when something is missing, for example "build a trading post", "lanterns are made in a workshop", "reed beds grow reeds on still water", or "the workshop needs 3 timber for each one".
+- Workshop and market descriptions now say plainly that workshops make lanterns and carvings and markets sell them.
+- Debug: a Chest button drops a chest right away.
+
 ## 0.6.2 — soft glass
 
 - The HUD is lighter. The heavy engraved and parchment panels are gone; every surface is now a faint tint over a background blur, with rounded corners.

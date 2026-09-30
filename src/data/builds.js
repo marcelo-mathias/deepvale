@@ -36,10 +36,10 @@ export const DEFS = {
   woodcutter: { code:B.WOOD,   cat:'work', name:'Woodcutter', on:'edge',  cost:{scales:30},            grow:1.25, desc:'Tends the forest around it: thins, prunes and replants, and never clears it. More trees around, more timber.' },
   reedbed:    { code:B.REED,   cat:'work', name:'Reed bed',   on:'still', cost:{scales:20,timber:4},   grow:1.2,  desc:'Still water is no use to fish, but reeds love it. More still water around, more reeds.' },
   claypit:    { code:B.CLAY,   cat:'work', name:'Clay pit',   on:'bank',  cost:{scales:25,timber:4},   grow:1.25, desc:'Digs river clay from the bank. Three times as much on a red clay seam.' },
-  workshop:   { code:B.SHOP,   cat:'work', name:'Workshop',   on:'land',  road:true, cost:{scales:60,timber:12}, grow:1.4, desc:'Turns 2 reeds + 1 clay into a paper lantern, or 3 timber into a carving.' },
+  workshop:   { code:B.SHOP,   cat:'work', name:'Workshop',   on:'land',  road:true, cost:{scales:60,timber:12}, grow:1.4, desc:'Where lanterns and carvings come from: 2 reeds + 1 clay make a paper lantern, 3 timber make a carving. Click it to choose what it makes.' },
   post:       { code:B.POST,   cat:'work', name:'Trading post', on:'land', road:true, cost:{scales:40,timber:6}, grow:1.6, desc:'Keeps a wagon. It carries goods up the Pilgrim Way to Birchmere and the Tarn, and comes back with silver.' },
   jetty:      { code:B.JETTY,  cat:'work', name:'Jetty',      on:'flowbank', cost:{scales:50,timber:10}, grow:1.6, desc:'Keeps a barge. It rides the current east to the Ashfen and the Salt Mouth, where goods fetch more.' },
-  market:     { code:B.MARKET, cat:'work', name:'Market stall', on:'land', road:true, cost:{scales:45,timber:8}, grow:1.35, desc:'Pilgrims who come for the tales buy lanterns and carvings here. Charm around it raises prices.' },
+  market:     { code:B.MARKET, cat:'work', name:'Market stall', on:'land', road:true, cost:{scales:45,timber:8}, grow:1.35, desc:'Pilgrims who come for the tales buy the lanterns and carvings your workshops make. Charm around it raises prices.' },
   // --- fishing
   pier:       { code:B.PIER,   cat:'fish', name:'Pier',       on:'shore', cost:{scales:15,timber:3},   grow:1.12, desc:'A short plank walk over the water. Fishers can stand on it, no road needed.' },
   nets:       { code:B.NETS,   cat:'fish', name:'Net shed',   on:'land',  cost:{scales:30,timber:6},   grow:1.3,  lock:true, charm:[1,1], desc:'Fishers within 2 tiles bring fish in 25% faster.' },

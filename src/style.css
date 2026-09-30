@@ -428,3 +428,9 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 @media (max-width:1060px){ .pill.meters{display:none} }
 @media (max-width:760px){ .grp+.grp{padding-left:10px} .strip{gap:6px 10px} .goals{width:220px} .st-sub{display:none} .tr .chip{padding:4px 7px;font-size:13px} }
 .enter-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.reroll{background:none;border:1px solid rgba(234,201,141,.5);color:var(--gold);padding:11px 16px;border-radius:10px;cursor:pointer;font-family:var(--serif,serif);font-size:15px;font-weight:600}.reroll:hover{background:rgba(234,201,141,.08)}.vno{font-family:var(--serif,serif);font-style:italic;color:var(--mist-2);font-size:15px}
+
+/* trade: send / hold toggles and send-now */
+#trade .snd{background:rgba(255,255,255,.06);border:1px solid var(--edge);border-radius:7px;color:var(--txt-2);font-size:11.5px;padding:2px 8px;cursor:pointer;min-width:46px}
+#trade .snd[aria-pressed="true"]{color:#b9d6a8;border-color:rgba(185,214,168,.4)}
+#trade .snd[aria-pressed="false"]{color:var(--ember)}
+#trade .snow{margin-left:8px;padding:2px 9px !important;font-size:12px}
