@@ -79,12 +79,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 
 /* the one surface: every panel, pill and chip */
 .chip,.gchips,.goals,#tip,#away,
-#drawer,#trade,#codex,#map,#plot,#debug,#fishcard,#toast,#crate .card,.tally,#settings{
+#drawer,#trade,#codex,#map,#plot,#debug,#fishcard,#toast,.tally,#settings{
   background:linear-gradient(180deg,var(--glass-hi),transparent 60%),var(--glass);
   -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
   border:1px solid var(--edge);border-radius:var(--r);box-shadow:var(--shadow);color:var(--txt)}
 /* heavier glass where there is reading to do */
-#drawer,#trade,#codex,#map,#plot,#debug,#fishcard,#toast,#crate .card,.tally,#settings{
+#drawer,#trade,#codex,#map,#plot,#debug,#fishcard,#toast,.tally,#settings{
   background:linear-gradient(180deg,var(--glass-hi),transparent 60%),var(--glass-2)}
 
 /* menu items: the top bar's look, used everywhere a choice is made.
@@ -425,18 +425,114 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 #plot .small{margin-top:6px;font-size:11px}
 
 /* crates: pick one card */
-#crate{position:absolute;inset:0;z-index:10;display:grid;place-items:center;background:rgba(4,9,8,.55);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
-#crate .crate-in{max-width:calc(100vw - 32px);text-align:center}
-#crate .ck{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--jade)}
-#crate h3{margin:4px 0 18px;font-family:var(--serif);font-size:clamp(24px,4vw,36px);font-weight:600;letter-spacing:.06em;color:#f6efdf}
-#crate .cards{display:flex;flex-wrap:wrap;justify-content:center;gap:14px}
-#crate .card{display:flex;flex-direction:column;gap:8px;width:200px;min-height:230px;box-sizing:border-box;padding:16px 14px;text-align:left;cursor:pointer;
-  animation:cardIn .55s cubic-bezier(.2,.9,.25,1.2) both;transition:transform .18s,border-color .18s}
-#crate .card:hover{transform:translateY(-6px) rotate(-.6deg);border-color:rgba(226,196,142,.55);background:linear-gradient(180deg,var(--glass-hi),transparent 60%),rgba(40,36,28,.55)}
-#crate .card .ct{font-size:10px;font-weight:700;letter-spacing:.26em;text-transform:uppercase;color:var(--gold2)}
-#crate .card .cn{font-family:var(--serif);font-size:22px;font-weight:700;color:var(--txt)}
-#crate .card .cd{font-family:var(--serif);font-size:15px;line-height:1.45;color:var(--txt-2)}
-#crate .card .cport{width:72px;height:72px;image-rendering:pixelated;border:1px solid var(--edge);border-radius:10px}
+#crate{position:absolute;inset:0;z-index:10;display:grid;place-items:center;background:radial-gradient(80% 70% at 50% 45%,rgba(6,12,11,.55),rgba(4,8,7,.82));
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);overflow:hidden}
+#crate .crate-in{position:relative;max-width:calc(100vw - 32px);text-align:center;perspective:1100px}
+#crate .ck{font-family:var(--body);font-size:15px;letter-spacing:.14em;color:var(--accent);animation:menuIn .7s cubic-bezier(.2,.8,.2,1) both}
+#crate h3{margin:2px 0 30px;font-family:var(--serif);font-size:clamp(32px,5vw,56px);font-weight:400;line-height:1.1;color:#f5ecd9;text-shadow:0 4px 30px rgba(0,0,0,.5);
+  animation:menuIn .8s cubic-bezier(.2,.8,.2,1) .08s both}
+#crate .cards{display:flex;flex-wrap:wrap;justify-content:center;gap:22px}
+/* a light that spreads across the screen when a card is chosen */
+#crate::after{content:'';position:absolute;left:50%;top:55%;width:40px;height:40px;margin:-20px;border-radius:50%;pointer-events:none;opacity:0;
+  box-shadow:0 0 0 2px rgba(134,220,188,.8),0 0 60px 20px rgba(134,220,188,.35)}
+#crate.flash::after{animation:ringOut .9s cubic-bezier(.2,.7,.2,1) forwards}
+@keyframes ringOut{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(40)}}
+
+/* ---- the cards ----
+   .card is the button (holds the tilt), .cin flips and bobs, .cf is the face, .cbk the back */
+#crate .card{--cc:#86dcbc;--rx:0deg;--ry:0deg;position:relative;width:250px;padding:0;background:none;border:0;cursor:pointer;text-align:left;color:var(--txt);
+  transform:perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));transition:transform .35s cubic-bezier(.2,.8,.2,1);transform-style:preserve-3d}
+#crate .card:hover{transition:transform .08s linear}
+#crate .cin{position:relative;transform-style:preserve-3d;
+  animation:deal .9s cubic-bezier(.2,.8,.2,1) calc(var(--deal,0) * .16s + .25s) both,cardBob 5.5s ease-in-out calc(var(--deal,0) * .16s + 1.4s + var(--bob,0s)) infinite}
+#crate .card:hover .cin{animation-play-state:running,paused}
+#crate .cf,#crate .cbk{border-radius:7px;-webkit-backface-visibility:hidden;backface-visibility:hidden}
+#crate .cf{position:relative;min-height:290px;box-sizing:border-box}
+#crate .cbk{position:absolute;inset:0}
+#crate .cf{display:flex;flex-direction:column;overflow:visible;background:linear-gradient(180deg,#10201c,#0c1714);border:1px solid color-mix(in srgb,var(--cc) 45%,transparent);
+  box-shadow:0 18px 40px rgba(0,0,0,.45),0 0 0 0 transparent;animation:breathe 4s ease-in-out calc(var(--deal,0) * .7s) infinite;transition:border-color .3s,transform .3s}
+#crate .card:hover .cf{border-color:var(--cc);box-shadow:0 26px 50px rgba(0,0,0,.5),0 0 28px color-mix(in srgb,var(--cc) 35%,transparent)}
+#crate .cbk{transform:rotateY(180deg);display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--cc) 40%,transparent);
+  background:repeating-linear-gradient(45deg,rgba(134,220,188,.06) 0 2px,transparent 2px 9px),repeating-linear-gradient(-45deg,rgba(134,220,188,.06) 0 2px,transparent 2px 9px),#0d1916}
+#crate .cbk .seal{display:grid;place-items:center;width:64px;height:64px;color:var(--cc);border:1px solid color-mix(in srgb,var(--cc) 50%,transparent);transform:rotate(45deg)}
+#crate .cbk .seal .ic-svg{width:26px;height:26px;transform:rotate(-45deg)}
+@keyframes deal{0%{opacity:0;transform:translateY(90px) rotateY(180deg) rotateZ(-6deg) scale(.85)}45%{opacity:1;transform:translateY(-8px) rotateY(180deg) rotateZ(0) scale(1)}100%{transform:none}}
+@keyframes cardBob{50%{transform:translateY(-5px)}}
+@keyframes breathe{50%{box-shadow:0 18px 40px rgba(0,0,0,.45),0 0 18px color-mix(in srgb,var(--cc) 18%,transparent)}}
+
+/* tag on the top edge */
+#crate .ctag{position:absolute;z-index:3;top:-8px;left:10px;padding:3px 7px 2px;font-family:var(--body);font-size:9.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--accent-ink);background:var(--cc);border-radius:2px;overflow:hidden}
+#crate .ctag::after{content:'';position:absolute;top:0;bottom:0;left:-40%;width:30%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.8),transparent);
+  transform:skewX(-20deg);animation:tagShine 5s ease-in-out calc(var(--deal,0) * .9s + 2s) infinite}
+@keyframes tagShine{0%,70%{left:-40%}100%{left:130%}}
+
+/* header: a glow rising from below, drifting motes, the name and the sigil chain */
+#crate .chead{position:relative;padding:28px 18px 16px;min-height:62px;border-radius:7px 7px 0 0;overflow:hidden;
+  background:radial-gradient(120% 90% at 50% 120%,color-mix(in srgb,var(--cc) 45%,transparent),transparent 70%),
+             radial-gradient(3px 3px at 20% 30%,rgba(255,255,255,.05),transparent),color-mix(in srgb,var(--cc) 10%,#0f231e);background-size:100% 100%,6px 6px,auto;
+  border-bottom:1px solid color-mix(in srgb,var(--cc) 20%,transparent)}
+#crate .chead::before{content:'';position:absolute;inset:0;opacity:.35;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.25) 0 1px,transparent 1px 3px)}
+#crate .chead::after{content:'';position:absolute;inset:-20% -40%;pointer-events:none;opacity:.5;
+  background:radial-gradient(30% 45% at 30% 100%,color-mix(in srgb,var(--cc) 40%,transparent),transparent),radial-gradient(25% 40% at 75% 100%,color-mix(in srgb,var(--cc) 30%,transparent),transparent);
+  animation:aurora 9s ease-in-out infinite alternate}
+#crate .card:hover .chead::after{opacity:.9;animation-duration:3s}
+@keyframes aurora{from{transform:translateX(-8%)}to{transform:translateX(8%)}}
+#crate .cn{position:relative;z-index:1;font-family:var(--serif);font-size:30px;line-height:1.05;color:#f5ecd9;text-shadow:0 2px 12px rgba(0,0,0,.4)}
+#crate .keeper .cn{padding-right:64px}
+#crate .cport{position:absolute;z-index:1;right:14px;top:22px;width:54px;height:54px;image-rendering:pixelated;border-radius:6px;border:1px solid color-mix(in srgb,var(--cc) 60%,transparent);
+  box-shadow:0 0 16px color-mix(in srgb,var(--cc) 30%,transparent);animation:portrait 6s ease-in-out infinite}
+@keyframes portrait{50%{transform:translateY(-2px) rotate(1deg)}}
+#crate .mote{position:absolute;left:var(--mx);bottom:-6px;width:3px;height:3px;border-radius:50%;background:var(--cc);box-shadow:0 0 6px var(--cc);opacity:0;
+  animation:moteUp 4.5s linear calc(var(--m) * .75s) infinite}
+#crate .card:hover .mote{animation-duration:1.8s}
+@keyframes moteUp{0%{opacity:0;transform:translateY(0)}20%{opacity:.9}100%{opacity:0;transform:translateY(-90px) translateX(8px)}}
+
+/* the sigil chain: what a blessing touches and what it brings. On hover, light flows along it */
+#crate .chain{position:relative;z-index:1;display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:12px}
+#crate .sig{display:inline-flex;align-items:center;gap:5px;padding:3px 8px 3px 4px;border-radius:20px;background:rgba(0,0,0,.28);border:1px solid color-mix(in srgb,var(--cc) 25%,transparent);
+  font-family:var(--body);font-style:normal;font-size:11.5px;color:var(--txt-2);transition:color .3s,border-color .3s,background .3s}
+#crate .sig .ic-svg{width:14px;height:14px;padding:2px;border-radius:50%;color:var(--cc);background:color-mix(in srgb,var(--cc) 14%,transparent)}
+#crate .sig em{font-style:normal}
+#crate .link{width:12px;height:1px;background:linear-gradient(90deg,transparent,var(--cc),transparent);opacity:.6;position:relative}
+#crate .link::after{content:'';position:absolute;right:-1px;top:-2px;border:3px solid transparent;border-left-color:var(--cc);border-right:0}
+#crate .card:hover .sig{animation:flow 1.6s ease-in-out calc(var(--n) * .28s) infinite}
+@keyframes flow{0%,60%,100%{border-color:color-mix(in srgb,var(--cc) 25%,transparent);background:rgba(0,0,0,.28);color:var(--txt-2)}
+  25%{border-color:var(--cc);background:color-mix(in srgb,var(--cc) 18%,transparent);color:var(--txt);box-shadow:0 0 12px color-mix(in srgb,var(--cc) 40%,transparent)}}
+
+/* body: the change, then what it means */
+#crate .cbody{padding:18px 18px 10px;flex:1}
+#crate .cv{display:flex;align-items:baseline;gap:8px;font-family:var(--body);font-size:19px}
+#crate .cv s{text-decoration:none;color:var(--txt-3)}
+#crate .cv .arr{font-style:normal;color:var(--txt-3);font-size:15px}
+#crate .cv b{font-weight:500;color:var(--cc)}
+#crate .card:hover .cv b{animation:valuePop .5s cubic-bezier(.2,1.6,.4,1)}
+@keyframes valuePop{40%{transform:scale(1.12);text-shadow:0 0 14px var(--cc)}}
+#crate .cd{margin-top:6px;font-family:var(--body);font-size:13.5px;line-height:1.5;color:var(--mist)}
+
+/* foot: your valley, now, and how many of this blessing you hold */
+#crate .cfoot{display:flex;align-items:center;gap:10px;margin:0 12px 12px;padding:10px 8px 0;border-top:1px dashed color-mix(in srgb,var(--cc) 22%,transparent);min-height:22px}
+#crate .ft{font-family:var(--body);font-size:12px;line-height:1.35;color:var(--mist-2)}
+#crate .pips{display:inline-flex;gap:4px;flex:none}
+#crate .pips i{width:7px;height:7px;transform:rotate(45deg);border:1px solid color-mix(in srgb,var(--cc) 50%,transparent)}
+#crate .pips i.on{background:var(--cc)}
+#crate .pips i.next{animation:pipNext 1.6s ease-in-out infinite}
+#crate .card:hover .pips i.next{background:color-mix(in srgb,var(--cc) 60%,transparent);animation:none;box-shadow:0 0 8px var(--cc)}
+@keyframes pipNext{50%{background:color-mix(in srgb,var(--cc) 30%,transparent)}}
+
+/* a light that follows the cursor across the card */
+#crate .sheen{position:absolute;inset:0;border-radius:7px;pointer-events:none;opacity:0;transition:opacity .3s;mix-blend-mode:screen;
+  background:radial-gradient(40% 35% at var(--px,50%) var(--py,30%),color-mix(in srgb,var(--cc) 22%,transparent),transparent 70%)}
+#crate .card:hover .sheen{opacity:1}
+
+/* choosing: the card rises into light, the rest sink away */
+#crate .card.chosen{z-index:2;pointer-events:none}
+#crate .card.chosen .cin{animation:rise .8s cubic-bezier(.3,.6,.2,1) forwards}
+#crate .card.dismissed{pointer-events:none}
+#crate .card.dismissed .cin{animation:sink .5s ease-in forwards}
+@keyframes rise{30%{transform:translateY(-16px) scale(1.06);filter:brightness(1.4)}100%{transform:translateY(-70px) scale(1.1);filter:brightness(2.5) blur(6px);opacity:0}}
+@keyframes sink{to{transform:translateY(40px) scale(.92);opacity:0}}
+#crate .glint{z-index:5}
 #crate .replace{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:16px}
 #crate .replace .rk{width:100%;margin-bottom:4px;font-size:13px;color:var(--mist)}
 
@@ -571,7 +667,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   .chip{padding:6px 8px}
   #drawer{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
   #drawer .items{grid-template-columns:1fr 1fr}
-  #crate .card{width:150px;min-height:0}
+  #crate .card{width:min(250px,calc(100vw - 40px))}
+  #crate .cf{min-height:260px}
 }
 @media (prefers-reduced-motion:reduce){
   .bar,#banner,#intro{transition-duration:.01s}

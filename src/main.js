@@ -23,6 +23,7 @@ import { initMap } from './ui/map.js';
 import { makeBloom } from './render/bloom.js';
 import { makeLamps, LAMP_GLSL } from './render/lamps.js';
 import { makeMenu } from './ui/menu.js';
+import { cardHTML, animateCard, chooseCard, CARD_COL } from './ui/cards.js';
 
 function setSound(on){ setAudio(on); const b=document.getElementById('btnSound'); b.textContent = on ? 'Sound on' : 'Sound off'; b.setAttribute('aria-pressed',on); }
 
@@ -1239,16 +1240,58 @@ function crateCards(kind){
   if(!out.length)out.push({type:'silver',id:'silver',name:'A purse of silver',desc:'+'+fmt(100+50*S.crates)+' silver.'});
   return out;
 }
+// what a card shows besides its name: the change it makes, what it touches, and a live line about your valley
+const BOON_UI={
+  hands:{per:15,u:'%',chain:[['hire','Fishers'],['scales','Scales']],d:'Fishers bring fish in faster.'},
+  sweet:{per:15,u:'%',chain:[['bait','Offerings'],['fish','Fish']],d:'Fish take the line more often.'},
+  shine:{per:10,u:'%',chain:[['fish','Fish'],['scales','Scales']],d:'More scales from every fish met.'},
+  pockets:{per:8,u:' more',chain:[['trade','Wagons & barges'],['silver','Silver']],d:'Wagons and barges carry more goods.'},
+  wheels:{per:15,u:'%',chain:[['trade','Wagons & barges'],['silver','Silver']],d:'Wagons and barges travel faster.'},
+  wood:{per:25,u:'%',chain:[['timber','Timber']],d:'Woodcutters bring in more timber.',good:'timber'},
+  reed:{per:25,u:'%',chain:[['reeds','Reeds']],d:'Reed beds grow more reeds.',good:'reeds'},
+  clay:{per:25,u:'%',chain:[['clay','Clay']],d:'Clay pits dig more clay.',good:'clay'},
+  craft:{per:15,u:'%',chain:[['lanterns','Crafts'],['silver','Silver']],d:'Lanterns and carvings sell for more.'},
+  hosts:{per:20,u:'%',chain:[['keeper','Pilgrims'],['silver','Silver']],d:'More pilgrims come down the Way, and they leave more in the tale box.'},
+  reach:{per:1,u:' tile',chain:[['carvings','Statues'],['health','Charm']],d:'Statues, sheds, racks and charm reach one tile farther.'},
+  tide:{per:15,u:' s',chain:[['tide','Good tide'],['scales','Scales']],d:'A good tide lasts longer and climbs higher.'},
+};
+// the parts of the valley a keeper or blueprint touches, read from its description
+const SIG_WORDS=[[/pilgrim/i,'keeper','Pilgrims'],[/wagon|barge|trade/i,'trade','Trade'],[/reed/i,'reeds','Reeds'],[/clay/i,'clay','Clay'],[/timber|woodcut/i,'timber','Timber'],
+  [/lantern/i,'lanterns','Lanterns'],[/carving|workshop|craft/i,'carvings','Crafts'],[/fish|reel|line/i,'fish','Fish'],[/scale/i,'scales','Scales'],[/silver|market|sell/i,'silver','Silver'],
+  [/charm|flower|cherry|garden/i,'health','Charm'],[/hut|house|village|road|pave/i,'hut','Village'],[/keeper/i,'keeper','Keepers']];
+const sigsOf=t=>SIG_WORDS.filter(([re])=>re.test(t)).slice(0,3).map(([,ic,l])=>[ic,l]);
+function cardInfo(cd){
+  if(cd.type==='boon'){const U=BOON_UI[cd.id]||{per:0,u:''},l=boon(cd.id),mx=BOON[cd.id].max,step=(a,b)=>(1+a*U.per/100)/(1+b*U.per/100);let text='';
+    if(U.good){const r=goodRate(U.good);text=r?`${GOODS[U.good].name}: ${r.toFixed(1)} → ${(r*step(l+1,l)).toFixed(1)} a minute`:`No ${GOODS[U.good].name.toLowerCase()} made yet`;}
+    else if(cd.id==='hands'||cd.id==='sweet'||cd.id==='shine')text=`${fishersState.length} fisher${fishersState.length===1?'':'s'} on the banks`;
+    else if(cd.id==='pockets'){const c=capacity('wagon');text=`A wagon carries ${c} → ${c+8}`;}
+    else if(cd.id==='wheels'){const n=trade.vehicles.length;text=n?`${n} wagon${n===1?'':'s'} and barge${n===1?'':'s'} out there`:'No wagons or barges yet';}
+    else if(cd.id==='craft'){const p=price('lanterns','wagon');text=`A lantern sells for ${p.toFixed(0)} → ${(p*step(l+1,l)).toFixed(0)} silver`;}
+    else if(cd.id==='hosts'){const k=builds.indexOf(B.TALEHALL);text=k>=0?`Each pilgrim leaves ~${fmt(taleGift(k))} → ${fmt(taleGift(k)*step(l+1,l))} silver`:'Pilgrims come to the Tale House';}
+    else if(cd.id==='tide')text=`A good tide lasts ${50+15*l} s → ${50+15*(l+1)} s`;
+    else if(cd.id==='reach')text='Every statue, shed and rack';
+    return {value:{from:l?`+${l*U.per}${U.u}`:null,to:`+${(l+1)*U.per}${U.u}`},chain:U.chain,desc:U.d||BOON[cd.id].desc,foot:{pips:[l,mx],text}};}
+  if(cd.type==='keeper')return {desc:cd.desc,chain:sigsOf(cd.desc),foot:{text:`Cottages: ${S.keepers.length} of ${keeperSlots()} taken`}};
+  if(cd.type==='blueprint'){const b=BLUEPRINTS.find(x=>x.id===cd.id);return {value:b?.kind==='build'?'A new building':b?.kind==='style'?'A new hut style':'A new paving',chain:[['build','Build'],...sigsOf(cd.desc).slice(0,2)],desc:cd.desc.replace(/^Blueprint\.\s*/,''),foot:{text:'Yours to build once chosen'}};}
+  if(cd.type==='silver')return {value:cd.desc.replace(' silver.',''),chain:[['silver','Silver']],desc:'A purse left for the village.',foot:{text:'Straight into the purse'}};
+  return {};
+}
 function bpDesc(b){if(b.kind==='build')return 'Blueprint. '+DEFS[b.id].desc;if(b.kind==='style')return `Blueprint. Build or restyle huts in ${STYLES[b.id.split(':')[1]].name.toLowerCase()}. A village all in one style is in harmony.`;
   return `Blueprint. Pave roads in ${PAVES[b.id.split(':')[1]].name.toLowerCase()}: wagons roll faster, and it adds charm.`;}
 function nextCrate(){
   if(crateOpen||!crateQ.length)return;const c=crateQ.shift();crateOpen=c;c.cards=crateCards(c.kind);
-  const el=$('crate');el.hidden=false;el.classList.remove('on');void el.offsetWidth;el.classList.add('on');
+  const el=$('crate');el.hidden=false;el.classList.remove('on','flash');void el.offsetWidth;el.classList.add('on');
   $('crateK').textContent=c.kind==='keeper'?'Someone would like to join you':'A crate';$('crateH').textContent=`From ${c.source}`;
   $('crateR').innerHTML='';const cards=$('crateCards');cards.innerHTML='';
-  c.cards.forEach((cd,n)=>{const b=document.createElement('button');b.type='button';b.className='card '+cd.type;b.style.animationDelay=(n*.12)+'s';
-    b.innerHTML=`<div class="ct">${cd.type==='keeper'?'Keeper':cd.type==='boon'?'Blessing':cd.type==='blueprint'?'Blueprint':'Silver'}</div>${cd.type==='keeper'?`<img class="cport" src="${portrait(cd.id)}" alt="">`:''}<div class="cn">${cd.name}</div><div class="cd">${cd.desc}</div>`;
-    b.addEventListener('click',()=>pickCard(cd));cards.appendChild(b);});
+  let picked=false;
+  c.cards.forEach((cd,n)=>{const b=document.createElement('button');b.type='button';b.className='card '+cd.type;b.style.setProperty('--cc',CARD_COL[cd.type]||'#86dcbc');
+    b.innerHTML=cardHTML(cd,cardInfo(cd),cd.type==='keeper'?portrait(cd.id):null);
+    b.addEventListener('pointerenter',()=>{if(!picked)sfx('tick',n);});
+    b.addEventListener('click',()=>{if(picked)return;
+      // a full row of cottages asks who makes room first: no flourish yet
+      if(cd.type==='keeper'&&S.keepers.length>=keeperSlots()){pickCard(cd);return;}
+      picked=true;chooseCard(b,[...cards.children]).then(()=>pickCard(cd));});
+    cards.appendChild(b);animateCard(b,n,el);});
   sfx('crate');
 }
 function closeCrate(){$('crate').hidden=true;crateOpen=null;refreshUI();save();setTimeout(nextCrate,500);}

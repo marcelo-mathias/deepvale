@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.1 — crate cards
+
+- Crate cards follow the new design: a tag on the top edge (Blessing, Keeper, Blueprint, Silver), a header glowing from below in the card's colour (mint, gold or pale blue), the name in Milonga, and the change in large type (`+20% → +40%`).
+- The tags are now a **sigil chain**: small medallions linked by arrows, showing what a card touches and what it brings (Pilgrims → Silver, Offerings → Fish, Crafts → Silver). Keepers and blueprints get theirs from their descriptions.
+- The bottom of each card now tells you about your own valley:
+  - blessings show how many you hold as diamonds (filled, the next one pulsing, empty), plus a live line such as "Timber: 4.5 → 5.6 a minute" or "Each pilgrim leaves ~3 → 4 silver"
+  - keepers show how many cottages are taken
+- **Dealing:** cards arrive face down and flip over one after another.
+- **Idle:** each card bobs out of step with the others. Its edge breathes with light, motes drift up through the header over a slow aurora, and a shine runs along the tag now and then. Keeper portraits sway.
+- **Hover:** the card tilts toward the cursor and a soft light follows it across the face. The blessing flows along the sigil chain, one medallion lighting after another, and the next diamond lights up. Motes rise faster, glints bloom from the corners, and there's a soft note on hover.
+- **Choosing:** the card rises and dissolves into light while the others sink away, and a ring of light spreads across the screen. When every cottage is taken, you are asked who makes room first.
+
 ## 0.8.0 — a new face
 
 **Type and menus**
