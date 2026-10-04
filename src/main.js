@@ -24,6 +24,8 @@ import { makeBloom } from './render/bloom.js';
 import { makeLamps, LAMP_GLSL } from './render/lamps.js';
 import { makeMenu } from './ui/menu.js';
 import { cardHTML, animateCard, chooseCard, CARD_COL } from './ui/cards.js';
+import { makeReel } from './ui/reel.js';
+import { makeTour } from './ui/tour.js';
 
 function setSound(on){ setAudio(on); const b=document.getElementById('btnSound'); b.textContent = on ? 'Sound on' : 'Sound off'; b.setAttribute('aria-pressed',on); }
 
@@ -1078,6 +1080,7 @@ function releaseTally(f,cx,cz){
   if(has('tamsin')&&villages.length)rows.push({t:'Tamsin Two-Hats',v:Math.pow(1.1,villages.length),k:'x'});
   const nst=builds.reduce((s,b)=>s+(b===B.STATUE?1:0),0);if(has('moss')&&nst)rows.push({t:'Brother Moss',v:Math.pow(1.05,nst),k:'x'});
   const met=SPECIES.filter(s=>S.codex[s.id]).length;if(has('fen')&&met)rows.push({t:'Little Fen',v:Math.pow(1.08,met),k:'x'});
+  if(f.help)rows.push({t:'Your steady hands',v:1+Math.min(.5,.03*f.help),k:'x'});
   if(boon('shine'))rows.push({t:'Scale Shine',v:1+.1*boon('shine'),k:'x'});
   if(activeSets.row)rows.push({t:'Fisher’s Row',v:1.1,k:'x'});
   if(activeSets.statues)rows.push({t:'Statue Garden',v:1.15,k:'x'});
@@ -1684,7 +1687,8 @@ function cancelAuto(){tween=null;if(cine.fish)endCine(false);}
 function pan(dx,dy){const upp=view.z/innerHeight;const right=new THREE.Vector3(1,0,-1).normalize(),fwd=new THREE.Vector3(-1,0,-1).normalize();
   view.t.addScaledVector(right,-dx*upp).addScaledVector(fwd,dy*upp/Math.sin(EL));}
 const keys=new Set();
-addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('button')&&e.key===' ')return;
+addEventListener('keydown',e=>{if(e.key===' '&&reel.fish&&!(e.target.closest&&e.target.closest('input'))){e.preventDefault();if(!e.repeat)reelPress();return;}
+  if(e.target.closest&&e.target.closest('button')&&e.key===' ')return;
   const k=e.key.toLowerCase();keys.add(k);
   if(k==='q'||k==='escape'){setTool('look');pinned=null;updateCard();}
   if(e.target.closest&&e.target.closest('input'))return;
@@ -1881,12 +1885,51 @@ function updateLabels(){
     el.querySelector('.sub').textContent=f.state==='hooked'?`${f.hookers.length} of ${f.sp.crew} hands on the line`:f.state==='held'?'Released with thanks':`About ${Math.round(f.sp.len*4)} m`;
     el.querySelector('.pb').style.display=f.state==='hooked'?'block':'none';el.querySelector('.pb i').style.width=(f.progress*100).toFixed(1)+'%';}
   for(const [f,el] of labelPool)if(!want.has(f)){el.remove();labelPool.delete(f);}
+  updateTileBars();
   // village names float over their huts
   for(const v of villages){let el=villageLbl.get(v.name);if(!el){el=document.createElement('div');el.className='vlbl';el.textContent=v.name;labelsEl.appendChild(el);villageLbl.set(v.name,el);}
     const p=toScreen(v.cx,.9,v.cz);el.style.left=p.x+'px';el.style.top=p.y+'px';}
   for(const [n,el] of villageLbl)if(!villages.some(v=>v.name===n)){el.remove();villageLbl.delete(n);}
 }
 const villageLbl=new Map();
+/* ---- progress over tiles: every job, and workshops at their bench when you are close ---- */
+const tileBars=new Map();
+const JOB_VERB={clear:'Clearing',dig:'Digging',upgrade:'Upgrading',weir:'Taking down the weir',bridge:'Building a bridge',hut:'Building a hut',road:'Laying road'};
+const JOB_ICON={clear:'clear',dig:'dig',upgrade:'build',weir:'build',bridge:'bridge',hut:'hut',road:'road'};
+function tileBar(key,k,ic){let el=tileBars.get(key);if(!el){el=document.createElement('div');el.className='tbar';el.innerHTML=`<span class="ti">${icon(ic)}</span><span class="tl"></span><span class="tb"><i></i></span>`;labelsEl.appendChild(el);tileBars.set(key,el);}
+  const c=tileC(k%GW,(k/GW)|0),p=toScreen(c.x,Math.max(heightAt(c.x,c.z),0)+.55,c.z);el.style.left=p.x+'px';el.style.top=p.y+'px';
+  el.classList.toggle('far',view.z>60);return el;}
+function updateTileBars(){
+  const want=new Set();if(!started||cine.fish){for(const [,el] of tileBars)el.remove();tileBars.clear();return;}
+  for(const jb of jobs){const key='j'+jb.k;want.add(key);const el=tileBar(key,jb.k,JOB_ICON[jb.tool]||'build');
+    const nm=JOB_VERB[jb.tool]||(jb.tool.startsWith('b:')?`Building ${DEFS[jb.tool.slice(2)]?.name.toLowerCase()||''}`:'Working');
+    const st=jb.blocked?'No way there yet':!jb.crew.length?'Waiting for hands':`${nm} · ${Math.floor(jb.prog*100)}%`;
+    el.querySelector('.tl').textContent=st;el.querySelector('.tb i').style.width=(jb.prog*100).toFixed(1)+'%';el.classList.toggle('wait',!jb.crew.length);el.classList.toggle('bad',!!jb.blocked);}
+  if(view.z<42)for(const p of producers){if(p.good!=='craft')continue;const key='w'+p.k;want.add(key);const el=tileBar(key,p.k,'carvings');
+    const g=shopProg.get(p.k)||0;el.querySelector('.tl').textContent=p.stall?`Needs ${p.stall}`:`Crafting ${p.making?GOODS[p.making].name.toLowerCase():''}`.trim();
+    el.querySelector('.tb i').style.width=(Math.min(1,g)*100).toFixed(1)+'%';el.classList.toggle('bad',!!p.stall);el.classList.add('soft');}
+  for(const [key,el] of tileBars)if(!want.has(key)){el.remove();tileBars.delete(key);}
+}
+
+/* ---- lend a hand: the reeling ring beside a hooked fish ---- */
+const reel=makeReel($('dv'));
+function updateReel(dt){
+  if(reel.fish&&(reel.fish.state!=='hooked'||!fishes.includes(reel.fish)))reel.detach();
+  if(!started){reel.detach();return;}
+  if(!reel.fish&&started){let best=null,bd=1e9;for(const f of fishes){if(f.state!=='hooked')continue;const h=fishHead(f),p=toScreen(h.x,.4,h.z);
+      if(p.x<0||p.y<0||p.x>innerWidth||p.y>innerHeight)continue;const d=Math.hypot(p.x-innerWidth/2,p.y-innerHeight/2);if(d<bd){bd=d;best=f;}}
+    if(best){reel.attach(best,2.4+best.sp.fight*.013);
+      if(!S.reelSeen){S.reelSeen=true;log('A fish is on the line. Lend a hand: press Space, or click the ring, when the light crosses the mint arc. When the fish surges and the ring turns ember, let it run.','gold');}}}
+  if(reel.fish){const h=fishHead(reel.fish),p=toScreen(h.x,.4,h.z);reel.update(dt,p.x,p.y+64,reel.fish.surge>0);}
+}
+// a pull from the bank: the crew gains on the fish, perfect pulls count toward the release
+function reelPress(){const f=reel.fish;if(!f)return;const q=reel.press();if(!q)return;const h=fishHead(f);
+  if(q==='perfect'||q==='good'){const gain=(q==='perfect'?.075:.04)*(1+.08*Math.min(reel.combo,6));f.progress=Math.min(.995,f.progress+gain);f.help=(f.help||0)+(q==='perfect'?2:1);
+    for(let n=0;n<(q==='perfect'?10:5);n++)sparkle(h.x+rand(-.3,.3),WATER_Y+rand(.05,.4),h.z+rand(-.3,.3),q==='perfect'?'#ffe9a0':'#bff5df');
+    sfx(q==='perfect'?'pick':'tick',Math.min(reel.combo,7));}
+  else if(q==='slack'){for(const fs of f.hookers)fs.strain=(fs.strain||0)+.28;sfx('no');}
+  else sfx('no');}
+document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('.reel'))reelPress();});
 function incomeRate(){const now=Date.now();S.income=S.income.filter(([t])=>now-t<15*60e3);if(!S.income.length)return 0;
   const span=Math.max(120e3,now-S.income[0][0]);return S.income.reduce((s,[,v])=>s+v,0)/(span/60e3);}
 function nextGoalTitle(){const sp=SPECIES.find(s=>!S.codex[s.id]);return !sp?'The whole river':sp.crew<=2?'Meet the '+sp.name:'Something larger';}
@@ -2205,15 +2248,53 @@ renderWipe(false);
 {const pairs=[['trade','btnTrade'],['codex','btnCodex'],['map','btnMap'],['settings','btnSettings']];
   const mark=()=>pairs.forEach(([p,b])=>$(b).classList.toggle('on',!$(p).hidden));
   const mo=new MutationObserver(mark);pairs.forEach(([p])=>mo.observe($(p),{attributes:true,attributeFilter:['hidden']}));mark();}
+/* ---- the guided tour ---- */
+const tour=makeTour($('dv'),{sfx,onEnd:done=>{S.tourDone=true;save();
+  if(!done)log('Tour skipped. You can take it again from Settings.');
+  else log('Released fish shed scales. The old dry riverbeds still show through the trees: dig them out to bring the river back.');}});
+// screen rect around a world spot, and around a whole tile
+const spotAt=(x,z,r=34)=>{const p=toScreen(x,Math.max(heightAt(x,z),0)+.1,z);return {x:p.x-r,y:p.y-r,w:r*2,h:r*2};};
+function tileRect(k){const i=k%GW,j=(k/GW)|0,c=tileC(i,j),y=Math.max(heightAt(c.x,c.z),0);let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  for(const [a,b] of [[-.5,-.5],[.5,-.5],[-.5,.5],[.5,.5]]){const p=toScreen(c.x+a,y,c.z+b);x0=Math.min(x0,p.x);y0=Math.min(y0,p.y);x1=Math.max(x1,p.x);y1=Math.max(y1,p.y);}
+  return {x:x0,y:y0-10,w:x1-x0,h:y1-y0+10};}
+const unionRect=(...els)=>{const r=els.map(e=>e.getBoundingClientRect()).filter(b=>b.width);if(!r.length)return null;const x=Math.min(...r.map(b=>b.left)),y=Math.min(...r.map(b=>b.top));
+  return {x,y,w:Math.max(...r.map(b=>b.right))-x,h:Math.max(...r.map(b=>b.bottom))-y};};
+function TOUR(){
+  const nm=S.valleyName||'Deepvale';let clearK=-1,jobsAt=0,theJob=null;
+  const fisher=()=>fishersState[0]?.g.position;
+  // a patch of forest beside the village, for the first clearing
+  const pickClear=()=>{const h=builds.indexOf(HUT);const hi=h%GW,hj=(h/GW)|0;let best=-1,bd=1e9;
+    for(let k=0;k<GW*GH;k++){if(tiles[k]!==WILD||busy.has(k)||secretAt[k])continue;const i=k%GW,j=(k/GW)|0;if(!nb4(i,j,LAND))continue;const d=Math.hypot(i-hi,j-hj);if(d<bd){bd=d;best=k;}}return best;};
+  const lookAt=(x,z,zoom=16)=>tweenTo({x,z},zoom,1.4);
+  return [
+    {title:`Welcome to ${nm}`,text:'Far below the mountain, a river once ran wide enough for giants. Here every fish is met on a barbless line, and let go. This short tour shows how the valley works.',next:'Show me'},
+    {title:'Your first fisher',text:'They wait at the bank and reel in whatever bites, all on their own. You can <b>lend a hand</b>: when a fish is on the line, a ring appears beside it. Press <b>Space</b> or click it as the light crosses the mint arc. If the fish surges and the ring turns ember, let it run.',
+      enter(){const f=fisher();if(f)lookAt(f.x,f.z,13);},target(){const f=fisher();return f?spotAt(f.x,f.z,38):null;},round:true},
+    {title:'Scales and silver',text:'Released fish shed <b>scales</b>, which pay for work on the river and the village. <b>Silver</b> comes from pilgrims, market stalls and trade, and pays for fishers and upgrades.',target:()=>document.querySelector('.grp.coins')},
+    {title:'Clear some land',text:'The valley is overgrown. Pick <b>Clear land</b> from the bar below, or press <b>1</b>.',target:()=>$('tool-clear'),next:false,wait:()=>tool==='clear'},
+    {title:'Pick a patch of forest',text:'Click the glowing patch of forest beside the village, or any other one. Workers walk over with their axes.',next:false,
+      enter(){clearK=pickClear();jobsAt=jobs.length;if(clearK>=0){const c=tileC(clearK%GW,(clearK/GW)|0);lookAt(c.x,c.z,12);}},
+      target:()=>clearK>=0?tileRect(clearK):null,wait:()=>{if(jobs.length>jobsAt){theJob=jobs[jobs.length-1];return true;}return false;}},
+    {title:'Work takes a little while',text:'Every job shows its progress over the tile. Cleared land gives timber, and makes room to build. You can queue several at once.',
+      enter(){setTool('look');},target:()=>theJob&&tileBars.get('j'+theJob.k)||null,pad:6},
+    {title:'Bring the river back',text:'The river used to be wider, and its old dry beds still show through the trees. <b>Dig water</b> to restore them. Bigger fish only come where wide water flows.',target:()=>$('tool-dig')},
+    {title:'More hands on the bank',text:'Larger fish only bite when several fishers wait together. Build <b>huts</b> to house them, then <b>Hire fisher</b> and click a bank tile.',target:()=>unionRect($('tool-hire'),$('tool-hut'))},
+    {title:'Everything else',text:'Woodcutters, reed beds, workshops, market stalls, statues and more are in <b>Build</b> (or press <b>B</b>).',target:()=>$('tool-build')},
+    {title:'The Tale House',text:'Pilgrims come down the Way to hear the valley’s tales here, and leave silver in the tale box. Every tale you learn from the fish brings more of them, and the house grows.',
+      enter(){const k=builds.indexOf(B.TALEHALL);if(k>=0){const c=tileC(k%GW,(k/GW)|0);lookAt(c.x,c.z,12);}},target(){const k=builds.indexOf(B.TALEHALL);return k>=0?tileRect(k):null;}},
+    {title:'What to do next',text:'Your next steps are tracked here: the next fish to meet, a wish from the village, and orders from along the river.',enter(){tweenTo({x:0,z:-2},innerWidth<700?24:32,1.6);},target:()=>$('goals')},
+    {title:'Menus',text:'<b>Trade</b> sends goods away by wagon and barge, the <b>Codex</b> keeps every fish and its tales, and <b>Settings</b> can replay this tour.',target:()=>document.querySelector('.topnav')},
+    {title:'The valley is yours',text:'Clear, dig, build, and wait by the water. Something vast is waiting further down the river.'},
+  ];
+}
+$('tourBtn').addEventListener('click',()=>{toggleSettings(false);if(!started){S.tourPending=true;$('enter').click();}else tour.start(TOUR());});
 const menu=makeMenu($('intro'));$('dv').classList.add('menu');
 setValleyName(S.valleyName||'',true);
 if(loaded)$('enter').querySelector('span').textContent=`Return to ${S.valleyName||'the valley'}`;
 $('enter').addEventListener('click',()=>{started=true;$('intro').classList.add('gone');$('dv').classList.remove('menu');toggleSettings(false);setSound(true);
   tweenTo({x:0,y:0,z:-2},innerWidth<700?24:32,5.5);
-  if(!loaded||S.first){S.first=false;setTimeout(()=>log('Your fisher waits at the bank with a barbless line. Every fish met here is let go again.'),5200);
-    setTimeout(()=>log('Released fish shed scales. The river used to be wider: its old dry beds still show through the trees. Dig them out to bring it back.'),10000);
-    setTimeout(()=>log('An old mill weir holds the river back at the west end. Click it when you can afford to take it down. Build (B) has woodcutters, markets and more.'),15500);
-    setTimeout(()=>log('Pilgrims come down the Way to the Tale House to hear the valley’s folklore, and leave silver in the tale box. Every tale you learn from the fish brings more of them.'),21000);}
+  // a new valley starts with the guided tour; the old opening notes stay for anyone who skips it
+  if(!loaded||S.first||S.tourPending){S.first=false;S.tourPending=false;setTimeout(()=>{if(!tour.active)tour.start(TOUR());},5600);}
   else if(migrated==='0.2'){log('The valley has grown. There is more forest to clear, and a trading post by the Pilgrim Way. Pilgrims buy at market stalls now.','gold');}
   else if(migrated)log('The valley has changed: fish are released now, and a village has grown by the Pilgrim Way.','gold');
   else log('Welcome back to the valley.');
@@ -2236,7 +2317,7 @@ function frame(){
   fishersState.forEach(fs=>updateFisher(fs,dt,t));
   updateCine(dt);updateSparkles(dt);updateHeat(dt);updateHints(dt,t);updateDusk(dt);updateFallers(dt);updateCrows(dt,t);
   wisps.update(dt,(innerHeight/PIX)/view.z);
-  updateLabels();drawPreview();positionPlot();
+  updateLabels();updateReel(dt);tour.tick();drawPreview();positionPlot();
   if(started&&ptrIn&&!drag)hovered=cine.fish?null:pickFish(lastPtr.x,lastPtr.y);
   updateCard();
   if(selected){selRing.position.set(selected.x,selected.g.position.y+.02,selected.z);selRing.scale.setScalar(1+Math.sin(t*5)*.12);}
@@ -2249,4 +2330,4 @@ function frame(){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-if (import.meta.env.DEV) window.__dv={THREE,makeFishMesh,U,S,fishes,fishersState,spawnFish,SP,comps:()=>comps,view,tweenTo,startCine,tiles,builds,FLOW,act,worldChanged,buildsChanged,refreshUI,pickFish,toScreen,setTool,hookCheck,trade,secrets:()=>secrets,queueCrate,debugAct,canDo,villages:()=>villages,producers:()=>producers,activeSets:()=>activeSets,setTimeScale:n=>{timeScale=n;},hintVis,newWish,linkedOf,tally,sfx,simStep,jobs,workers,openPlot,snapAt:(p,k)=>snapAt(p,k),actDeco:(t,s)=>actDeco(t,s),corners:()=>S.corners,edges:()=>S.edges};
+if (import.meta.env.DEV) window.__dv={THREE,makeFishMesh,U,groundAt,camera,S,fishes,fishersState,spawnFish,SP,comps:()=>comps,view,tweenTo,startCine,tiles,builds,FLOW,act,worldChanged,buildsChanged,refreshUI,pickFish,toScreen,setTool,hookCheck,trade,secrets:()=>secrets,queueCrate,debugAct,canDo,villages:()=>villages,producers:()=>producers,activeSets:()=>activeSets,setTimeScale:n=>{timeScale=n;},hintVis,newWish,linkedOf,tally,sfx,simStep,jobs,workers,openPlot,snapAt:(p,k)=>snapAt(p,k),actDeco:(t,s)=>actDeco(t,s),corners:()=>S.corners,edges:()=>S.edges};

@@ -208,11 +208,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 /* ---------- 4. Toolbar ----------
    The bottom bar mirrors the top one: a dark fade from the edge, and tools styled as menu items.
    Hover draws the mint line; the selected tool gets the mint label and the diamond. */
-.toolbar{position:absolute;left:0;right:0;bottom:0;z-index:6;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:2px;
+.toolbar{position:absolute;left:0;right:0;bottom:0;z-index:6;display:flex;flex-wrap:nowrap;justify-content:space-between;align-items:flex-end;gap:2px;
   padding:26px var(--gutter) calc(8px + env(safe-area-inset-bottom,0px));background:var(--bar-bot);transition:opacity .8s;pointer-events:auto}
 .toolbar .sep{flex:1 1 12px;width:1px;max-width:80px}
-.tool,.up{position:relative;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:8px;row-gap:2px;align-items:center;min-width:0;
-  padding:6px 12px 12px;text-align:left;background:none;border:0;cursor:pointer;color:var(--nav);transition:color .2s}
+.tool,.up{position:relative;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:7px;row-gap:2px;align-items:center;min-width:0;
+  padding:6px 10px 12px;text-align:left;background:none;border:0;cursor:pointer;color:var(--nav);transition:color .2s}
 .up{grid-template-columns:auto 1fr auto}
 .tool::after,.up::after{content:'';position:absolute;left:10px;right:10px;bottom:3px;height:2px;border-radius:2px;background:var(--accent);
   transform:scaleX(0);transition:transform .28s cubic-bezier(.2,.8,.2,1);box-shadow:0 0 8px rgba(134,220,188,.5)}
@@ -307,6 +307,45 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .tally.big .tt{margin-bottom:8px;font-size:20px}
 .tally.big .trow{padding:2px 0}
 .tally.big .tv{font-size:34px}
+
+/* progress over a tile: an icon, what is happening, and a thin bar. Zoomed out, only the bar */
+.tbar{position:absolute;display:flex;align-items:center;gap:6px;padding:4px 8px 4px 6px;transform:translate(-50%,-100%);pointer-events:none;white-space:nowrap;
+  background:rgba(8,13,12,.78);border:1px solid var(--edge);border-radius:20px;box-shadow:0 4px 14px rgba(0,0,0,.35);animation:tbarIn .3s ease-out}
+.tbar .ti{display:flex;color:var(--accent)} .tbar .ti .ic-svg{width:13px;height:13px}
+.tbar .tl{font-family:var(--body);font-size:11.5px;color:var(--txt)}
+.tbar .tb{width:46px;height:4px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}
+.tbar .tb i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#c9ffe9);box-shadow:0 0 6px var(--accent);transition:width .3s linear}
+.tbar.wait .tl{color:var(--txt-2)} .tbar.wait .tb i{background:var(--txt-3);box-shadow:none}
+.tbar.bad{border-color:rgba(233,138,95,.4)} .tbar.bad .tl,.tbar.bad .ti{color:var(--ember)}
+.tbar.soft{opacity:.8;padding:3px 7px 3px 5px} .tbar.soft .tl{font-size:10.5px}
+.tbar.far{padding:3px;gap:0} .tbar.far .tl,.tbar.far .ti{display:none} .tbar.far .tb{width:30px}
+@keyframes tbarIn{from{opacity:0;transform:translate(-50%,-80%)}}
+
+/* the reeling ring beside a hooked fish */
+.reel{position:absolute;z-index:5;width:96px;height:96px;margin:-48px 0 0 -48px;cursor:pointer;-webkit-tap-highlight-color:transparent;animation:reelIn .4s cubic-bezier(.2,1.4,.4,1)}
+.reel svg{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 4px 12px rgba(0,0,0,.5))}
+.reel .track{fill:rgba(8,13,12,.55);stroke:rgba(255,255,255,.14);stroke-width:5}
+.reel .zone{fill:none;stroke:var(--accent);stroke-width:7;stroke-linecap:round;opacity:.85;filter:drop-shadow(0 0 4px var(--accent))}
+.reel .perfect{fill:none;stroke:#ffe29a;stroke-width:9;stroke-linecap:round;filter:drop-shadow(0 0 5px #ffd27a)}
+.reel .dot{fill:#fff;filter:drop-shadow(0 0 5px #fff)}
+.reel.over .dot{fill:#eafff6;filter:drop-shadow(0 0 8px var(--accent))}
+.reel.zin .zone,.reel.zin .perfect{animation:zoneIn .35s cubic-bezier(.2,1.5,.4,1)}
+.reel .mid{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:0;pointer-events:none}
+.reel .combo{font-family:var(--serif);font-size:24px;line-height:1;color:#ffe29a;text-shadow:0 0 10px rgba(255,210,122,.7)}
+.reel .hint{font-family:var(--body);font-size:10.5px;letter-spacing:.06em;color:var(--txt-2)}
+.reel .say{position:absolute;left:50%;top:-14px;transform:translateX(-50%);font-family:var(--serif);font-size:17px;white-space:nowrap;opacity:0;pointer-events:none;text-shadow:0 2px 8px rgba(0,0,0,.7)}
+.reel .say.on{animation:sayUp .9s ease-out}
+.reel .say.perfect{color:#ffe29a} .reel .say.good{color:var(--accent)} .reel .say.miss{color:var(--txt-2)} .reel .say.slack{color:var(--ember)}
+.reel.hit svg{animation:ringHit .35s ease-out}
+.reel.shake svg{animation:ringShake .35s ease-in-out}
+.reel.surge .track{stroke:rgba(233,138,95,.55);fill:rgba(40,16,8,.55)}
+.reel.surge .zone,.reel.surge .perfect{opacity:.2}
+.reel.surge .hint{color:var(--ember)}
+@keyframes reelIn{from{opacity:0;transform:scale(.5)}}
+@keyframes zoneIn{from{opacity:0;stroke-width:1}}
+@keyframes sayUp{0%{opacity:0;transform:translate(-50%,6px)}20%{opacity:1}100%{opacity:0;transform:translate(-50%,-18px)}}
+@keyframes ringHit{40%{transform:scale(1.12)}}
+@keyframes ringShake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
 
 /* ---------- 6. Panels ---------- */
 /* shared: side sheets and dialogs */
@@ -629,6 +668,29 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   filter:drop-shadow(0 0 6px var(--c,#fff3cf));animation:glint 1.05s ease-out forwards}
 @keyframes glint{0%{transform:scale(0) rotate(var(--r,0deg));opacity:0}35%{transform:scale(1) rotate(calc(var(--r,0deg) + 25deg));opacity:1}100%{transform:scale(0) rotate(calc(var(--r,0deg) + 70deg));opacity:0}}
 
+/* the guided tour: a soft spotlight that never blocks the game, and a card beside it */
+#tour{position:absolute;inset:0;z-index:11;pointer-events:none}
+#tour .hole{position:absolute;box-shadow:0 0 0 200vmax rgba(4,8,7,.55);border:1.5px solid var(--accent);
+  transition:left .5s cubic-bezier(.2,.8,.2,1),top .5s cubic-bezier(.2,.8,.2,1),width .5s cubic-bezier(.2,.8,.2,1),height .5s cubic-bezier(.2,.8,.2,1),box-shadow .5s;
+  animation:holePulse 2.2s ease-in-out infinite}
+#tour .hole.none{border-color:transparent;box-shadow:0 0 0 200vmax rgba(4,8,7,.45);animation:none}
+@keyframes holePulse{50%{outline:6px solid rgba(134,220,188,.12);outline-offset:4px}}
+#tour .tcard{position:absolute;width:min(340px,calc(100vw - 32px));padding:14px 18px 14px;pointer-events:auto;
+  background:linear-gradient(180deg,var(--glass-hi),transparent 60%),var(--glass-2);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  border:1px solid var(--edge);border-radius:var(--r);box-shadow:var(--shadow);transition:left .45s cubic-bezier(.2,.8,.2,1),top .45s cubic-bezier(.2,.8,.2,1)}
+#tour .tcard.in{animation:menuIn .45s cubic-bezier(.2,.8,.2,1)}
+#tour .tk{display:flex;justify-content:space-between;align-items:center;font-family:var(--body);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+#tour .tskip{padding:2px 0;background:none;border:0;font-family:var(--body);font-size:11.5px;letter-spacing:0;text-transform:none;color:var(--txt-3);cursor:pointer}
+#tour .tskip:hover{color:var(--txt)}
+#tour h4{margin:6px 0 6px;font-family:var(--serif);font-size:24px;font-weight:400;line-height:1.1;color:var(--txt)}
+#tour .tt{font-family:var(--body);font-size:14px;line-height:1.55;color:var(--mist)}
+#tour .tt b{color:var(--txt);font-weight:600}
+#tour .trow{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+#tour .tdots{display:flex;gap:5px}
+#tour .tdots i{width:6px;height:6px;transform:rotate(45deg);border:1px solid rgba(134,220,188,.4)}
+#tour .tdots i.done{background:rgba(134,220,188,.45)} #tour .tdots i.on{background:var(--accent);box-shadow:0 0 6px var(--accent)}
+#tour .tnext{padding:9px 14px;font-size:13.5px}
+
 /* giant sightings: letterbox bars and a banner */
 .bar{position:absolute;left:0;right:0;z-index:5;height:11vh;background:#050a09;pointer-events:none;transition:transform 1.6s cubic-bezier(.2,.7,.1,1)}
 .bar.top{top:0;transform:translateY(-100%)}
@@ -652,6 +714,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 
 /* ---------- 8. Responsive ---------- */
 @media (max-width:1560px){ .lv{display:none} }
+@media (max-width:1440px){ .tool,.up{padding:6px 7px 12px;column-gap:6px} .tn{font-size:15px} .toolbar .sep{max-width:28px} }
+@media (max-width:1180px){ .tool .tc.small,.up .tl{display:none} .tool .ti .ic-svg,.up .ti .ic-svg{width:15px;height:15px} .tn{font-size:14px} }
 @media (max-width:1420px){
   .st-sub,.bar-row .bl{display:none}
   .bar-row{min-width:84px;grid-template-columns:16px 1fr auto}

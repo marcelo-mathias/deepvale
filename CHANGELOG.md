@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.0 — a guided tour, progress over tiles, and a hand on the line
+
+**Guided tour**
+- A new valley now opens with a 13-step tour. A soft spotlight picks out one thing at a time and a card explains it: the first fisher, scales and silver, clearing land, job progress, restoring the old channels, huts and fishers, Build, the Tale House, tracked goals and the menus.
+- The spotlight never blocks the game. Some steps wait for you to do the thing ("pick Clear land", "click a patch of forest") and move on by themselves; the camera glides to whatever is being shown.
+- Skip it at any time, or take it again from **Settings → Guided tour**.
+
+**Progress over tiles**
+- Every job shows a small bar over its tile: an icon, what is happening ("Clearing · 42%", "Building a bridge", "Upgrading") and the progress.
+- Jobs waiting for workers say "Waiting for hands"; jobs workers can't reach say "No way there yet" in ember.
+- Zoomed in, workshops show their crafting too ("Crafting lanterns", or "Needs 3 timber" when they run dry). Zoomed far out, only the bars remain.
+
+**Lend a hand (reeling)**
+- When a fish is hooked, a ring appears beside it. A light runs round the ring: press **Space**, or click the ring, as it crosses the mint arc to give the crew a pull. The gold heart of the arc is a perfect pull.
+- Each hit moves the arc. A run of hits narrows it and speeds the light, and the combo shows in the middle. Bigger fish run the light faster.
+- When the fish surges, the ring turns ember: let it run. Pulling then strains the lines.
+- Pulls bring the fish in faster, and every good pull adds to a new **Your steady hands** row in the release tally, up to ×1.5 scales.
+- It's entirely optional: the crew still reels on their own, and missing costs nothing but the combo. The first time a fish bites, a note in the log explains it.
+
 ## 0.8.1 — crate cards
 
 - Crate cards follow the new design: a tag on the top edge (Blessing, Keeper, Blueprint, Silver), a header glowing from below in the card's colour (mint, gold or pale blue), the name in Milonga, and the change in large type (`+20% → +40%`).
