@@ -29,6 +29,8 @@ export function makeSecrets(seed, tiles, cur){
   const R = mulberry(seed);
   const out = [];
   const far = (i, j, T = tiles) => { for (let b = -4; b <= 4; b++) for (let a = -4; a <= 4; a++){ const ni = i+a, nj = j+b; if (inGrid(ni, nj) && T[idx(ni, nj)] !== WILD && Math.max(Math.abs(a), Math.abs(b)) <= 3) return false; } return true; };
+  // landmarks keep well clear of the valley's edge (tile 3: past the outline) so they never sit on the slope behind it
+  const roomy = (i, j, T) => { for (let b = -6; b <= 6; b++) for (let a = -6; a <= 6; a++){ const ni = i+a, nj = j+b; if (!inGrid(ni, nj) || T[idx(ni, nj)] === 3) return false; } return true; };
   const apart = (i, j, big) => out.every(s => Math.max(Math.abs(s.i - i), Math.abs(s.j - j)) >= (big || SECRET_TYPES[s.type].big ? 8 : 4));
   // landmarks first, so they get the deep forest
   const order = Object.entries(SECRET_TYPES).sort(([, a], [, b]) => (b.big ? 1 : 0) - (a.big ? 1 : 0)).flatMap(([t, d]) => Array.from({ length: COUNT(t, d) }, () => t));
@@ -39,6 +41,7 @@ export function makeSecrets(seed, tiles, cur){
       if (tiles[idx(i, j)] !== WILD || !far(i, j) || !apart(i, j, big)) continue;
       if (big && Math.min(i, j, GW - 1 - i, GH - 1 - j) < 3) continue;
       if (big && cur && (cur[idx(i, j)] !== WILD || !far(i, j, cur))) continue;
+      if (big && !roomy(i, j, cur || tiles)) continue;
       out.push({ type, i, j, k: idx(i, j), r: R() }); break;
     }
   }

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.1 — landmarks in view, quieter job labels
+
+- **Landmark placement:** landmarks now keep at least six tiles inside the valley's outline, so none sits on the slope at the edge.
+  - A landmark you haven't found yet that already sits too close to the edge moves to a clear spot the next time the save loads.
+- **Landmark outline:** before a landmark is found, its silhouette has a soft white outline at 20% opacity, so it's easier to spot among the trees.
+  - The outline only shows around the shape, never through the dithering.
+- **Grouped job labels:** jobs next to each other that are stuck the same way ("No way there yet" or "Waiting for hands") share one label.
+  - The tile in the middle of the patch shows the full message and the number of tiles, for example "No way there yet · 14 tiles".
+  - The other tiles show only a small icon.
+
 ## 0.11.0 — an organic valley, spirit giants, landmarks in shadow
 
 **The valley's outline**

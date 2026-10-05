@@ -318,6 +318,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .tbar.wait .tl{color:var(--txt-2)} .tbar.wait .tb i{background:var(--txt-3);box-shadow:none}
 .tbar.bad{border-color:rgba(233,138,95,.4)} .tbar.bad .tl,.tbar.bad .ti{color:var(--ember)}
 .tbar.soft{opacity:.8;padding:3px 7px 3px 5px} .tbar.soft .tl{font-size:10.5px}
+.tbar.mini{padding:3px;gap:0;border-radius:50%;opacity:.75} .tbar:not(.mini){z-index:1} .tbar.mini .tl,.tbar.mini .tb{display:none} .tbar.mini .ti .ic-svg{width:11px;height:11px}
 .tbar.far{padding:3px;gap:0} .tbar.far .tl,.tbar.far .ti{display:none} .tbar.far .tb{width:30px}
 @keyframes tbarIn{from{opacity:0;transform:translate(-50%,-80%)}}
 

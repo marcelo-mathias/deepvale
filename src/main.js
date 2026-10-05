@@ -1283,11 +1283,16 @@ const trade=makeTrade({scene,props,village,tiles,builds,isLive:k=>isLiveK(k),S,
 /* ================= forest secrets ================= */
 let secrets=[];const secretAt={};
 function pristineTiles(){const t=new Uint8Array(GW*GH);initTiles(t);return t;}
+// room round a landmark: wild, and well inside the valley's outline (no edge tile within 6)
+function lmClear(k){const i=k%GW,j=(k/GW)|0;if(tiles[k]!==WILD)return false;for(let b=-6;b<=6;b++)for(let a=-6;a<=6;a++){const ni=i+a,nj=j+b;if(!inGrid(ni,nj)||tiles[idx(ni,nj)]===RIM)return false;}return true;}
 function initSecrets(){
   if(!S.seed)S.seed=1+Math.floor(Math.random()*2**30);
-  secrets=makeSecrets(S.seed,pristineTiles(),S.legacyCh!==undefined?tiles:null);
+  secrets=makeSecrets(S.seed,pristineTiles(),tiles);
   // landmarks stay where they were first placed, whatever happens to the forest later
-  const LM=['temple','elder','tower','gate'];if(S.lm)secrets=secrets.filter(s=>!LM.includes(s.type)).concat(Object.entries(S.lm).map(([type,k])=>({type,k,i:k%GW,j:(k/GW)|0,r:.5})));
+  const LM=['temple','elder','tower','gate'];
+  // a stored landmark that ended up at the valley's edge (an older save, before the outline) moves somewhere it can be seen
+  if(S.lm)for(const [type,k] of Object.entries(S.lm)){if(S.found.includes(k))continue;if(!lmClear(k)){const fresh=secrets.find(x=>x.type===type);if(fresh)S.lm[type]=fresh.k;else delete S.lm[type];}}
+  if(S.lm)secrets=secrets.filter(s=>!LM.includes(s.type)).concat(Object.entries(S.lm).map(([type,k])=>({type,k,i:k%GW,j:(k/GW)|0,r:.5})));
   else S.lm=Object.fromEntries(secrets.filter(s=>LM.includes(s.type)).map(s=>[s.type,s.k]));
   secrets=secrets.filter(s=>tiles[s.k]===WILD||S.found.includes(s.k)||(LM.includes(s.type)&&builds[s.k]!==NONE));
   S.drops=(S.drops||[]).filter(d=>tiles[d.k]===WILD&&!S.found.includes(d.k)&&!secrets.some(s=>s.k===d.k));secrets.push(...S.drops);
@@ -1310,10 +1315,17 @@ const SHADE_F=`uniform float uBot,uTop,uLum,uTime;uniform vec3 uEmi;varying vec3
     if(bayer(gl_FragCoord.xy)>=a)discard;
     vec3 c=mix(vec3(.01,.018,.022),vec3(.035,.05,.05),uLum)+uEmi*.35; // linear: very dark
     gl_FragColor=vec4(c,1.);}`;
-const shadeU={uTime:{value:0}};
+const shadeU={uTime:{value:0},uPx:{value:new THREE.Vector2(.004,.006)}};
+// a soft white outline round the silhouette: an inflated back-face shell, pushed out a couple of screen pixels.
+// A depth-only copy of the shape goes down first, so the shell only shows outside the silhouette, never through its dither.
+const HULL_V=`uniform vec2 uPx;void main(){vec4 c=projectionMatrix*modelViewMatrix*vec4(position,1.0);vec3 n=normalize(normalMatrix*normal);
+  vec2 d=length(n.xy)>1e-3?normalize(n.xy):vec2(0.);c.xy+=d*uPx*1.6*c.w;gl_Position=c;}`;
+const hullMat=new THREE.ShaderMaterial({vertexShader:HULL_V,fragmentShader:`void main(){gl_FragColor=vec4(1.,1.,1.,.2);}`,uniforms:{uPx:shadeU.uPx},side:THREE.BackSide,transparent:true,depthWrite:false});
+const maskMat=new THREE.MeshBasicMaterial({colorWrite:false,transparent:true});
 function shadowize(m){m.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(m),bot={value:bb.min.y},top={value:bb.max.y};
-  m.traverse(o=>{if(!o.isMesh)return;const src=o.material,col=src.color||new THREE.Color('#888'),emi=src.emissive&&src.emissiveIntensity>.5?src.emissive.clone().multiplyScalar(Math.min(1.5,src.emissiveIntensity)):new THREE.Color(0,0,0);
-    o.material=new THREE.ShaderMaterial({vertexShader:SHADE_V,fragmentShader:SHADE_F,uniforms:{uBot:bot,uTop:top,uTime:shadeU.uTime,uLum:{value:Math.min(1,col.r*.3+col.g*.5+col.b*.2)},uEmi:{value:emi}}});o.castShadow=false;o.receiveShadow=false;});}
+  const parts=[];m.traverse(o=>{if(o.isMesh)parts.push(o);});parts.forEach(o=>{const src=o.material,col=src.color||new THREE.Color('#888'),emi=src.emissive&&src.emissiveIntensity>.5?src.emissive.clone().multiplyScalar(Math.min(1.5,src.emissiveIntensity)):new THREE.Color(0,0,0);
+    o.material=new THREE.ShaderMaterial({vertexShader:SHADE_V,fragmentShader:SHADE_F,uniforms:{uBot:bot,uTop:top,uTime:shadeU.uTime,uLum:{value:Math.min(1,col.r*.3+col.g*.5+col.b*.2)},uEmi:{value:emi}},transparent:true});o.castShadow=false;o.receiveShadow=false;o.renderOrder=12;
+    for(const [mt,ro] of [[maskMat,10],[hullMat,11]]){const c=new THREE.Mesh(o.geometry,mt);c.renderOrder=ro;o.add(c);}});}
 function placeLandmarks(){for(const [,m] of landmarkMeshes)scene.remove(m);landmarkMeshes.clear();
   for(const s of secrets){if(S.found.includes(s.k)||tiles[s.k]!==WILD)continue;const m=props.landmark(s.type,s.k);if(!m)continue;const c=tileC(s.i,s.j);
     m.position.set(c.x,heightAt(c.x,c.z)-.02,c.z);scene.add(m);shadowize(m);landmarkMeshes.set(s.k,m);
@@ -1829,7 +1841,7 @@ function resize(){
   rt.depthTexture=new THREE.DepthTexture(rw,rh);rt.depthTexture.type=THREE.UnsignedIntType;
   bloom.resize(rw,rh);
   postMat.uniforms.tScene.value=rt.texture;postMat.uniforms.tDepth.value=rt.depthTexture;
-  postMat.uniforms.tBloomA.value=bloom.near;postMat.uniforms.tBloomB.value=bloom.far;postMat.uniforms.uRes.value.set(rw,rh);
+  postMat.uniforms.tBloomA.value=bloom.near;postMat.uniforms.tBloomB.value=bloom.far;postMat.uniforms.uRes.value.set(rw,rh);shadeU.uPx.value.set(2/rw,2/rh);
   lineM.linewidth=1;
 }
 addEventListener('resize',resize);
@@ -2089,9 +2101,18 @@ function tileBar(key,k,ic){let el=tileBars.get(key);if(!el){el=document.createEl
   el.classList.toggle('far',view.z>60);return el;}
 function updateTileBars(){
   const want=new Set();if(!started||cine.fish){for(const [,el] of tileBars)el.remove();tileBars.clear();return;}
+  // jobs stuck the same way next to each other are told once: the one in the middle of the patch says it in full
+  // (with how many), the rest shrink to a small icon
+  const stuckOf=jb=>jb.blocked?'b':!jb.crew.length?'w':'',lead=new Map(),count=new Map(),byK=new Map(jobs.map(jb=>[jb.k,jb])),seen=new Set();
+  for(const jb of jobs){const sk=stuckOf(jb);if(!sk||seen.has(jb.k))continue;const grp=[],q=[jb.k];seen.add(jb.k);
+    while(q.length){const k=q.pop();grp.push(k);const i=k%GW,j=(k/GW)|0;for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++){if(!inGrid(i+a,j+b))continue;const nk=idx(i+a,j+b),o=byK.get(nk);if(o&&!seen.has(nk)&&stuckOf(o)===sk){seen.add(nk);q.push(nk);}}}
+    let ci=0,cj=0;grp.forEach(k=>{ci+=k%GW;cj+=(k/GW)|0;});ci/=grp.length;cj/=grp.length;
+    const best=grp.reduce((a,k)=>Math.hypot(k%GW-ci,((k/GW)|0)-cj)<Math.hypot(a%GW-ci,((a/GW)|0)-cj)?k:a,grp[0]);grp.forEach(k=>lead.set(k,best));count.set(best,grp.length);}
   for(const jb of jobs){const key='j'+jb.k;want.add(key);const el=tileBar(key,jb.k,JOB_ICON[jb.tool]||'build');
     const nm=JOB_VERB[jb.tool]||(jb.tool.startsWith('b:')?`Building ${DEFS[jb.tool.slice(2)]?.name.toLowerCase()||''}`:'Working');
-    const st=jb.blocked?'No way there yet':!jb.crew.length?'Waiting for hands':`${nm} · ${Math.floor(jb.prog*100)}%`;
+    const n=count.get(jb.k)||1,more=n>1?` · ${n} tiles`:'';
+    const st=jb.blocked?'No way there yet'+more:!jb.crew.length?'Waiting for hands'+more:`${nm} · ${Math.floor(jb.prog*100)}%`;
+    el.classList.toggle('mini',lead.has(jb.k)&&lead.get(jb.k)!==jb.k);
     el.querySelector('.tl').textContent=st;el.querySelector('.tb i').style.width=(jb.prog*100).toFixed(1)+'%';el.classList.toggle('wait',!jb.crew.length);el.classList.toggle('bad',!!jb.blocked);}
   if(view.z<42)for(const p of producers){if(p.good!=='craft')continue;const key='w'+p.k;want.add(key);const el=tileBar(key,p.k,'carvings');
     const g=shopProg.get(p.k)||0;el.querySelector('.tl').textContent=p.stall?`Needs ${p.stall}`:`Crafting ${p.making?GOODS[p.making].name.toLowerCase():''}`.trim();
