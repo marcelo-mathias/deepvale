@@ -1,4 +1,5 @@
 import { version as VERSION } from '../package.json';
+import { emblem, EMBLEMS } from './ui/emblems.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clamp, lerp, smooth, rand, hash2, fbm, ridged, fmt, store } from './core/utils.js';
@@ -1417,6 +1418,9 @@ const keeperSlots=()=>2+builds.reduce((s,b)=>s+(b===B.STONES?1:0),0);
 const crateQ=[];let crateOpen=null;
 function queueCrate(c){crateQ.push(c);S.crates++;if(!crateOpen)setTimeout(nextCrate,started?900:0);}
 function crateCards(kind){
+  if(kind==='showcase'){const pk=a=>a[Math.floor(Math.random()*a.length)];const k=pk(KEEPERS),b=pk(BOONS),p=pk(BLUEPRINTS);
+    return [{type:'boon',id:b.id,name:b.name,desc:b.desc},{type:'keeper',id:k.id,name:k.name,desc:k.desc,glyph:k.glyph},{type:'blueprint',id:p.id,name:p.name,desc:bpDesc(p)},coinCard()];}
+  if(kind==='treasure')return Object.keys(COINS).sort(()=>Math.random()-.5).slice(0,3).map(id=>coinCard(id));
   const n=has('quill')?4:3;const out=[];const used=new Set();
   const pools={
     keeper:()=>KEEPERS.filter(k=>!S.keepers.includes(k.id)&&!used.has('k'+k.id)).map(k=>({type:'keeper',id:k.id,name:k.name,desc:k.desc,glyph:k.glyph})),
@@ -1428,9 +1432,17 @@ function crateCards(kind){
     kinds=kinds.filter(k=>pools[k]().length);if(!kinds.length)kinds=['boon','blueprint','keeper'].filter(k=>pools[k]().length);if(!kinds.length)break;
     const kk=kinds[Math.floor(Math.random()*kinds.length)],pool=pools[kk]();const c=pool[Math.floor(Math.random()*pool.length)];
     used.add(c.type[0]+c.id);out.push(c);}
-  if(!out.length)out.push({type:'silver',id:'silver',name:'A purse of silver',desc:'+'+fmt(100+50*S.crates)+' silver.'});
+  // a mixed crate sometimes holds a treasure instead of one of its cards; an empty one always does
+  if(kind!=='keeper'&&out.length>=3&&Math.random()<.4)out[out.length-1]=coinCard();
+  if(!out.length)out.push(coinCard('silver'));
   return out;
 }
+// treasure: a heap of one currency, sized to how far along the valley is
+const COINS={scales:{n:'A shoal’s worth of scales',a:c=>Math.round(120*(1+c*.25))},silver:{n:'A purse of silver',a:c=>100+50*c},
+  timber:{n:'A raft of timber',a:c=>20+6*c},reeds:{n:'A bundle of reeds',a:c=>20+6*c},clay:{n:'A cart of clay',a:c=>16+5*c},
+  lanterns:{n:'A box of lanterns',a:c=>4+c},carvings:{n:'A chest of carvings',a:c=>4+c}};
+function coinCard(id){id=id||Object.keys(COINS)[Math.floor(Math.random()*7)];const amt=COINS[id].a(S.crates);
+  return {type:'coin',id,name:COINS[id].n,amt,desc:`+${fmt(amt)} ${label(id)}.`};}
 // what a card shows besides its name: the change it makes, what it touches, and a live line about your valley
 const BOON_UI={
   hands:{per:15,u:'%',chain:[['hire','Fishers'],['scales','Scales']],d:'Fishers bring fish in faster.'},
@@ -1464,7 +1476,9 @@ function cardInfo(cd){
     return {value:{from:l?`+${l*U.per}${U.u}`:null,to:`+${(l+1)*U.per}${U.u}`},chain:U.chain,desc:U.d||BOON[cd.id].desc,foot:{pips:[l,mx],text}};}
   if(cd.type==='keeper')return {desc:cd.desc,chain:sigsOf(cd.desc),foot:{text:`Cottages: ${S.keepers.length} of ${keeperSlots()} taken`}};
   if(cd.type==='blueprint'){const b=BLUEPRINTS.find(x=>x.id===cd.id);return {value:b?.kind==='build'?'A new building':b?.kind==='style'?'A new hut style':'A new paving',chain:[['build','Build'],...sigsOf(cd.desc).slice(0,2)],desc:cd.desc.replace(/^Blueprint\.\s*/,''),foot:{text:'Yours to build once chosen'}};}
-  if(cd.type==='silver')return {value:cd.desc.replace(' silver.',''),chain:[['silver','Silver']],desc:'A purse left for the village.',foot:{text:'Straight into the purse'}};
+  if(cd.type==='coin')return {value:`+${fmt(cd.amt)}`,emblem:emblem(cd.id),desc:{scales:'Scales for clearing, digging and building.',silver:'Silver for hiring, lines and offerings.',timber:'For building, and for the wagons north.',
+      reeds:'For lanterns, and for the wagons north.',clay:'For lanterns and statues.',lanterns:'Ready for the wagons and barges.',carvings:'Ready for the wagons and barges.'}[cd.id],foot:{text:`You have ${fmt(have(cd.id))} ${label(cd.id)}`}};
+  if(cd.type==='silver')return {emblem:emblem('silver'),value:cd.desc.replace(' silver.',''),chain:[['silver','Silver']],desc:'A purse left for the village.',foot:{text:'Straight into the purse'}};
   return {};
 }
 function bpDesc(b){if(b.kind==='build')return 'Blueprint. '+DEFS[b.id].desc;if(b.kind==='style')return `Blueprint. Build or restyle huts in ${STYLES[b.id.split(':')[1]].name.toLowerCase()}. A village all in one style is in harmony.`;
@@ -1475,7 +1489,7 @@ function nextCrate(){
   $('crateK').textContent=c.kind==='keeper'?'Someone would like to join you':'A crate';$('crateH').textContent=`From ${c.source}`;
   $('crateR').innerHTML='';const cards=$('crateCards');cards.innerHTML='';
   let picked=false;
-  c.cards.forEach((cd,n)=>{const b=document.createElement('button');b.type='button';b.className='card '+cd.type;b.style.setProperty('--cc',CARD_COL[cd.type]||'#86dcbc');
+  c.cards.forEach((cd,n)=>{const b=document.createElement('button');b.type='button';b.className='card '+cd.type;b.style.setProperty('--cc',cd.type==='coin'?EMBLEMS[cd.id].col:CARD_COL[cd.type]||'#86dcbc');
     b.innerHTML=cardHTML(cd,cardInfo(cd),cd.type==='keeper'?portrait(cd.id):null);
     b.addEventListener('pointerenter',()=>{if(!picked)sfx('tick',n);});
     b.addEventListener('click',()=>{if(picked)return;
@@ -1497,6 +1511,7 @@ function pickCard(cd){
   if(cd.type==='boon'){S.boons[cd.id]=boon(cd.id)+1;log(`${cd.name}: ${BOON[cd.id].desc}`,'gold');computeEconomy();}
   if(cd.type==='blueprint'){S.unlocked[cd.id]=true;log(`Blueprint: ${cd.name}. Find it in Build.`,'gold');renderDrawer();}
   if(cd.type==='silver'){earnSilver(100+50*S.crates);}
+  if(cd.type==='coin'){if(cd.id==='silver')earnSilver(cd.amt);else if(cd.id==='scales'){S.scales+=cd.amt;S.earned+=cd.amt;}else S.goods[cd.id]=(S.goods[cd.id]||0)+cd.amt;log(`${cd.name}: +${fmt(cd.amt)} ${label(cd.id)}.`,'gold');}
   closeCrate();
 }
 function afterKeepers(){computeEconomy();renderKeepers();updateHintVis();}
@@ -2392,7 +2407,7 @@ function renderDebug(){
   <div class="dg"><button type="button" data-a="frenzy" aria-pressed="${debugFlags.frenzy}">Fish frenzy</button><button type="button" data-a="hints" aria-pressed="${debugFlags.allHints}">Show all hints</button></div>
   <div class="dg"><span>Give</span><button type="button" data-a="scales">+1k scales</button><button type="button" data-a="silver">+1k silver</button><button type="button" data-a="goods">+100 goods</button><button type="button" data-a="rich">+100k all</button></div>
   <div class="dg"><span>Fish</span><select id="dbgSp">${spOpts}</select><button type="button" data-a="spawn">Spawn</button><button type="button" data-a="meet">Meet all ×12</button></div>
-  <div class="dg"><span>Crates</span><button type="button" data-a="crate">Crate</button><button type="button" data-a="hermit">Keeper</button><button type="button" data-a="unlock">Unlock all</button><button type="button" data-a="slot">+1 keeper slot</button><button type="button" data-a="chest">Chest</button></div>
+  <div class="dg"><span>Crates</span><button type="button" data-a="crate">Crate</button><button type="button" data-a="hermit">Keeper</button><button type="button" data-a="unlock">Unlock all</button><button type="button" data-a="slot">+1 keeper slot</button><button type="button" data-a="chest">Chest</button><button type="button" data-a="treasure">Treasure</button><button type="button" data-a="showcase">One of each</button></div>
   <div class="dg"><span>Weather</span>${['clear','rain','storm','fog','snow'].map(k=>`<button type="button" data-w="${k}" aria-pressed="${S.weather?.k===k}">${k}</button>`).join('')}</div>
   <div class="dg"><span>Season</span>${['Spring','Summer','Autumn','Winter'].map((k,n)=>`<button type="button" data-se="${n}">${k}</button>`).join('')}</div>
   <div class="dg"><span>Giant</span>${Object.keys(GIANTS).map(k=>`<button type="button" data-g="${k}" title="${GIANTS[k].name}">${k}</button>`).join('')}</div>
@@ -2421,6 +2436,8 @@ function debugAct(a){
   if(a==='meet'){for(const sp of SPECIES)S.codex[sp.id]=Math.max(12,S.codex[sp.id]||0);S.statueSp=S.statueSp||'koi';renderCodex();}
   if(a==='chest'&&!dropChest())log('No room for a chest (two are already out, or no forest edge).','warn');
   if(a==='crate')queueCrate({source:'the debug fairy',kind:'mixed'});
+  if(a==='treasure')queueCrate({source:'the debug fairy',kind:'treasure'});
+  if(a==='showcase')queueCrate({source:'the debug fairy',kind:'showcase'});
   if(a==='hermit')queueCrate({source:'the debug fairy',kind:'keeper'});
   if(a==='unlock')for(const b of BLUEPRINTS)S.unlocked[b.id]=true;
   if(a==='slot'){for(let k=0;k<GW*GH;k++){if(tiles[k]===LAND&&builds[k]===NONE&&!fishersState.some(f=>idx(f.i,f.j)===k)&&!nb8(k%GW,(k/GW)|0,WATER)){builds[k]=B.STONES;break;}}buildsChanged();renderKeepers();}

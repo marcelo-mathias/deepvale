@@ -10,11 +10,20 @@ const arc = (a0, a1, r = R) => { const x0 = 50 + Math.cos(a0) * r, y0 = 50 + Mat
 const wrap = a => ((a % TAU) + TAU) % TAU;
 const angDist = (a, b) => { const d = Math.abs(wrap(a) - wrap(b)); return Math.min(d, TAU - d); };
 
+let reelN = 0;
 export function makeReel(layer){
+  const q = 'rl' + (++reelN) + Math.random().toString(36).slice(2, 6); // pattern ids, unique to this ring
   const el = document.createElement('div'); el.className = 'reel'; el.hidden = true;
   el.innerHTML = `<svg viewBox="0 0 100 100" aria-hidden="true">
-      <circle class="track" cx="50" cy="50" r="${R}"/>
-      <path class="zone"/><path class="perfect"/>
+      <defs>
+        <pattern id="${q}T" class="pt" width="2" height="2" patternUnits="userSpaceOnUse"><rect width="1" height="1"/><rect x="1" y="1" width="1" height="1"/></pattern>
+        <pattern id="${q}H" class="ph" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="1" height="1"/><rect x="2" y="2" width="1" height="1"/></pattern>
+        <pattern id="${q}Z" class="pz" width="2" height="2" patternUnits="userSpaceOnUse"><rect width="1" height="1"/><rect x="1" y="1" width="1" height="1"/></pattern>
+      </defs>
+      <circle class="disc" cx="50" cy="50" r="${R - 4}"/>
+      <circle class="track" cx="50" cy="50" r="${R}" stroke="url(#${q}T)"/>
+      <circle class="track2" cx="50" cy="50" r="${R + 5}" stroke="url(#${q}H)"/>
+      <path class="zone"/><path class="zonedth" stroke="url(#${q}Z)"/><path class="perfect"/>
       <circle class="dot" r="4.2"/>
     </svg>
     <div class="mid"><b class="combo"></b><span class="hint">Space</span></div>
@@ -26,7 +35,7 @@ export function makeReel(layer){
 
   function placeZone(){ // somewhere well ahead of the light
     zc = wrap(a + 1.6 + Math.random() * 3); zw = Math.max(.55, 1.25 - n * .09);
-    zone.setAttribute('d', arc(zc - zw / 2, zc + zw / 2)); const pw = zw * .3; perf.setAttribute('d', arc(zc - pw / 2, zc + pw / 2));
+    zone.setAttribute('d', arc(zc - zw / 2, zc + zw / 2)); el.querySelector('.zonedth').setAttribute('d', arc(zc - zw / 2 - .12, zc + zw / 2 + .12, R + 5)); const pw = zw * .3; perf.setAttribute('d', arc(zc - pw / 2, zc + pw / 2));
     el.classList.remove('zin'); void el.offsetWidth; el.classList.add('zin');
   }
   function flash(text, cls){ say.textContent = text; say.className = 'say ' + cls; void say.offsetWidth; say.classList.add('on'); }

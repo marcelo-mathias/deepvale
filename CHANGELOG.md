@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.11.4 — a shape for every kind of card
+
+Crate cards now have their own silhouettes and surfaces, as in the card shapes proposal:
+- **Blessing:** an arched chapel window. Its head is leaded stained glass with a painted swirl, and a light shaft drifts across it. On hover, the panes light up one after another.
+- **Keeper:** a woven banner with a wavy band of colour and a pointed foot holding a glowing gem. The keeper's portrait stands over the top edge.
+- **Blueprint:** a drafting sheet pinned to the board, with clipped corners, a torn foot and a cyanotype grid. A building draws itself in pale ink once the card lands.
+- **Treasure:** a tablet with faint engraved rings. The currency's painted medallion sits in a ribbed coin edge above it and spins in edge-first after the card lands.
+
+The face of each card is clipped to its shape, and the outline stroke follows the shape. The stroke now fades in from the foot: it's full colour at the bottom and fades out toward the top, so the artwork at the top stays clean.
+
+Cards in a crate line up along their bottom edge. The debug panel has a **One of each** crate.
+
+## 0.11.3 — treasure cards, cards that rise into place, a dithered reel
+
+- **Cards rise from below:** crate cards no longer show their mirrored backs before turning over. They rise from below the screen one after another, overshoot a little and settle.
+- **Card edges:** each card's stroke is now a vertical gradient, full colour at the top and fading to nothing toward the foot. It brightens on hover.
+- **Treasure cards:** a crate of blessings now sometimes offers a heap of one currency in place of one of its cards.
+  - The currencies are scales, silver, timber, reeds, clay, lanterns and carvings.
+  - Each one has its own painted medallion: a ring of wedges, a bold glyph, and a painted swirl over it all.
+  - The medallion floats gently, a light runs round its rim, and it gives a little hop when you hover the card.
+  - A crate whose pools are empty gives a silver treasure card instead of the old purse.
+  - The debug panel has a **Treasure** button that deals a crate of them.
+- **Reeling ring:** the ring is now pixel-dithered. It has a checker track, a sparse dithered halo outside it, and a dithered echo of the mint arc.
+  - The amber warning and the ember surge recolour the dither.
+
 ## 0.11.2 — work marked on the ground, rings instead of labels
 
 - **Queued work is marked on the ground:** every tile waiting for work gets a light dithered wash, and each patch of work gets a soft outline around its edge, so a big queue no longer hides the land. The colour shows its state:
