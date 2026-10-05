@@ -1,3 +1,4 @@
+import { version as VERSION } from '../package.json';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clamp, lerp, smooth, rand, hash2, fbm, ridged, fmt, store } from './core/utils.js';
@@ -711,12 +712,12 @@ const weatherFish=()=>({rain:1.25,storm:1.5,fog:1.1}[S.weather?.k]||1);
 function weatherTick(dt,t){
   if(!S.weather||(S.weather.left-=dt)<=0||(S.weather.k==='snow'&&seasonNow()!=='Winter'))rollWeather();
   const k=S.weather.k,sw=seasonW();
-  const tm={fog:.8,rain:.22,storm:.32,snow:.18}[k]||0,tg={rain:.55,storm:.9,snow:.3,fog:.25}[k]||0;
+  const tm={fog:.3,rain:.04,storm:.07,snow:.05}[k]||0,tg={rain:.3,storm:.55,snow:.15,fog:.12}[k]||0; // kept light: the valley must stay readable
   wMist+=(tm-wMist)*Math.min(1,dt*.15);wGloom+=(tg-wGloom)*Math.min(1,dt*.15);wSnow+=((k==='snow'?1:0)-wSnow)*Math.min(1,dt*.15);
   postMat.uniforms.uMist.value=wMist;postMat.uniforms.uGloom.value=wGloom;postMat.uniforms.uSnowSky.value=wSnow;
   // lightning: a flash, then the thunder a moment later
   if(k==='storm'){boltT-=dt;if(boltT<0){boltT=rand(7,20);flash=1;const d=rand(.6,2.4);setTimeout(()=>worldSound('thunder',rand(-.6,.6),.9),d*1000);}}
-  flash=Math.max(0,flash-dt*3.5);postMat.uniforms.uFlash.value=flash*flash*.5*(Math.random()<.85?1:0);
+  flash=Math.max(0,flash-dt*3.5);postMat.uniforms.uFlash.value=flash*flash*.3*(Math.random()<.85?1:0);
   // what falls: weather first, else petals in spring and leaves in autumn
   if(k==='rain'||k==='storm'||k==='snow')weather.set(k,1);else if(sw[0]>.5)weather.set('petals',sw[0]*.8);else if(sw[2]>.5)weather.set('leaves',sw[2]);else weather.set('none',0);
   weather.update(dt,t,view,(x,z)=>Math.max(heightAt(x,z),WATER_Y));
@@ -745,7 +746,7 @@ function wildTick(dt,t){
 }
 
 // the giants of the high country
-const giants=makeGiants({scene,heightAt,rimMat,bird:()=>props.bird(),HX,HZ,MTS:()=>MTS});
+const giants=makeGiants({scene,heightAt,rimMat,bird:()=>props.bird(),HX,HZ,MTS:()=>MTS,forest:(x,z)=>{const i=Math.floor(x+HX),j=Math.floor(z+HZ);return !inGrid(i,j)||(tiles[idx(i,j)]===WILD&&builds[idx(i,j)]===NONE);}});
 function giantOK(k){const ct=S.clock?.t||0,day=ct>.04&&ct<.66,dsk=ct>.6&&ct<.97,nt=night>.4,sw=seasonW(),wk=S.weather?.k;
   return {stag:day,whale:day&&wk!=='storm',owl:dsk,moth:nt,jelly:nt&&sw[0]<.5&&sw[3]<.5,elk:dsk&&sw[2]+sw[3]>.5,wyrm:wk==='fog'||wk==='rain'}[k];}
 function giantTick(dt){if(!started)return;
@@ -758,7 +759,15 @@ function giantTick(dt){if(!started)return;
 // a chip at the edge of the screen points to a giant you can't see; click it to look
 const giantChip=document.createElement('button');giantChip.type='button';giantChip.className='gchip';giantChip.hidden=true;document.getElementById('dv').appendChild(giantChip);
 let chipFor=null;
-giantChip.addEventListener('click',()=>{const gi=chipFor;if(!gi)return;const p=gi.g.position;tweenTo({x:p.x*.8,y:p.y*.72,z:p.z*.8},Math.min(ZMAX,95),2.5);});
+// frame a giant: aim at its middle, not its feet
+function lookAtGiant(gi){const p=gi.g.position;tweenTo({x:p.x,y:p.y*.6,z:p.z},40,2.5);}
+// debug: call a giant now, at full presence, and look at it; 'Parade all' walks through every kind
+const GIANT_KEYS=Object.keys(GIANTS);let gTour=null;
+function previewGiant(k){giants.list.slice().forEach(g=>giants.drop(g));const tk=builds.indexOf(B.TOWER);let tower=null;
+  if(tk>=0){const c=tileC(tk%GW,(tk/GW)|0);tower={x:c.x,z:c.z,y:heightAt(c.x,c.z)};}
+  const gi=giants.spawn(k,{tower:k==='moth'?tower:null});if(!gi)return;gi.fade=Math.max(gi.fade||0,.6);lookAtGiant(gi);log(`Debug: ${GIANTS[k].name}.`,'dim');}
+function giantTourTick(dt){if(!gTour)return;gTour.t+=dt;if(gTour.t<9)return;gTour.t=0;gTour.n++;if(gTour.n>=GIANT_KEYS.length){gTour=null;giants.list.forEach(g=>giants.depart(g));if(!$('debug').hidden)renderDebug();return;}previewGiant(GIANT_KEYS[gTour.n]);}
+giantChip.addEventListener('click',()=>{if(chipFor)lookAtGiant(chipFor);});
 function updateGiantChip(){const gi=giants.list.find(g=>!g.gifted&&g.fade>.3);chipFor=gi||null;if(!gi||!started||cine.fish){giantChip.hidden=true;return;}
   const p=gi.g.position,s=toScreen(p.x,p.y,p.z),m=70;const on=s.x>m&&s.x<innerWidth-m&&s.y>m&&s.y<innerHeight-m;
   if(on){giantChip.hidden=true;return;}giantChip.hidden=false;const cx=innerWidth/2,cy=innerHeight/2,dx=s.x-cx,dy=s.y-cy,k=Math.min((cx-m-40)/Math.abs(dx||1e-3),(cy-m)/Math.abs(dy||1e-3));
@@ -1260,7 +1269,11 @@ let secrets=[];const secretAt={};
 function pristineTiles(){const t=new Uint8Array(GW*GH);initTiles(t);return t;}
 function initSecrets(){
   if(!S.seed)S.seed=1+Math.floor(Math.random()*2**30);
-  secrets=makeSecrets(S.seed,pristineTiles()).filter(s=>tiles[s.k]===WILD||S.found.includes(s.k));
+  secrets=makeSecrets(S.seed,pristineTiles(),S.legacyCh!==undefined?tiles:null);
+  // landmarks stay where they were first placed, whatever happens to the forest later
+  const LM=['temple','elder','tower','gate'];if(S.lm)secrets=secrets.filter(s=>!LM.includes(s.type)).concat(Object.entries(S.lm).map(([type,k])=>({type,k,i:k%GW,j:(k/GW)|0,r:.5})));
+  else S.lm=Object.fromEntries(secrets.filter(s=>LM.includes(s.type)).map(s=>[s.type,s.k]));
+  secrets=secrets.filter(s=>tiles[s.k]===WILD||S.found.includes(s.k)||(LM.includes(s.type)&&builds[s.k]!==NONE));
   S.drops=(S.drops||[]).filter(d=>tiles[d.k]===WILD&&!S.found.includes(d.k)&&!secrets.some(s=>s.k===d.k));secrets.push(...S.drops);
   for(const s of secrets){secretAt[s.k]=s;if(s.type==='clay')deposit[s.k]=1;}
   const pt=pristineTiles();oldCh.set(makeChannels(S.seed,pt,S.legacyCh));wild0=pt.reduce((a,t)=>a+(t===WILD?1:0),0);
@@ -1758,11 +1771,11 @@ const postMat=new THREE.ShaderMaterial({
       lit=s.rgb*(1.0-0.15*uLampOn)*(1.0+L*2.6)+L*0.05;}
     // grey weather: a lower, flatter light
     sky=mix(sky,vec3(0.55,0.6,0.64)*(1.0-uDusk*0.7),uGloom*0.7);sky=mix(sky,vec3(0.86,0.88,0.92)*(1.0-uDusk*0.6),uSnowSky*0.4);
-    lit=mix(lit,vec3(dot(lit,vec3(0.3,0.5,0.2)))*vec3(0.92,0.97,1.02),uGloom*0.35)*(1.0-uGloom*0.18);
+    lit=mix(lit,vec3(dot(lit,vec3(0.3,0.5,0.2)))*vec3(0.92,0.97,1.02),uGloom*0.25)*(1.0-uGloom*0.12);
     vec3 col=mix(sky,lit,a);
     // fog: thickest in the low ground and over the water, drifting
     if(uMist>0.001){float lowg=smoothstep(4.0,-0.6,wp.y)*a+(1.0-a);float drift=vns(wp.xz*0.08+vec2(uTime*0.03,uTime*0.012))*0.5+vns(wp.xz*0.21-uTime*0.02)*0.5;
-      vec3 mc=mix(vec3(0.82,0.84,0.83),vec3(0.16,0.2,0.26),uDusk);col=mix(col,mc,clamp(uMist*(0.25+0.6*lowg)*(0.65+0.6*drift),0.0,0.88));}
+      vec3 mc=mix(vec3(0.82,0.84,0.83),vec3(0.16,0.2,0.26),uDusk);col=mix(col,mc,clamp(uMist*(0.2+0.6*lowg)*(0.15+1.3*drift*drift),0.0,0.5));}
     col+=vec3(0.75,0.82,1.0)*uFlash;
     // bloom: glowing things bleed soft light around them
     col+=(texture2D(tBloomA,uv).rgb*0.7+texture2D(tBloomB,uv).rgb*1.1)*uBloom;
@@ -2286,7 +2299,7 @@ const DEBUG_OK=import.meta.env.DEV||/[?&]debug\b/.test(location.search);
 function toggleDebug(){if(!DEBUG_OK)return;const d=$('debug');d.hidden=!d.hidden;if(!d.hidden)renderDebug();}
 function renderDebug(){
   const d=$('debug');const spOpts=SPECIES.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
-  d.innerHTML=`<div class="dh">Debug <span class="dim">(\` to close)</span></div>
+  d.innerHTML=`<div class="dh">Debug · v${VERSION} · ${GW}×${GH} <span class="dim">(\` to close)</span></div>
   <div class="dg"><span>Clock</span>${[["Dawn",.01],["Midday",.35],["Golden",.55],["Dusk",.7],["Night",.82]].map(([n,v])=>`<button type="button" data-clock="${v}">${n}</button>`).join("")}</div>
   <div class="dg"><span>Time</span>${[1,2,4,8,16].map(n=>`<button type="button" data-ts="${n}" aria-pressed="${timeScale===n}">×${n}</button>`).join('')}</div>
   <div class="dg"><button type="button" data-a="frenzy" aria-pressed="${debugFlags.frenzy}">Fish frenzy</button><button type="button" data-a="hints" aria-pressed="${debugFlags.allHints}">Show all hints</button></div>
@@ -2295,7 +2308,9 @@ function renderDebug(){
   <div class="dg"><span>Crates</span><button type="button" data-a="crate">Crate</button><button type="button" data-a="hermit">Keeper</button><button type="button" data-a="unlock">Unlock all</button><button type="button" data-a="slot">+1 keeper slot</button><button type="button" data-a="chest">Chest</button></div>
   <div class="dg"><span>Weather</span>${['clear','rain','storm','fog','snow'].map(k=>`<button type="button" data-w="${k}" aria-pressed="${S.weather?.k===k}">${k}</button>`).join('')}</div>
   <div class="dg"><span>Season</span>${['Spring','Summer','Autumn','Winter'].map((k,n)=>`<button type="button" data-se="${n}">${k}</button>`).join('')}</div>
-  <div class="dg"><span>Giant</span>${Object.keys(GIANTS).map(k=>`<button type="button" data-g="${k}">${k}</button>`).join('')}</div>
+  <div class="dg"><span>Giant</span>${Object.keys(GIANTS).map(k=>`<button type="button" data-g="${k}" title="${GIANTS[k].name}">${k}</button>`).join('')}</div>
+  <div class="dg"><span></span><button type="button" data-a="gLook">Look at giant</button><button type="button" data-a="gGift">Greet (gift)</button><button type="button" data-a="gAway">Send away</button><button type="button" data-a="gTour" aria-pressed="${!!gTour}">Parade all</button></div>
+  <div class="dg"><span>Landmark</span>${['temple','elder','tower','gate'].map(k=>{const sc=secrets.find(x=>x.type===k);return `<button type="button" data-lm="${k}"${sc?'':' disabled'}>${k}${sc&&S.found.includes(sc.k)?' ✓':''}</button>`;}).join('')}<button type="button" data-a="lmFind">Uncover all 4</button></div>
   <div class="dg"><span>World</span><button type="button" data-a="clear">Clear 9×9 at view</button><button type="button" data-a="find">Find all secrets</button><button type="button" data-a="fishers">+6 fishers</button></div>
   <div class="dg"><span>Trade</span><button type="button" data-a="ship">Send vehicles now</button><button type="button" data-a="back">Bring them home</button><button type="button" data-a="wish">Grant wish</button><button type="button" data-a="tide">Tide ×1.5</button><button type="button" data-a="work">Finish all work</button></div>
   <div class="dg">${resetArm?'<span>Wipe this valley?</span><button type="button" data-a="wipe" class="warn">Yes, start over</button><button type="button" data-a="keep">Keep it</button>':'<button type="button" data-a="reset" class="warn">Reset save</button>'}</div>`;
@@ -2304,7 +2319,8 @@ function renderDebug(){
   d.querySelectorAll('[data-a]').forEach(b=>b.addEventListener('click',()=>debugAct(b.dataset.a)));
   d.querySelectorAll('[data-w]').forEach(b=>b.addEventListener('click',()=>{S.weather={k:b.dataset.w,left:600};renderDebug();}));
   d.querySelectorAll('[data-se]').forEach(b=>b.addEventListener('click',()=>{const day=S.clock.day||1,y=Math.floor((day-1)/28);S.clock.day=y*28+(+b.dataset.se)*7+3;seasonCT=0;if(S.weather?.k==='snow'&&b.dataset.se!=='3')S.weather.left=0;renderDebug();}));
-  d.querySelectorAll('[data-g]').forEach(b=>b.addEventListener('click',()=>{giants.list.forEach(g=>giants.depart(g));const tk=builds.indexOf(B.TOWER);let tower=null;if(tk>=0){const c=tileC(tk%GW,(tk/GW)|0);tower={x:c.x,z:c.z,y:heightAt(c.x,c.z)};}giants.spawn(b.dataset.g,{tower:b.dataset.g==='moth'?tower:null});}));
+  d.querySelectorAll('[data-g]').forEach(b=>b.addEventListener('click',()=>{gTour=null;previewGiant(b.dataset.g);}));
+  d.querySelectorAll('[data-lm]').forEach(b=>b.addEventListener('click',()=>{const sc=secrets.find(x=>x.type===b.dataset.lm);if(!sc)return;const c=tileC(sc.k%GW,(sc.k/GW)|0);tweenTo({x:c.x,y:heightAt(c.x,c.z),z:c.z},30,1.6);}));
 }
 let resetArm=false;
 function debugAct(a){
@@ -2322,6 +2338,11 @@ function debugAct(a){
   if(a==='unlock')for(const b of BLUEPRINTS)S.unlocked[b.id]=true;
   if(a==='slot'){for(let k=0;k<GW*GH;k++){if(tiles[k]===LAND&&builds[k]===NONE&&!fishersState.some(f=>idx(f.i,f.j)===k)&&!nb8(k%GW,(k/GW)|0,WATER)){builds[k]=B.STONES;break;}}buildsChanged();renderKeepers();}
   if(a==='clear'){const ci=Math.floor(view.t.x+HX),cj=Math.floor(view.t.z+HZ);for(let b=-4;b<=4;b++)for(let x=-4;x<=4;x++){const i=ci+x,j=cj+b;if(!inGrid(i,j))continue;const k=idx(i,j);if(tiles[k]===WILD){tiles[k]=LAND;revealAt(k);}}worldChanged();}
+  if(a==='gLook'){const gi=giants.list.find(g=>g.alive);if(gi)lookAtGiant(gi);else log('No giant out right now. Pick one above.','warn');}
+  if(a==='gGift'){const gi=giants.list.find(g=>!g.gifted);if(gi)giantGift(gi);}
+  if(a==='gAway'){gTour=null;giants.list.forEach(g=>giants.depart(g));}
+  if(a==='gTour'){gTour=gTour?null:{n:0,t:0};if(gTour)previewGiant(GIANT_KEYS[0]);renderDebug();}
+  if(a==='lmFind'){for(const s of secrets)if(['temple','elder','tower','gate'].includes(s.type)&&!S.found.includes(s.k)){tiles[s.k]=LAND;revealAt(s.k);}worldChanged();renderDebug();}
   if(a==='find'){for(const s of secrets)if(!S.found.includes(s.k)){tiles[s.k]=LAND;revealAt(s.k);}worldChanged();}
   if(a==='fishers'){let n=0;for(let j=0;j<GH&&n<6;j++)for(let i=0;i<GW&&n<6;i++){if(standable(i,j)&&freeSlot(i,j)>=0&&builds[idx(i,j)]!==BRIDGE){while(n<6&&freeSlot(i,j)>=0){makeFisher(i,j,freeSlot(i,j),S.hires+n);n++;}}}
     for(let q=0;q<2;q++){for(let k=0;k<GW*GH;k++){if(tiles[k]===LAND&&builds[k]===NONE&&!fishersState.some(f=>idx(f.i,f.j)===k)){builds[k]=HUT;S.meta[k]={style:S.hutStyle};break;}}}buildsChanged();}
@@ -2371,7 +2392,7 @@ function rollMap(seed){let s=seed>>>0||1;const R=()=>(s=(s*1664525+1013904223)>>
   return {seed,river:randomRiver(seed),mts};}
 if(loaded)applyMap(S.map);
 else{const pend=+store.get('deepvale-nextmap')||0;S.map=rollMap(pend||1+Math.floor(Math.random()*999999));store.set('deepvale-nextmap','');applyMap(S.map);S.seed=S.map.seed;initTiles();initBuilds();}
-$('valleyNo').textContent=S.map?`Valley no. ${S.map.seed}`:'The first valley';$('reroll').hidden=loaded;
+$('valleyNo').textContent=(S.map?`Valley no. ${S.map.seed}`:'The first valley')+` · v${VERSION}`;$('reroll').hidden=loaded;
 {const p=parseInt(store.get('deepvale-pix'));if([2,3,4].includes(p))PIX=p;$('pixSeg').querySelectorAll('[data-pix]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.pix===PIX)));}
 initSecrets();
 buildTerrain(false);buildStairs();scatterOuter();updateTrees();analyzeWater();computeVillages();computeEconomy();village.sync();trade.sync();trade.topUpOrders();updateHintVis();
@@ -2476,7 +2497,7 @@ function frame(){
   keyPan(dt);menuDrift();updateCamera(dt);
   for(let n=0;n<timeScale;n++)simStep(dt,t+n*dt);
   fishersState.forEach(fs=>updateFisher(fs,dt,t));
-  updateBeam(dt,t);if(started)bellTick(dt);seasonTick(dt);weatherTick(dt,t);wildTick(dt,t);giants.update(dt,t);updateGiantChip();
+  updateBeam(dt,t);if(started)bellTick(dt);seasonTick(dt);weatherTick(dt,t);wildTick(dt,t);giants.update(dt,t);giantTourTick(dt);updateGiantChip();
   updateCine(dt);updateSparkles(dt);updateHeat(dt);updateHints(dt,t);updateDusk(dt);updateFallers(dt);updateCrows(dt,t);
   wisps.update(dt,(innerHeight/PIX)/view.z);
   updateLabels();updateReel(dt);tour.tick();drawPreview();positionPlot();
@@ -2492,4 +2513,4 @@ function frame(){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-if (import.meta.env.DEV) window.__dv={save,wildFx:()=>{wildT=0;},seasonFx:()=>{seasonCT=0;seasonTick(0);},THREE,seasonW,SEASON_U,foliage,makeFishMesh,U,groundAt,camera,giants,wildlife,giantGift,S,fishes,fishersState,spawnFish,SP,comps:()=>comps,view,tweenTo,startCine,tiles,builds,FLOW,act,worldChanged,buildsChanged,refreshUI,pickFish,toScreen,setTool,hookCheck,trade,secrets:()=>secrets,queueCrate,debugAct,canDo,villages:()=>villages,producers:()=>producers,activeSets:()=>activeSets,setTimeScale:n=>{timeScale=n;},hintVis,newWish,linkedOf,tally,sfx,simStep,jobs,workers,openPlot,snapAt:(p,k)=>snapAt(p,k),actDeco:(t,s)=>actDeco(t,s),corners:()=>S.corners,edges:()=>S.edges};
+if (import.meta.env.DEV) window.__dv={wxSnap:()=>{for(let n=0;n<120;n++)weatherTick(.1,U.time.value);},save,wildFx:()=>{wildT=0;},seasonFx:()=>{seasonCT=0;seasonTick(0);},THREE,seasonW,SEASON_U,foliage,makeFishMesh,U,groundAt,camera,giants,wildlife,giantGift,S,fishes,fishersState,spawnFish,SP,comps:()=>comps,view,tweenTo,startCine,tiles,builds,FLOW,act,worldChanged,buildsChanged,refreshUI,pickFish,toScreen,setTool,hookCheck,trade,secrets:()=>secrets,queueCrate,debugAct,canDo,villages:()=>villages,producers:()=>producers,activeSets:()=>activeSets,setTimeScale:n=>{timeScale=n;},hintVis,newWish,linkedOf,tally,sfx,simStep,jobs,workers,openPlot,snapAt:(p,k)=>snapAt(p,k),actDeco:(t,s)=>actDeco(t,s),corners:()=>S.corners,edges:()=>S.edges};

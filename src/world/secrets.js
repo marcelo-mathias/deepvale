@@ -24,10 +24,11 @@ const COUNT = (t, d) => d.big || d.fixed ? d.n : Math.round(d.n * Math.max(1, GR
 function mulberry(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
 // tiles: current tile types. Secrets only go on forest at least `minGap` tiles from any cleared land, and apart from each other.
-export function makeSecrets(seed, tiles){
+// cur: the valley as it is now. Landmarks also need it to be wild there (a grown save may have cleared the middle).
+export function makeSecrets(seed, tiles, cur){
   const R = mulberry(seed);
   const out = [];
-  const far = (i, j) => { for (let b = -4; b <= 4; b++) for (let a = -4; a <= 4; a++){ const ni = i+a, nj = j+b; if (inGrid(ni, nj) && tiles[idx(ni, nj)] !== WILD && Math.max(Math.abs(a), Math.abs(b)) <= 3) return false; } return true; };
+  const far = (i, j, T = tiles) => { for (let b = -4; b <= 4; b++) for (let a = -4; a <= 4; a++){ const ni = i+a, nj = j+b; if (inGrid(ni, nj) && T[idx(ni, nj)] !== WILD && Math.max(Math.abs(a), Math.abs(b)) <= 3) return false; } return true; };
   const apart = (i, j, big) => out.every(s => Math.max(Math.abs(s.i - i), Math.abs(s.j - j)) >= (big || SECRET_TYPES[s.type].big ? 8 : 4));
   // landmarks first, so they get the deep forest
   const order = Object.entries(SECRET_TYPES).sort(([, a], [, b]) => (b.big ? 1 : 0) - (a.big ? 1 : 0)).flatMap(([t, d]) => Array.from({ length: COUNT(t, d) }, () => t));
@@ -37,6 +38,7 @@ export function makeSecrets(seed, tiles){
       const i = 1 + Math.floor(R() * (GW - 2)), j = 1 + Math.floor(R() * (GH - 2));
       if (tiles[idx(i, j)] !== WILD || !far(i, j) || !apart(i, j, big)) continue;
       if (big && Math.min(i, j, GW - 1 - i, GH - 1 - j) < 3) continue;
+      if (big && cur && (cur[idx(i, j)] !== WILD || !far(i, j, cur))) continue;
       out.push({ type, i, j, k: idx(i, j), r: R() }); break;
     }
   }

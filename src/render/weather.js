@@ -25,7 +25,7 @@ export function makeWeather(scene){
     const cs = COLS[kind] || COLS.snow; tmp.set(cs[Math.floor(Math.random() * cs.length)]); p.c = [tmp.r, tmp.g, tmp.b];
   }
   // count: how many of the pool are used for each kind at full strength
-  const COUNT = { rain: 1800, storm: 2100, snow: 1600, petals: 260, leaves: 320, none: 0 };
+  const COUNT = { rain: 700, storm: 1100, snow: 800, petals: 160, leaves: 200, none: 0 };
   return {
     set(k, strength = 1){ if (k !== kind){ kind = k; for (const p of P) p.y = -99; } want = strength; },
     get kind(){ return kind; },
@@ -44,8 +44,8 @@ export function makeWeather(scene){
         else { const o = i * 3; ptPos[o] = p.x; ptPos[o + 1] = p.y; ptPos[o + 2] = p.z; ptCol[o] = p.c[0]; ptCol[o + 1] = p.c[1]; ptCol[o + 2] = p.c[2]; }
       }
       rain.visible = isRain; pts.visible = !isRain && n > 0;
-      rainMat.opacity = .2 * amt * (kind === 'storm' ? 1.2 : 1); ptMat.opacity = .9 * amt;
-      ptMat.size = kind === 'snow' ? .1 : .13;
+      rainMat.opacity = .08 * amt * (kind === 'storm' ? 1.2 : 1); ptMat.opacity = .7 * amt;
+      ptMat.size = kind === 'snow' ? .075 : .11;
       if (isRain) rainGeo.attributes.position.needsUpdate = true; else { ptGeo.attributes.position.needsUpdate = true; ptGeo.attributes.color.needsUpdate = true; }
     },
   };

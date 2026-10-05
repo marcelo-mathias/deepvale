@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.10.1 — smaller giants, lighter weather, debug previews
+
+- **Giants:** they're now about six trees tall, and they roam the forest around the valley instead of standing past the mountains.
+  - Walkers and the Fog Wyrm keep to the trees and never cross the village or the river.
+  - The whale and the jellyfish drift low over the valley, and the owl perches on the valley's rim.
+- **Weather is lighter:**
+  - Fog comes in patches with clear gaps between them.
+  - Rain and storms use fewer, fainter streaks, with less darkening and softer lightning.
+  - Snow and falling petals are lighter too.
+- **Landmarks:** they keep their spot once placed. In a save that grew from a smaller valley, they're placed in forest that is still standing.
+- **Debug panel** (press ` in dev, or add ?debug to the address):
+  - **Giants:** buttons to call each giant and look at it, plus Look at giant, Greet (gift), Send away, and Parade all, which shows each giant in turn for 9 seconds.
+  - **Landmarks:** a button for each landmark that flies the camera to it, plus Uncover all 4.
+  - The header shows the build version and grid size.
+- The main menu shows the version under the valley number.
+
 ## 0.10.0 — a wider valley, the seasons, and the giants of the high country
 
 **A wider valley**
