@@ -6,7 +6,7 @@ export const LEGACY_GRIDS=[[28,20],[44,30]].map(([w,h])=>({w,h,offI:(GW-w)/2,off
 // how much bigger than the 44-wide valley the old layouts (channels, mountains) were drawn for
 export const GROW=GW/44;
 export const WATER_Y=-0.15,BED_Y=-1.35,LAND_Y=0.08;
-export const WILD=0,LAND=1,WATER=2;
+export const WILD=0,LAND=1,WATER=2,EDGE=3; // EDGE: inside the grid but beyond this valley's own (organic) edge: forest you can't reach
 export const idx=(i,j)=>j*GW+i;
 export const tileC=(i,j)=>({x:i-HX+.5,z:j-HZ+.5});
 export const inGrid=(i,j)=>i>=0&&j>=0&&i<GW&&j<GH;

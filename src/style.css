@@ -341,6 +341,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .reel.surge .track{stroke:rgba(233,138,95,.55);fill:rgba(40,16,8,.55)}
 .reel.surge .zone,.reel.surge .perfect{opacity:.2}
 .reel.surge .hint{color:var(--ember)}
+.reel.warn .track{stroke:rgba(240,190,110,.6);animation:reelWarn .36s ease-in-out infinite alternate}
+.reel.warn .hint{color:#f0c27a}
+@keyframes reelWarn{to{stroke:rgba(240,190,110,.15)}}
 @keyframes reelIn{from{opacity:0;transform:scale(.5)}}
 @keyframes zoneIn{from{opacity:0;stroke-width:1}}
 @keyframes sayUp{0%{opacity:0;transform:translate(-50%,6px)}20%{opacity:1}100%{opacity:0;transform:translate(-50%,-18px)}}

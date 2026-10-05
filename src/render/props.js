@@ -273,7 +273,7 @@ export function makeProps({ rimMat }){
     put(g, box(.9, .03, .5), mat('#4a6a5a', '#9ff0d0', .5), 0, .01, .1);
     return finish(g); };
   // the landmarks that can be seen before they are found
-  function landmark(type, r){ return type === 'elder' ? B.elder(r) : type === 'tower' ? B.tower(r) : null; }
+  function landmark(type, r){ return B[type] ? B[type](r) : null; }
 
   /* ---------- vehicles ---------- */
   function wagon(){

@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.11.0 — an organic valley, spirit giants, landmarks in shadow
+
+**The valley's outline**
+- The playable valley no longer fills a rectangle. Every rolled valley gets its own rounded, uneven outline, the way it gets its own river.
+- Past the edge, the forest carries on thick and thins out into glades on the hills, so there's no hard border.
+- The river and the Pilgrim Way still reach the edges of the map.
+- **Existing saves:** they take on the outline the next time they load. Only untouched forest is affected; anything built, cleared or dug stays playable.
+
+**Spirit giants**
+- There are now three giants instead of seven: the Pale Stag, the Lantern Owl and the River Whale. The moth, jellyfish, elk and wyrm are retired.
+- They're drawn as light, after the pixel-art stag reference: bright and solid at the top, fading to transparent toward the ground in a pixel dither, with a teal glow pooled under them and motes rising through them.
+- **The Pale Stag:** walks through the forest. It has a new slender build and tall branching antlers.
+- **The Lantern Owl:** perches on the valley's rim at dusk.
+- **The River Whale:** lives in the river. It leaps along it, mostly over your bridges, splashes back in and comes up again further along. With no bridges, it leaps from open water.
+
+**Landmarks in shadow**
+- Before they're found, all four landmarks stand in the forest as dark, dithered silhouettes that thin out toward the top. Their lights (lantern, runes) show faintly through.
+  - The temple and the gate were invisible before; now they show like the cedar and the tower.
+- Once found, each one appears in full.
+
+**Reeling fix**
+- A surge no longer starts while the light is crossing, or about to cross, the mint arc. It waits until the light has passed.
+- **A warning first:** before a surge, the ring pulses amber and says "It’s gathering…".
+- A pull in the first half-second of a surge is forgiven ("Easy…").
+- A later pull during a surge costs one step of your run, not the whole run.
+
 ## 0.10.1 — smaller giants, lighter weather, debug previews
 
 - **Giants:** they're now about six trees tall, and they roam the forest around the valley instead of standing past the mountains.

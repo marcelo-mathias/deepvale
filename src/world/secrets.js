@@ -66,7 +66,7 @@ export function makeChannels(seed, tiles, legacyOff){
     for (let i = s.i0; i < Math.min(GW, s.i0 + s.len); i++){
       const t = (i - s.i0 + .5) / s.len, x = tileC(i, 0).x;
       const zc = riverZ(x) + s.side * s.d * Math.pow(Math.sin(Math.PI * t), .6) + Math.sin(i * .9 + s.i0) * .35;
-      for (let j = 0; j < GH; j++){ const z = tileC(i, j).z; if (Math.abs(z - zc) < s.w / 2 + (t < .15 || t > .85 ? .6 : 0) && tiles[idx(i, j)] !== 2) out[idx(i, j)] = 1; }
+      for (let j = 0; j < GH; j++){ const z = tileC(i, j).z; if (Math.abs(z - zc) < s.w / 2 + (t < .15 || t > .85 ? .6 : 0) && tiles[idx(i, j)] !== 2 && tiles[idx(i, j)] !== 3) out[idx(i, j)] = 1; }
     }
   }
   return out;

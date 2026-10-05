@@ -2,7 +2,7 @@ import { version as VERSION } from '../package.json';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clamp, lerp, smooth, rand, hash2, fbm, ridged, fmt, store } from './core/utils.js';
-import { GW, GH, HX, HZ, WATER_Y, BED_Y, LAND_Y, WILD, LAND, WATER, idx, tileC, inGrid, riverZ, setRiver, randomRiver,
+import { GW, GH, HX, HZ, WATER_Y, BED_Y, LAND_Y, WILD, LAND, WATER, EDGE as RIM, idx, tileC, inGrid, riverZ, setRiver, randomRiver,
   NONE, HUT, ROAD, BRIDGE, WAY_I, DECK_Y, HOUSING, mouthRows, LEGACY_GRIDS, GROW } from './world/constants.js';
 import { B, DEFS, DEF_BY_CODE, CATS, GOODS, GOOD_IDS, RESERVE, STYLES, STYLE_IDS, PAVES, PAVE_IDS, STATUE_FX, BLUEPRINTS,
   KEEPERS, KEEPER, BOONS, BOON, SETS, SET } from './data/builds.js';
@@ -47,6 +47,19 @@ let INLET=mouthRows(0),OUTLET=mouthRows(GW-1);
 let MTS=[[-31,-52,40,14],[-82,-14,19,11],[20,-80,24,14],[-74,-70,16,12]];
 const wildH=new Float32Array(GW*GH);
 for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){wildH[idx(i,j)]=.2+fbm(i*.41+3,j*.41+9,3)*.42;}
+// the valley's own outline: a rounded, lumpy shape inside the grid, different for every rolled valley.
+// shapeF < 1 inside. Near the river (where it enters and leaves) and the Pilgrim Way it keeps to the grid's edge.
+let SHAPE=null;
+function setShape(map){const seed=map?.seed;if(!seed){SHAPE=null;return;}let s=(seed^0x51ed270b)>>>0;const R=()=>(s=(s*1664525+1013904223)>>>0)/4294967296;
+  SHAPE={p:2.3+R()*1.1,ox:R()*90,oz:R()*90,amp:.1+R()*.08,lobes:[0,1,2].map(()=>({k:2+Math.floor(R()*4),ph:R()*6.28,a:.025+R()*.04}))};}
+function shapeF(x,z){if(!SHAPE)return Math.max(Math.abs(x)/HX,Math.abs(z)/HZ);
+  const u=Math.abs(x)/HX,v=Math.abs(z)/HZ,P=SHAPE.p,rs=Math.pow(Math.pow(u,P)+Math.pow(v,P),1/P),rm=Math.max(u,v);
+  const nearRiver=smooth(7,2.5,Math.abs(z-riverZ(x))),nearWay=z<0?smooth(7,3,Math.abs(x-tileC(WAY_I,0).x)):0,keep=Math.max(nearRiver,nearWay);
+  const th=Math.atan2(z/HZ,x/HX);let n=(fbm(x*.06+SHAPE.ox,z*.06+SHAPE.oz,3)-.5)*2*SHAPE.amp;for(const l of SHAPE.lobes)n+=Math.sin(th*l.k+l.ph)*l.a;
+  return lerp(rs+.04+n,rm,keep);}
+// how far outside the valley floor a point is, in world units (0 inside)
+const dOut=(x,z)=>Math.max(Math.hypot(Math.max(0,Math.abs(x)-HX),Math.max(0,Math.abs(z)-HZ)),Math.max(0,shapeF(x,z)-1)*(HX+HZ)*.5);
+const inPlay=(x,z)=>{const i=Math.floor(x+HX),j=Math.floor(z+HZ);return inGrid(i,j)&&tiles[idx(i,j)]!==RIM;};
 function initTiles(T=tiles){
   for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const c=tileC(i,j);const d=Math.abs(c.z-riverZ(c.x));T[idx(i,j)]=d<1.6?WATER:WILD;}
   // a little clearing on the north bank, mid-valley
@@ -57,7 +70,11 @@ function initTiles(T=tiles){
       if(Math.abs(c.z-riverZ(c.x))<minRiver||Math.abs(i-WAY_I)<4)continue;const rx=rmin+R()*(rmax-rmin),rz=rmin+R()*(rmax-rmin);
       for(let b=-3;b<=3;b++)for(let a=-3;a<=3;a++){if((a/rx)**2+(b/rz)**2>1||!inGrid(i+a,j+b))continue;const k=idx(i+a,j+b);if(T[k]===WILD)T[k]=type;}break;}};
   blob(2+Math.floor(R()*3),4,1.3,2.6,LAND);blob(1+Math.floor(R()*2),5,.9,1.6,WATER);
+  carveEdge(T);
 }
+// everything past the valley's outline becomes unreachable forest (the river keeps running through it)
+function carveEdge(T=tiles,saved=false){if(!SHAPE)return;for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const k=idx(i,j),c=tileC(i,j);if(shapeF(c.x,c.z)<1)continue;
+    if(Math.abs(c.z-riverZ(c.x))<1.6&&T[k]===WATER)continue;if(saved&&(T[k]!==WILD||builds[k]!==NONE||Object.values(S.lm||{}).some(q=>Math.abs(q%GW-i)<=3&&Math.abs(((q/GW)|0)-j)<=3)))continue;T[k]=RIM;}}
 // the Pilgrim Way comes down from the north edge to a first hut near the clearing
 function initBuilds(){
   builds.fill(NONE);placeWeir();let end=0;
@@ -146,7 +163,7 @@ function rimMat(params,rimColor='#ffd9a8',rimStr=.9){
 
 /* ================= terrain ================= */
 const oldCh=new Uint8Array(GW*GH); // where the river used to run
-function tileH(i,j){i=clamp(i,0,GW-1);j=clamp(j,0,GH-1);const k=idx(i,j),t=tiles[k];return t===WATER?BED_Y:(t===LAND?LAND_Y:wildH[k])-(oldCh[k]?.16:0);}
+function tileH(i,j){i=clamp(i,0,GW-1);j=clamp(j,0,GH-1);const k=idx(i,j),t=tiles[k];return t===WATER?BED_Y:(t===LAND?LAND_Y:t===RIM?wildH[k]+.15:wildH[k])-(oldCh[k]?.16:0);}
 function innerH(x,z){
   const u=x+HX-.5,v=z+HZ-.5,i0=Math.floor(u),j0=Math.floor(v);
   const fu=smooth(.18,.82,u-i0),fv=smooth(.18,.82,v-j0);
@@ -154,7 +171,7 @@ function innerH(x,z){
   return h+(fbm(x*1.3,z*1.3,2)-.5)*.05;
 }
 function outerH(x,z){
-  const dx=Math.max(0,Math.abs(x)-HX),dz=Math.max(0,Math.abs(z)-HZ),d=Math.hypot(dx,dz);
+  const d=dOut(x,z);
   let h=.25+(fbm(x*.12+3,z*.12-7)-.5)*.7;
   const rise=((1-Math.exp(-d*.11))*11+d*.2)*(.65+.7*fbm(x*.05,z*.05));
   h+=rise;
@@ -171,7 +188,7 @@ function outerH(x,z){
   return h;
 }
 function heightAt(x,z){
-  const dx=Math.max(0,Math.abs(x)-HX),dz=Math.max(0,Math.abs(z)-HZ),d=Math.hypot(dx,dz);
+  const d=dOut(x,z);
   if(d<=0)return innerH(x,z);
   if(d<2.4)return lerp(innerH(clamp(x,-HX,HX),clamp(z,-HZ,HZ)),outerH(x,z),smooth(0,2.4,d));
   return outerH(x,z);
@@ -209,7 +226,7 @@ function wayDist(x,z){const c=wayCtrl();let best=9;for(let n=0;n<c.length-1;n++)
 const fract=v=>v-Math.floor(v);
 function colorAt(x,z,h,ny,out){
   const n=fbm(x*.7,z*.7,2);
-  const i=Math.floor(x+HX),j=Math.floor(z+HZ);const inside=inGrid(i,j);
+  const i=Math.floor(x+HX),j=Math.floor(z+HZ);const inside=inGrid(i,j)&&tiles[idx(i,j)]!==RIM;
   if(h<WATER_Y-.02){out.copy(PAL.bedHi).lerp(PAL.bedLo,smooth(-.3,-1.2,h));out.multiplyScalar(.85+n*.3);return;}
   if(h<WATER_Y+.13){out.copy(PAL.sand).multiplyScalar(.85+n*.3);return;}
   if(inside&&oldCh[idx(i,j)]&&tiles[idx(i,j)]!==WATER&&builds[idx(i,j)]===NONE){out.copy(OLDBED).multiplyScalar(.82+n*.3);if(tiles[idx(i,j)]===WILD)out.lerp(PAL.wild2,.35);return;}
@@ -375,20 +392,20 @@ for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const c=tileC(i,j);const n=2+Math.flo
   for(let k=0;k<n;k++)addTree(c.x+rand(-.38,.38),c.z+rand(-.38,.38),rand(.9,1.5),idx(i,j));}
 // a thick band of forest on the foothills first, so the slopes rising from the valley are wooded, not bare
 function scatterFoothills(){let tries=0,n=0;
-  while(n<3200&&trees.length<MAXT-40&&tries<40000){tries++;const x=rand(-HX-14,HX+14),z=rand(-HZ-16,HZ+10);
-    const dd=Math.hypot(Math.max(0,Math.abs(x)-HX),Math.max(0,Math.abs(z)-HZ));if(dd<.9||dd>14)continue;
+  while(n<5200&&trees.length<MAXT-40&&tries<60000){tries++;const x=rand(-HX-14,HX+14),z=rand(-HZ-16,HZ+10);
+    const dd=dOut(x,z);if(inPlay(x,z)||dd>14)continue;
     if(z<-HZ&&z>-HZ-21&&wayDist(x,z)<.75)continue;if(Math.abs(z-riverZ(x))<3.2)continue;
     const h=heightAt(x,z);if(h<.3||h>18)continue;const e=.4,sl=Math.hypot(heightAt(x+e,z)-heightAt(x-e,z),heightAt(x,z+e)-heightAt(x,z-e));if(sl>2.2)continue;
-    if(fbm(x*.11+5,z*.11-9,3)<.34)continue;addTree(x,z,rand(1,1.8)*(1-h/40),-1);n++;}
+    if(fbm(x*.11+5,z*.11-9,3)<.34*smooth(1.5,7,dd)+(dd>4?.06:0))continue;addTree(x,z,rand(1,1.8)*(1-h/40),-1);n++;} // thick right at the valley's edge, thinning into glades
 }
 function scatterOuter(){scatterFoothills();let tries=0;
   while(trees.length<MAXT-40&&tries<90000){tries++;const x=rand(-100,100),z=rand(-100,72);
-    if(Math.abs(x)<HX+.8&&Math.abs(z)<HZ+.8)continue;
+    if(inPlay(x,z))continue;
     if(z<-HZ&&z>-HZ-21&&wayDist(x,z)<.75)continue;
     if(Math.abs(z-riverZ(x))<3.2&&Math.abs(x)>HX)continue;
     const h=heightAt(x,z);if(h<.3||h>21)continue;
     const e=.4,nx=heightAt(x+e,z)-heightAt(x-e,z),nz=heightAt(x,z+e)-heightAt(x,z-e),sl=Math.hypot(nx,nz);if(sl>1.7)continue;
-    const dd=Math.hypot(Math.max(0,Math.abs(x)-HX),Math.max(0,Math.abs(z)-HZ));
+    const dd=dOut(x,z);
     if(fbm(x*.09+11,z*.09-3,3)<(dd<9?.3:.46)+sl*.08)continue;
     addTree(x,z,rand(1.1,2.1)*(1-h/30),-1);}
 }
@@ -540,7 +557,7 @@ function updateFish(f,dt){
   if(f.state==='swim'||f.state==='hooked'){
     const base=sp.speed*.35*Math.sqrt(sp.len);
     // on the line it mostly tires, but every so often it surges away from the crew
-    if(f.state==='hooked'){f.surgeT=(f.surgeT??rand(5,9))-dt;if(f.surgeT<0){f.surge=2.4;f.surgeT=rand(7,13);}if(f.surge>0)f.surge-=dt;}
+    if(f.state==='hooked'){f.surgeT=(f.surgeT??rand(5,9))-dt;if(f.surgeT<0){if(reel.fish===f&&reel.busy&&!(f.surgeHold>1.5)){f.surgeT=.05;f.surgeHold=(f.surgeHold||0)+dt;}else{f.surge=2.4;f.surgeT=rand(7,13);f.surgeHold=0;}}if(f.surge>0)f.surge-=dt;} // a surge waits for the light to pass the arc
     let want=f.state==='hooked'?base*(f.surge>0?.45:.1):base*(0.8+0.2*Math.sin(f.age*.3+f.id*10));
     if(f.state==='swim'){
       if(!f.tgt||Math.hypot(f.tgt.x-f.x,f.tgt.z-f.z)<Math.max(1.2,sp.len*.35))pickTarget(f);
@@ -733,7 +750,7 @@ function wildSpot(kind){
   if(kind==='duck'||kind==='fly'){const k=pick(stillK);return k<0?null:at(k);}
   if(kind==='heron'){const k=pick(q=>stillK(q)&&nb4(q%GW,(q/GW)|0,LAND));if(k<0)return null;const i=k%GW,j=(k/GW)|0;
     for(const [a,b] of [[1,0],[-1,0],[0,1],[0,-1]])if(inGrid(i+a,j+b)&&tiles[idx(i+a,j+b)]===LAND){const c=tileC(i,j);return {x:c.x+a*.42,z:c.z+b*.42,k};}return null;}
-  if(kind==='deer'){const edge=q=>{const i=q%GW,j=(q/GW)|0;return [[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>inGrid(i+a,j+b)&&tiles[idx(i+a,j+b)]!==WILD);};const k=pick(q=>tiles[q]===WILD&&edge(q));return k<0?null:at(k,.35);}
+  if(kind==='deer'){const edge=q=>{const i=q%GW,j=(q/GW)|0;return [[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>inGrid(i+a,j+b)&&tiles[idx(i+a,j+b)]!==WILD&&tiles[idx(i+a,j+b)]!==RIM);};const k=pick(q=>tiles[q]===WILD&&edge(q));return k<0?null:at(k,.35);}
 }
 function wildTick(dt,t){
   wildT-=dt;if(wildT<0){wildT=6;const h=health/100,sw=seasonW(),day=night<.2,warm=sw[0]+sw[1]>.5;
@@ -746,46 +763,45 @@ function wildTick(dt,t){
 }
 
 // the giants of the high country
-const giants=makeGiants({scene,heightAt,rimMat,bird:()=>props.bird(),HX,HZ,MTS:()=>MTS,forest:(x,z)=>{const i=Math.floor(x+HX),j=Math.floor(z+HZ);return !inGrid(i,j)||(tiles[idx(i,j)]===WILD&&builds[idx(i,j)]===NONE);}});
-function giantOK(k){const ct=S.clock?.t||0,day=ct>.04&&ct<.66,dsk=ct>.6&&ct<.97,nt=night>.4,sw=seasonW(),wk=S.weather?.k;
-  return {stag:day,whale:day&&wk!=='storm',owl:dsk,moth:nt,jelly:nt&&sw[0]<.5&&sw[3]<.5,elk:dsk&&sw[2]+sw[3]>.5,wyrm:wk==='fog'||wk==='rain'}[k];}
+// spots in the live river for the whale to leap from: every bridge, and a handful of open water
+function whaleSpots(){const out=[];const dirAt=(i,j)=>{const W=(a,b)=>inGrid(a,b)&&tiles[idx(a,b)]===WATER;const wx=W(i-1,j)&&W(i+1,j),wz=W(i,j-1)&&W(i,j+1);
+    if(wx&&!wz)return [1,0];if(wz&&!wx)return [0,1];const c=tileC(i,j),d=riverZ(c.x+.5)-riverZ(c.x-.5),l=Math.hypot(1,d);return [1/l,d/l];};
+  for(let k=0;k<GW*GH;k++){const i=k%GW,j=(k/GW)|0;if(builds[k]===BRIDGE&&tiles[k]===WATER){const c=tileC(i,j),[dx,dz]=dirAt(i,j);out.push({x:c.x,z:c.z,dx,dz,bridge:true});}}
+  for(let n=0;n<400&&out.length<40;n++){const k=Math.floor(Math.random()*GW*GH);if(!isLive(k))continue;const i=k%GW,j=(k/GW)|0;if(D[k]<2)continue;const c=tileC(i,j),[dx,dz]=dirAt(i,j);out.push({x:c.x,z:c.z,dx,dz,bridge:false});}
+  return out;}
+const giants=makeGiants({scene,heightAt,bird:()=>props.bird(),HX,HZ,river:whaleSpots,waterY:WATER_Y,forest:(x,z)=>{const i=Math.floor(x+HX),j=Math.floor(z+HZ);return !inGrid(i,j)||tiles[idx(i,j)]===RIM||(tiles[idx(i,j)]===WILD&&builds[idx(i,j)]===NONE);}});
+function giantOK(k){const ct=S.clock?.t||0,day=ct>.04&&ct<.66,dsk=ct>.55||ct<.06,wk=S.weather?.k;
+  return {stag:day&&wk!=='storm',whale:wk!=='storm'&&!(SEASON_U.value.z>.6),owl:dsk}[k];}
 function giantTick(dt){if(!started)return;
   S.giantT=(S.giantT??150)-dt*(builds.includes(B.GATE)?2:1);if(S.giantT>0||giants.list.length)return;
   const ok=Object.keys(GIANTS).filter(giantOK);if(!ok.length){S.giantT=30;return;}
   const seen=S.giantsSeen||(S.giantsSeen={});const fresh=ok.filter(k=>!seen[k]);const k=(fresh.length&&Math.random()<.7?fresh:ok)[Math.floor(Math.random()*(fresh.length&&Math.random()<.7?fresh:ok).length)];
-  S.giantT=rand(420,720);const tk=builds.indexOf(B.TOWER);let tower=null;if(tk>=0){const c=tileC(tk%GW,(tk/GW)|0);tower={x:c.x,z:c.z,y:heightAt(c.x,c.z)};}
-  giants.spawn(k,{tower:k==='moth'?tower:null});log(GIANTS[k].line+' Click it to greet it.','gold');sfx('discover');
+  S.giantT=rand(420,720);giants.spawn(k);log(GIANTS[k].line+' Click it to greet it.','gold');sfx('discover');
 }
 // a chip at the edge of the screen points to a giant you can't see; click it to look
 const giantChip=document.createElement('button');giantChip.type='button';giantChip.className='gchip';giantChip.hidden=true;document.getElementById('dv').appendChild(giantChip);
 let chipFor=null;
 // frame a giant: aim at its middle, not its feet
-function lookAtGiant(gi){const p=gi.g.position;tweenTo({x:p.x,y:p.y*.6,z:p.z},40,2.5);}
+function lookAtGiant(gi){const p=gi.focus;tweenTo({x:p.x,y:Math.max(0,p.y*.6),z:p.z},34,2.5);}
 // debug: call a giant now, at full presence, and look at it; 'Parade all' walks through every kind
 const GIANT_KEYS=Object.keys(GIANTS);let gTour=null;
-function previewGiant(k){giants.list.slice().forEach(g=>giants.drop(g));const tk=builds.indexOf(B.TOWER);let tower=null;
-  if(tk>=0){const c=tileC(tk%GW,(tk/GW)|0);tower={x:c.x,z:c.z,y:heightAt(c.x,c.z)};}
-  const gi=giants.spawn(k,{tower:k==='moth'?tower:null});if(!gi)return;gi.fade=Math.max(gi.fade||0,.6);lookAtGiant(gi);log(`Debug: ${GIANTS[k].name}.`,'dim');}
+function previewGiant(k){giants.list.slice().forEach(g=>giants.drop(g));
+  const gi=giants.spawn(k);if(!gi)return;gi.fade=Math.max(gi.fade||0,.6);lookAtGiant(gi);log(`Debug: ${GIANTS[k].name}.`,'dim');}
 function giantTourTick(dt){if(!gTour)return;gTour.t+=dt;if(gTour.t<9)return;gTour.t=0;gTour.n++;if(gTour.n>=GIANT_KEYS.length){gTour=null;giants.list.forEach(g=>giants.depart(g));if(!$('debug').hidden)renderDebug();return;}previewGiant(GIANT_KEYS[gTour.n]);}
 giantChip.addEventListener('click',()=>{if(chipFor)lookAtGiant(chipFor);});
 function updateGiantChip(){const gi=giants.list.find(g=>!g.gifted&&g.fade>.3);chipFor=gi||null;if(!gi||!started||cine.fish){giantChip.hidden=true;return;}
-  const p=gi.g.position,s=toScreen(p.x,p.y,p.z),m=70;const on=s.x>m&&s.x<innerWidth-m&&s.y>m&&s.y<innerHeight-m;
+  const p=gi.focus,s=toScreen(p.x,p.y,p.z),m=70;const on=s.x>m&&s.x<innerWidth-m&&s.y>m&&s.y<innerHeight-m;
   if(on){giantChip.hidden=true;return;}giantChip.hidden=false;const cx=innerWidth/2,cy=innerHeight/2,dx=s.x-cx,dy=s.y-cy,k=Math.min((cx-m-40)/Math.abs(dx||1e-3),(cy-m)/Math.abs(dy||1e-3));
   const x=cx+dx*k,y=cy+dy*k;giantChip.style.left=x+'px';giantChip.style.top=y+'px';giantChip.style.setProperty('--a',Math.atan2(dy,dx)+'rad');
   const h=`<i class="ga"></i><span>${GIANTS[gi.kind].name}</span>`;if(giantChip.dataset.k!==gi.kind){giantChip.innerHTML=h;giantChip.dataset.k=gi.kind;}}
 function giantGift(gi){if(gi.gifted)return;gi.gifted=true;gi.life=Math.min(gi.life,gi.t+25);const k=gi.kind,nm=GIANTS[k].name;
   const seen=S.giantsSeen||(S.giantsSeen={});const first=!seen[k];seen[k]=(seen[k]||0)+1;
-  const sc=1+allTales()*.08+S.found.length*.04,p=gi.g.position;let body='';
-  if(k==='stag'){const tb=Math.round(40*sc);S.goods.timber+=tb;body=`It lowers its head to look at the valley, and an antler it has shed slides down the ridge. The woodcutters bring back <b>${tb} timber</b>.`;}
-  if(k==='owl'){S.owlUntil=(S.clock.day||1)+(S.clock.t||0)+1;updateHintVis();queueCrate({source:nm,kind:'mixed'});body='It watches the valley for a long time without blinking. For a day, every secret in the forest shows itself. It leaves something on the peak, too.';}
+  const sc=1+allTales()*.08+S.found.length*.04,p=gi.focus;let body='';
+  if(k==='stag'){const tb=Math.round(40*sc);S.goods.timber+=tb;body=`It lowers its head to look at the valley, and an antler it has shed lies glowing among the trees. The woodcutters bring back <b>${tb} timber</b>.`;}
+  if(k==='owl'){S.owlUntil=(S.clock.day||1)+(S.clock.t||0)+1;updateHintVis();queueCrate({source:nm,kind:'mixed'});body='It watches the valley for a long time without blinking. For a day, every secret in the forest shows itself. It leaves something on the rim, too.';}
   if(k==='whale'){S.tide={n:Math.max(S.tide.n,8),t:Date.now()};const v=Math.round(120*sc);earn(v,p.x*.3,p.z*.3);const main=comps.reduce((a,c)=>c.size>a.size?c:a,comps[0]);if(main)for(let n=0;n<3;n++)spawnFish(n?SP.koi:SP.reed,main);
-    body=`It sings, very low, and the river answers: fish rise all along it, and a <b>good tide</b> builds. Scales fall like rain: <b>${fmt(v)}</b>.`;}
-  if(k==='moth'){const n=Math.round(5*sc);S.goods.lanterns+=n;body=`Dust from its wings settles on the village, faintly glowing. The workshop gathers it into <b>${n} lanterns</b>.`;}
-  if(k==='jelly'){const v=Math.round(90*sc);earnSilver(v);body=`Its threads brush the peaks and something falls from them, ringing: <b>${fmt(v)} silver</b>.`;}
-  if(k==='elk'){const met=SPECIES.filter(sp=>S.codex[sp.id]&&talesKnown(sp.id)<3);if(met.length){const sp=met[Math.floor(Math.random()*met.length)];const n=talesKnown(sp.id);S.codex[sp.id]=Math.max(S.codex[sp.id],TALE_AT[n]);renderCodex();
-      body=`It stops, and the birds settle on its ribs for a moment. In the village, someone remembers an old story: <b>a new tale of the ${sp.name}</b>.`;}else{queueCrate({source:nm,kind:'keeper'});body='It stops, and the birds settle on its ribs for a moment. Someone in the hills saw it too, and comes down to ask about it.';}}
-  if(k==='wyrm'){const v=Math.round(200*sc);earn(v,p.x*.3,p.z*.3);queueCrate({source:nm,kind:'keeper'});body=`It turns its red eye on the valley, then slides back into the fog. Where it passed, the moss has turned to scales: <b>${fmt(v)}</b>. A hermit who followed it asks to stay.`;}
-  toast(nm+(first?' · first sighting':''),body);$('toast').querySelector('.k').textContent='A giant of the high country';sfx('awe');for(let n=0;n<10;n++)sparkle(p.x+rand(-4,4),p.y+rand(-2,4),p.z+rand(-4,4),'#fff3cf');refreshUI();save();}
+    body=`It sings, very low, under the bridge, and the river answers: fish rise all along it, and a <b>good tide</b> builds. Scales fall like rain: <b>${fmt(v)}</b>.`;}
+  toast(nm+(first?' · first sighting':''),body);$('toast').querySelector('.k').textContent='A spirit of the forest';sfx('awe');for(let n=0;n<10;n++)sparkle(p.x+rand(-4,4),p.y+rand(-2,4),p.z+rand(-4,4),'#fff3cf');refreshUI();save();}
 // the Ember Showa warms the water it passes through: heat spots along its body and a short fading trail, plus rising steam
 const heatTrail=[];let heatT=0;
 function updateHeat(dt){
@@ -866,7 +882,7 @@ function placeRule(id,i,j){
   return null;
 }
 function canDo(tool,i,j){
-  if(!inGrid(i,j))return {ok:false,why:'Outside the valley floor'};
+  if(!inGrid(i,j)||tiles[idx(i,j)]===RIM)return {ok:false,why:'Outside the valley floor'};
   const k=idx(i,j),t=tiles[k],b=builds[k];
   if(busy.has(k)){if(tool==='remove')return {ok:true,cancel:true,refund:busy.get(k).cost||{}};return {ok:false,why:'Workers are already on it'};}
   if(tool.startsWith('b:')){const id=tool.slice(2);const why=placeRule(id,i,j);return why?{ok:false,why}:{ok:true,cost:buildCost(id)};}
@@ -1284,10 +1300,24 @@ function initSecrets(){
 let wild0=1;
 /* ---- landmarks you can see before you find them: the Elder Cedar over the canopy, the Lantern Tower's top ---- */
 const landmarkMeshes=new Map();
+// before it's found, a landmark stands in the forest as a shadow of itself: dark, dithered, thinning toward the top like
+// something half-seen through the trees. Its lights (runes, lanterns) show faintly through.
+const SHADE_V=`varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.0);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`;
+const SHADE_F=`uniform float uBot,uTop,uLum,uTime;uniform vec3 uEmi;varying vec3 vW;
+  float b2(vec2 a){a=floor(a);return fract(dot(a,vec2(.5,a.y*.75)));}float bayer(vec2 a){return b2(.5*a)*.25+b2(a);}
+  void main(){float t=clamp((vW.y-uBot)/max(.01,uTop-uBot),0.,1.);
+    float a=mix(.97,.4,smoothstep(.15,1.,t))*(.92+.08*sin(uTime*.7+vW.x*1.7+vW.z*1.3));
+    if(bayer(gl_FragCoord.xy)>=a)discard;
+    vec3 c=mix(vec3(.01,.018,.022),vec3(.035,.05,.05),uLum)+uEmi*.35; // linear: very dark
+    gl_FragColor=vec4(c,1.);}`;
+const shadeU={uTime:{value:0}};
+function shadowize(m){m.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(m),bot={value:bb.min.y},top={value:bb.max.y};
+  m.traverse(o=>{if(!o.isMesh)return;const src=o.material,col=src.color||new THREE.Color('#888'),emi=src.emissive&&src.emissiveIntensity>.5?src.emissive.clone().multiplyScalar(Math.min(1.5,src.emissiveIntensity)):new THREE.Color(0,0,0);
+    o.material=new THREE.ShaderMaterial({vertexShader:SHADE_V,fragmentShader:SHADE_F,uniforms:{uBot:bot,uTop:top,uTime:shadeU.uTime,uLum:{value:Math.min(1,col.r*.3+col.g*.5+col.b*.2)},uEmi:{value:emi}}});o.castShadow=false;o.receiveShadow=false;});}
 function placeLandmarks(){for(const [,m] of landmarkMeshes)scene.remove(m);landmarkMeshes.clear();
   for(const s of secrets){if(S.found.includes(s.k)||tiles[s.k]!==WILD)continue;const m=props.landmark(s.type,s.k);if(!m)continue;const c=tileC(s.i,s.j);
-    m.position.set(c.x,heightAt(c.x,c.z)-.02,c.z);scene.add(m);landmarkMeshes.set(s.k,m);
-    trees.forEach(t=>{if(Math.hypot(t.x-c.x,t.z-c.z)<(s.type==='tower'?.75:.45))t.gone=true;});}updateTrees();}
+    m.position.set(c.x,heightAt(c.x,c.z)-.02,c.z);scene.add(m);shadowize(m);landmarkMeshes.set(s.k,m);
+    trees.forEach(t=>{if(Math.hypot(t.x-c.x,t.z-c.z)<({tower:.75,temple:.9,gate:.8}[s.type]||.45))t.gone=true;});}updateTrees();}
 function hideLandmark(k){const m=landmarkMeshes.get(k);if(m){scene.remove(m);landmarkMeshes.delete(k);}}
 // the tower's beam sweeps the valley at dusk and through the night, found or not
 const beamMat=new THREE.MeshBasicMaterial({color:'#ffcf9a',transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false});
@@ -1356,10 +1386,10 @@ function revealAt(k){
     chest:()=>{S.drops=(S.drops||[]).filter(d=>d.k!==k);const left=BLUEPRINTS.filter(b=>!unlocked(b.id));
       if(left.length&&Math.random()<.7){const b=left[Math.floor(Math.random()*left.length)];S.unlocked[b.id]=true;renderDrawer();toast('An old chest',`Under the lid, wrapped in oilcloth: drawings for <b>${b.name}</b>. You can build them now.`);}
       else{toast('An old chest','Rope, oilcloth and something heavy inside.');queueCrate({source:'an old chest',kind:'mixed'});}},
-    temple:()=>{builds[k]=B.TEMPLE;toast('The Drowned Temple','Steps worn by water that left long ago, and a bell that still rings when the wind is right. The village hears it, and so do the fish: they take the line <b>15% more often</b> everywhere.');queueCrate({source:'the Drowned Temple',kind:'mixed'});},
+    temple:()=>{builds[k]=B.TEMPLE;hideLandmark(k);toast('The Drowned Temple','Steps worn by water that left long ago, and a bell that still rings when the wind is right. The village hears it, and so do the fish: they take the line <b>15% more often</b> everywhere.');queueCrate({source:'the Drowned Temple',kind:'mixed'});},
     elder:()=>{builds[k]=B.ELDER;hideLandmark(k);toast('The Elder Cedar','The first tree of the valley. The woodcutters stand under it a long while without speaking. While it stands they cut <b>30% more</b>, everywhere.');},
     tower:()=>{builds[k]=B.TOWER;hideLandmark(k);toast('The Lantern Tower','A keeper’s tower from the days of the barges. Someone lights it again. Its beam shows what hides in the forest <b>within 14 tiles</b>, and draws more pilgrims down the Way.');},
-    gate:()=>{builds[k]=B.GATE;const v=Math.round(150*(1+S.found.length*.15));earn(v,c.x,c.z);toast('The Sunken Gate',`Two pillars and a lintel, carved with a stag, an owl and a whale, each bigger than the mountains behind them. The giants of the high country will wander past <b>twice as often</b> now. Moss scraped from it sheds <b>${fmt(v)} scales</b>.`);},
+    gate:()=>{builds[k]=B.GATE;hideLandmark(k);const v=Math.round(150*(1+S.found.length*.15));earn(v,c.x,c.z);toast('The Sunken Gate',`Two pillars and a lintel, carved with a stag, an owl and a whale, each bigger than the mountains behind them. The giants of the high country will wander past <b>twice as often</b> now. Moss scraped from it sheds <b>${fmt(v)} scales</b>.`);},
     grove:()=>{toast('An old cedar grove','Tall straight trunks. The woodcutters take <b>20 timber</b> from it.');},
   };
   // the bigger landmarks clear a little ground around themselves
@@ -1524,7 +1554,7 @@ function cancelJob(k){const jb=busy.get(k);if(!jb)return;for(const [g,v] of Obje
   endJob(jb);log('Work called off. Everything was given back.');sfx('dig');save();}
 function endJob(jb){busy.delete(jb.k);const n=jobs.indexOf(jb);if(n>=0)jobs.splice(n,1);if(jb.site)scene.remove(jb.site);jb.crew.forEach(w=>{w.job=null;goHome(w);});jb.crew=[];updateMarks();}
 function finishJob(jb){endJob(jb);applyJob(jb);save();}
-const walkable=k=>tiles[k]!==WATER||builds[k]===BRIDGE||builds[k]===B.PIER;
+const walkable=k=>tiles[k]!==RIM&&(tiles[k]!==WATER||builds[k]===BRIDGE||builds[k]===B.PIER);
 function tilePath(from,goals){ // BFS over walkable tiles; goals: Set of tile indices
   const prev=new Int32Array(GW*GH).fill(-2);prev[from]=-1;const q=[from];let end=-1;
   for(let h=0;h<q.length;h++){const t=q[h];if(goals.has(t)){end=t;break;}const i=t%GW,j=(t/GW)|0;
@@ -1952,7 +1982,7 @@ function hover(cx,cy){
   const i=Math.floor(p.x+HX),j=Math.floor(p.z+HZ);
   hovered=cine.fish?null:pickFish(cx,cy);canvas.style.cursor=hovered?'pointer':'crosshair';
   let html='';
-  if(!inGrid(i,j)){hoverLoop.visible=false;setPreview([]);}
+  if(!inGrid(i,j)||tiles[idx(i,j)]===RIM){hoverLoop.visible=false;setPreview([]);}
   else{const c=tileC(i,j),k=idx(i,j),t=tiles[k],b=builds[k];hoverLoop.visible=true;hoverK=k;
     hoverLoop.position.set(c.x,(t===WATER?(b===BRIDGE?DECK_Y:WATER_Y):heightAt(c.x,c.z))+.03,c.z);
     const useTool=selected?'move':tool;decoMark.visible=false;
@@ -2077,8 +2107,8 @@ function updateReel(dt){
   if(!reel.fish&&started){let best=null,bd=1e9;for(const f of fishes){if(f.state!=='hooked')continue;const h=fishHead(f),p=toScreen(h.x,.4,h.z);
       if(p.x<0||p.y<0||p.x>innerWidth||p.y>innerHeight)continue;const d=Math.hypot(p.x-innerWidth/2,p.y-innerHeight/2);if(d<bd){bd=d;best=f;}}
     if(best){reel.attach(best,2.4+best.sp.fight*.013);
-      if(!S.reelSeen){S.reelSeen=true;log('A fish is on the line. Lend a hand: press Space, or click the ring, when the light crosses the mint arc. When the fish surges and the ring turns ember, let it run.','gold');}}}
-  if(reel.fish){const h=fishHead(reel.fish),p=toScreen(h.x,.4,h.z);reel.update(dt,p.x,p.y+64,reel.fish.surge>0);}
+      if(!S.reelSeen){S.reelSeen=true;log('A fish is on the line. Lend a hand: press Space, or click the ring, when the light crosses the mint arc. When the ring flashes amber the fish is about to surge: once it turns ember, let it run.','gold');}}}
+  if(reel.fish){const h=fishHead(reel.fish),p=toScreen(h.x,.4,h.z);reel.update(dt,p.x,p.y+64,reel.fish.surge>0,!(reel.fish.surge>0)&&(reel.fish.surgeT??9)<1.1);}
 }
 // a pull from the bank: the crew gains on the fish, perfect pulls count toward the release
 function reelPress(){const f=reel.fish;if(!f)return;const q=reel.press();if(!q)return;const h=fishHead(f);
@@ -2385,13 +2415,13 @@ function buildStairs(){
 /* ================= boot ================= */
 const loaded=load();
 // the valley's shape: saved games keep theirs (old saves the original valley); new games roll one from a seed
-function applyMap(map){if(!map)return;setRiver(map.river);MTS=map.mts;INLET=mouthRows(0);OUTLET=mouthRows(GW-1);}
+function applyMap(map){if(!map)return;setRiver(map.river);setShape(map);MTS=map.mts;INLET=mouthRows(0);OUTLET=mouthRows(GW-1);}
 function rollMap(seed){let s=seed>>>0||1;const R=()=>(s=(s*1664525+1013904223)>>>0)/4294967296;
   const G=GROW*.95,mts=[[-44+R()*54,-44+R()*10,28+R()*22,10+R()*5],[-64+R()*14,-24+R()*26,12+R()*12,8+R()*4],[-8+R()*36,-66+R()*12,18+R()*14,11+R()*4],[-60+R()*14,-58+R()*12,12+R()*10,9+R()*3]].map(([x,z,h,s])=>[x*G,z*G,h,s*1.15]);
   if(R()<.6)mts.push([10+R()*24,-40+R()*8,20+R()*14,9+R()*3]); // sometimes a second peak to the north-east
   return {seed,river:randomRiver(seed),mts};}
-if(loaded)applyMap(S.map);
-else{const pend=+store.get('deepvale-nextmap')||0;S.map=rollMap(pend||1+Math.floor(Math.random()*999999));store.set('deepvale-nextmap','');applyMap(S.map);S.seed=S.map.seed;initTiles();initBuilds();}
+if(loaded){applyMap(S.map);if(!S.shaped){carveEdge(tiles,true);S.shaped=1;}}
+else{const pend=+store.get('deepvale-nextmap')||0;S.map=rollMap(pend||1+Math.floor(Math.random()*999999));store.set('deepvale-nextmap','');applyMap(S.map);S.seed=S.map.seed;S.shaped=1;initTiles();initBuilds();}
 $('valleyNo').textContent=(S.map?`Valley no. ${S.map.seed}`:'The first valley')+` · v${VERSION}`;$('reroll').hidden=loaded;
 {const p=parseInt(store.get('deepvale-pix'));if([2,3,4].includes(p))PIX=p;$('pixSeg').querySelectorAll('[data-pix]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.pix===PIX)));}
 initSecrets();
@@ -2497,7 +2527,7 @@ function frame(){
   keyPan(dt);menuDrift();updateCamera(dt);
   for(let n=0;n<timeScale;n++)simStep(dt,t+n*dt);
   fishersState.forEach(fs=>updateFisher(fs,dt,t));
-  updateBeam(dt,t);if(started)bellTick(dt);seasonTick(dt);weatherTick(dt,t);wildTick(dt,t);giants.update(dt,t);giantTourTick(dt);updateGiantChip();
+  updateBeam(dt,t);shadeU.uTime.value=t;if(started)bellTick(dt);seasonTick(dt);weatherTick(dt,t);wildTick(dt,t);giants.update(dt,t);giantTourTick(dt);updateGiantChip();
   updateCine(dt);updateSparkles(dt);updateHeat(dt);updateHints(dt,t);updateDusk(dt);updateFallers(dt);updateCrows(dt,t);
   wisps.update(dt,(innerHeight/PIX)/view.z);
   updateLabels();updateReel(dt);tour.tick();drawPreview();positionPlot();
