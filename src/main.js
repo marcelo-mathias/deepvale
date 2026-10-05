@@ -2092,31 +2092,67 @@ function updateLabels(){
   for(const [n,el] of villageLbl)if(!villages.some(v=>v.name===n)){el.remove();villageLbl.delete(n);}
 }
 const villageLbl=new Map();
-/* ---- progress over tiles: every job, and workshops at their bench when you are close ---- */
-const tileBars=new Map();
+/* ---- work on the map: queued tiles are marked on the ground, and each patch of work gets one small ring ---- */
+// The ground mark: a dithered wash over every tile in the queue, with a soft stroke round the edge of each patch.
+// Cream: waiting for hands. Mint: being worked (the wash thickens as the work goes on). Ember: nobody can get there.
+const JD_MAX=4000,jdInfo=new Float32Array(JD_MAX*4);
+const jdGeo=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);jdGeo.setAttribute('aInfo',new THREE.InstancedBufferAttribute(jdInfo,4));
+const jdMat=new THREE.ShaderMaterial({transparent:true,depthTest:false,depthWrite:false,uniforms:{uTime:{value:0}},
+  vertexShader:`attribute vec4 aInfo;varying vec4 vI;varying vec2 vUv;void main(){vI=aInfo;vUv=uv;gl_Position=projectionMatrix*viewMatrix*modelMatrix*instanceMatrix*vec4(position,1.0);}`,
+  fragmentShader:`uniform float uTime;varying vec4 vI;varying vec2 vUv;
+    float b2(vec2 a){a=floor(a);return fract(dot(a,vec2(.5,a.y*.75)));}float bayer(vec2 a){return b2(.5*a)*.25+b2(a);}
+    void main(){
+      int st=int(vI.x+.5);float e=vI.y,pr=vI.z;
+      vec3 col=st==1?vec3(.18,1.,.62):st==2?vec3(1.,.22,.08):vec3(1.,.72,.38);
+      // distance to the sides of this tile that face outside the patch (bits: 1 -x, 2 +x, 4 -z, 8 +z)
+      float d=9.;
+      if(mod(e,2.)>=1.)d=min(d,vUv.x);if(mod(floor(e/2.),2.)>=1.)d=min(d,1.-vUv.x);
+      if(mod(floor(e/4.),2.)>=1.)d=min(d,1.-vUv.y);if(mod(floor(e/8.),2.)>=1.)d=min(d,vUv.y);
+      float line=1.-smoothstep(.05,.11,d);
+      float dens=(st==1?.08+.3*pr:st==2?.14:.07)*(.85+.15*sin(uTime*2.2+vI.w));
+      bool fill=bayer(gl_FragCoord.xy)<dens;
+      if(line<.05&&!fill)discard;
+      gl_FragColor=vec4(col,max(line*.95,fill?.45:0.));}`});
+const jobDecal=new THREE.InstancedMesh(jdGeo,jdMat,JD_MAX);jobDecal.count=0;jobDecal.renderOrder=6;jobDecal.frustumCulled=false;scene.add(jobDecal);
+let jdKey='';
+function updateJobDecals(groups){
+  const st=new Map();for(const g of groups)for(const k of g.tiles)st.set(k,{s:g.state,p:g.prog});
+  let n=0;const m=new THREE.Matrix4();
+  for(const [k,v] of st){if(n>=JD_MAX)break;const i=k%GW,j=(k/GW)|0,c=tileC(i,j);
+    let e=0;[[-1,0,1],[1,0,2],[0,-1,4],[0,1,8]].forEach(([a,b,bit])=>{const o=st.get(inGrid(i+a,j+b)?idx(i+a,j+b):-1);if(!o||o.s!==v.s)e|=bit;});
+    m.makeTranslation(c.x,Math.max(heightAt(c.x,c.z),WATER_Y)+.04,c.z);jobDecal.setMatrixAt(n,m);
+    jdInfo[n*4]=v.s;jdInfo[n*4+1]=e;jdInfo[n*4+2]=v.p;jdInfo[n*4+3]=(i*1.7+j*2.3)%6.28;n++;}
+  jobDecal.count=n;jobDecal.instanceMatrix.needsUpdate=true;jdGeo.attributes.aInfo.needsUpdate=true;
+}
+// The ring: a small dithered progress circle with the job's icon in it, and a count when the patch is more than one tile.
+const tileBars=new Map();let ringId=0;
 const JOB_VERB={clear:'Clearing',dig:'Digging',upgrade:'Upgrading',weir:'Taking down the weir',bridge:'Building a bridge',hut:'Building a hut',road:'Laying road'};
 const JOB_ICON={clear:'clear',dig:'dig',upgrade:'build',weir:'build',bridge:'bridge',hut:'hut',road:'road'};
-function tileBar(key,k,ic){let el=tileBars.get(key);if(!el){el=document.createElement('div');el.className='tbar';el.innerHTML=`<span class="ti">${icon(ic)}</span><span class="tl"></span><span class="tb"><i></i></span>`;labelsEl.appendChild(el);tileBars.set(key,el);}
-  const c=tileC(k%GW,(k/GW)|0),p=toScreen(c.x,Math.max(heightAt(c.x,c.z),0)+.55,c.z);el.style.left=p.x+'px';el.style.top=p.y+'px';
-  el.classList.toggle('far',view.z>60);return el;}
+function ringEl(key,ic){let el=tileBars.get(key);if(!el){el=document.createElement('div');el.className='tring';const pid='dth'+(++ringId);
+    el.innerHTML=`<svg viewBox="0 0 26 26" shape-rendering="crispEdges"><defs><pattern id="${pid}" width="2" height="2" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="currentColor"/><rect x="1" y="1" width="1" height="1" fill="currentColor"/></pattern></defs><circle class="bg" cx="13" cy="13" r="12"/><circle class="rt" cx="13" cy="13" r="9.5" stroke="url(#${pid})"/><circle class="rp" cx="13" cy="13" r="9.5" pathLength="100" transform="rotate(-90 13 13)"/></svg><span class="ti"></span><b class="tn"></b>`;
+    labelsEl.appendChild(el);tileBars.set(key,el);}
+  if(el.dataset.ic!==ic){el.querySelector('.ti').innerHTML=icon(ic);el.dataset.ic=ic;}return el;}
+function placeRing(el,k){const c=tileC(k%GW,(k/GW)|0),p=toScreen(c.x,Math.max(heightAt(c.x,c.z),0)+.55,c.z);el.style.left=p.x+'px';el.style.top=p.y+'px';}
+function setRing(el,prog,cls,count,tip){el.querySelector('.rp').style.strokeDasharray=`${Math.max(0,Math.min(100,prog*100)).toFixed(1)} 100`;
+  el.className='tring '+cls+(view.z>60?' far':'');const t=el.querySelector('.tn');t.textContent=count>1?count:'';t.hidden=count<2;el.title=tip;}
 function updateTileBars(){
-  const want=new Set();if(!started||cine.fish){for(const [,el] of tileBars)el.remove();tileBars.clear();return;}
-  // jobs stuck the same way next to each other are told once: the one in the middle of the patch says it in full
-  // (with how many), the rest shrink to a small icon
-  const stuckOf=jb=>jb.blocked?'b':!jb.crew.length?'w':'',lead=new Map(),count=new Map(),byK=new Map(jobs.map(jb=>[jb.k,jb])),seen=new Set();
-  for(const jb of jobs){const sk=stuckOf(jb);if(!sk||seen.has(jb.k))continue;const grp=[],q=[jb.k];seen.add(jb.k);
-    while(q.length){const k=q.pop();grp.push(k);const i=k%GW,j=(k/GW)|0;for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++){if(!inGrid(i+a,j+b))continue;const nk=idx(i+a,j+b),o=byK.get(nk);if(o&&!seen.has(nk)&&stuckOf(o)===sk){seen.add(nk);q.push(nk);}}}
-    let ci=0,cj=0;grp.forEach(k=>{ci+=k%GW;cj+=(k/GW)|0;});ci/=grp.length;cj/=grp.length;
-    const best=grp.reduce((a,k)=>Math.hypot(k%GW-ci,((k/GW)|0)-cj)<Math.hypot(a%GW-ci,((a/GW)|0)-cj)?k:a,grp[0]);grp.forEach(k=>lead.set(k,best));count.set(best,grp.length);}
-  for(const jb of jobs){const key='j'+jb.k;want.add(key);const el=tileBar(key,jb.k,JOB_ICON[jb.tool]||'build');
-    const nm=JOB_VERB[jb.tool]||(jb.tool.startsWith('b:')?`Building ${DEFS[jb.tool.slice(2)]?.name.toLowerCase()||''}`:'Working');
-    const n=count.get(jb.k)||1,more=n>1?` · ${n} tiles`:'';
-    const st=jb.blocked?'No way there yet'+more:!jb.crew.length?'Waiting for hands'+more:`${nm} · ${Math.floor(jb.prog*100)}%`;
-    el.classList.toggle('mini',lead.has(jb.k)&&lead.get(jb.k)!==jb.k);
-    el.querySelector('.tl').textContent=st;el.querySelector('.tb i').style.width=(jb.prog*100).toFixed(1)+'%';el.classList.toggle('wait',!jb.crew.length);el.classList.toggle('bad',!!jb.blocked);}
-  if(view.z<42)for(const p of producers){if(p.good!=='craft')continue;const key='w'+p.k;want.add(key);const el=tileBar(key,p.k,'carvings');
-    const g=shopProg.get(p.k)||0;el.querySelector('.tl').textContent=p.stall?`Needs ${p.stall}`:`Crafting ${p.making?GOODS[p.making].name.toLowerCase():''}`.trim();
-    el.querySelector('.tb i').style.width=(Math.min(1,g)*100).toFixed(1)+'%';el.classList.toggle('bad',!!p.stall);el.classList.add('soft');}
+  const want=new Set();if(!started||cine.fish){for(const [,el] of tileBars)el.remove();tileBars.clear();jobDecal.count=0;return;}
+  jdMat.uniforms.uTime.value=U.time.value;
+  // patches: neighbouring jobs of the same kind in the same state
+  const stOf=jb=>jb.blocked?2:jb.crew.length?1:0,byK=new Map(jobs.map(jb=>[jb.k,jb])),seen=new Set(),groups=[];
+  for(const jb of jobs){if(seen.has(jb.k))continue;const s0=stOf(jb),grp=[],q=[jb.k];seen.add(jb.k);
+    while(q.length){const k=q.pop();grp.push(k);const i=k%GW,j=(k/GW)|0;for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++){if(!inGrid(i+a,j+b))continue;const nk=idx(i+a,j+b),o=byK.get(nk);if(o&&!seen.has(nk)&&o.tool===jb.tool&&stOf(o)===s0){seen.add(nk);q.push(nk);}}}
+    let ci=0,cj=0,pr=0;grp.forEach(k=>{ci+=k%GW;cj+=(k/GW)|0;pr+=byK.get(k).prog;});ci/=grp.length;cj/=grp.length;
+    const lead=grp.reduce((a,k)=>Math.hypot(k%GW-ci,((k/GW)|0)-cj)<Math.hypot(a%GW-ci,((a/GW)|0)-cj)?k:a,grp[0]);
+    groups.push({tiles:grp,lead,state:s0,prog:pr/grp.length,tool:jb.tool});}
+  updateJobDecals(groups);
+  for(const g of groups){const key='j'+g.lead;want.add(key);const el=ringEl(key,JOB_ICON[g.tool]||'build');placeRing(el,g.lead);
+    const nm=JOB_VERB[g.tool]||(g.tool.startsWith('b:')?`Building ${DEFS[g.tool.slice(2)]?.name.toLowerCase()||''}`:'Working'),n=g.tiles.length;
+    setRing(el,g.state===1?g.prog:g.state===2?1:0,['wait','work','bad'][g.state],n,
+      g.state===2?`No way there yet${n>1?` (${n} tiles)`:''}: workers can't reach ${n>1?'these tiles':'this tile'}`:g.state===0?`${nm}: waiting for hands${n>1?` (${n} tiles)`:''}`:`${nm} · ${Math.floor(g.prog*100)}%${n>1?` (${n} tiles)`:''}`);}
+  // workshops, when you are close: a ring at the bench
+  if(view.z<42)for(const p of producers){if(p.good!=='craft')continue;const key='w'+p.k;want.add(key);const el=ringEl(key,'carvings');placeRing(el,p.k);
+    const g=shopProg.get(p.k)||0;setRing(el,p.stall?1:Math.min(1,g),p.stall?'bad soft':'craft soft',1,p.stall?`Needs ${p.stall}`:`Crafting ${p.making?GOODS[p.making].name.toLowerCase():''}`.trim());}
   for(const [key,el] of tileBars)if(!want.has(key)){el.remove();tileBars.delete(key);}
 }
 
@@ -2507,8 +2543,8 @@ function TOUR(){
     {title:'Pick a patch of forest',text:'Click the glowing patch of forest beside the village, or any other one. Workers walk over with their axes.',next:false,
       enter(){clearK=pickClear();jobsAt=jobs.length;if(clearK>=0){const c=tileC(clearK%GW,(clearK/GW)|0);lookAt(c.x,c.z,12);}},
       target:()=>clearK>=0?tileRect(clearK):null,wait:()=>{if(jobs.length>jobsAt){theJob=jobs[jobs.length-1];return true;}return false;}},
-    {title:'Work takes a little while',text:'Every job shows its progress over the tile. Cleared land gives timber, and makes room to build. You can queue several at once.',
-      enter(){setTool('look');},target:()=>theJob&&tileBars.get('j'+theJob.k)||null,pad:6},
+    {title:'Work takes a little while',text:'Queued tiles are marked on the ground, and a small ring over each patch fills as the work goes on (hover it for details). Cleared land gives timber, and makes room to build. You can queue several at once.',
+      enter(){setTool('look');},target:()=>theJob&&(tileBars.get('j'+theJob.k)||[...tileBars.entries()].find(([q])=>q[0]==='j')?.[1])||null,pad:6,round:true},
     {title:'Bring the river back',text:'The river used to be wider, and its old dry beds still show through the trees. <b>Dig water</b> to restore them. Bigger fish only come where wide water flows.',target:()=>$('tool-dig')},
     {title:'More hands on the bank',text:'Larger fish only bite when several fishers wait together. Build <b>huts</b> to house them, then <b>Hire fisher</b> and click a bank tile.',target:()=>unionRect($('tool-hire'),$('tool-hut'))},
     {title:'Everything else',text:'Woodcutters, reed beds, workshops, market stalls, statues and more are in <b>Build</b> (or press <b>B</b>).',target:()=>$('tool-build')},

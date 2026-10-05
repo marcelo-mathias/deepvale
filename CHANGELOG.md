@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.2 — work marked on the ground, rings instead of labels
+
+- **Queued work is marked on the ground:** every tile waiting for work gets a light dithered wash, and each patch of work gets a soft outline around its edge, so a big queue no longer hides the land. The colour shows its state:
+  - **Cream:** waiting for hands.
+  - **Mint:** being worked. The wash fills in as the work goes on.
+  - **Ember:** nobody can get there.
+- **One ring per patch:** the text labels are gone. Each patch of neighbouring jobs (same job, same state) shows a single small ring with the job's icon, the patch's progress, and a count when it covers more than one tile.
+  - Hover a ring for the details, for example "Clearing · 40% (9 tiles)" or "No way there yet (14 tiles)".
+  - This works the same for clearing, digging and building.
+- **Workshop crafting:** shown as a compact gold ring with a dithered track instead of a bar. When the workshop runs out of materials, the ring turns ember.
+
 ## 0.11.1 — landmarks in view, quieter job labels
 
 - **Landmark placement:** landmarks now keep at least six tiles inside the valley's outline, so none sits on the slope at the edge.
