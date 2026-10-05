@@ -249,6 +249,43 @@ function splash(t, size = 1){
 export function setSound(on){ soundOn = on; if (on) initAudio(); if (AC){ if (AC.state === 'suspended') AC.resume(); master.gain.setTargetAtTime(on ? .9 : 0, AC.currentTime, .4); setView(view.zoom); } }
 export function setView(zoom){ view.zoom = zoom; if (!AC || !amb.water) return; amb.water.gain.setTargetAtTime(.9 * waterLevel(), AC.currentTime, .6); }
 
+// a bright plucked tone with a quick pitch blip at the start: the "chip" of the reeling game
+function pling(f, t, g = .04, pan = 0){
+  const p = AC.createStereoPanner(); p.pan.value = pan; out(p, .35);
+  const o = AC.createOscillator(), gn = AC.createGain(); o.type = 'triangle';
+  o.frequency.setValueAtTime(f * 1.06, t); o.frequency.exponentialRampToValueAtTime(f, t + .03);
+  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(g, t + .004); gn.gain.exponentialRampToValueAtTime(.0001, t + .5);
+  o.connect(gn).connect(p); o.start(t); o.stop(t + .55);
+  const o2 = AC.createOscillator(), g2 = AC.createGain(); o2.type = 'sine'; o2.frequency.value = f * 3;
+  g2.gain.setValueAtTime(0, t); g2.gain.linearRampToValueAtTime(g * .3, t + .003); g2.gain.exponentialRampToValueAtTime(.0001, t + .15);
+  o2.connect(g2).connect(p); o2.start(t); o2.stop(t + .2);
+}
+function thump(t, f = 80, g = .1){
+  const o = AC.createOscillator(), gn = AC.createGain(); o.type = 'sine';
+  o.frequency.setValueAtTime(f * 2, t); o.frequency.exponentialRampToValueAtTime(f, t + .08);
+  gn.gain.setValueAtTime(g, t); gn.gain.exponentialRampToValueAtTime(.0001, t + .25); o.connect(gn); out(gn, .05); o.start(t); o.stop(t + .3);
+}
+// While the crew is reeling, a soft tone rises with the fight: level 0 → 1 as the fish tires, heat 0 → 1 with the run.
+// Pass null to let it fade out.
+let tension = null;
+export function reelTension(level, heat = 0){
+  if (!AC || !soundOn) return;
+  const t = AC.currentTime;
+  if (level == null){ if (tension){ const tn = tension; tension = null; tn.g.gain.setTargetAtTime(0, t, .25); setTimeout(() => { try { tn.a.stop(); tn.b.stop(); tn.lfo.stop(); } catch (e){} }, 1500); } return; }
+  if (!tension){
+    const a = AC.createOscillator(), b = AC.createOscillator(), f = AC.createBiquadFilter(), g = AC.createGain(), lfo = AC.createOscillator(), lg = AC.createGain(), trem = AC.createGain();
+    a.type = 'triangle'; b.type = 'sine'; f.type = 'lowpass'; f.Q.value = 2; g.gain.value = 0; trem.gain.value = 1; lfo.frequency.value = 3; lg.gain.value = .35;
+    lfo.connect(lg).connect(trem.gain); a.connect(f); b.connect(f); f.connect(trem).connect(g); out(g, .3);
+    a.start(); b.start(); lfo.start(); tension = { a, b, f, g, lfo };
+  }
+  if (t - (tension.last || 0) < .1) return; tension.last = t; // called every frame; ten updates a second is plenty
+  const base = 110 * Math.pow(2, level * 1.25 + heat * .25);
+  tension.a.frequency.setTargetAtTime(base, t, .2); tension.b.frequency.setTargetAtTime(base * 1.505, t, .2);
+  tension.f.frequency.setTargetAtTime(400 + level * 900 + heat * 900, t, .2);
+  tension.lfo.frequency.setTargetAtTime(3 + level * 5 + heat * 4, t, .3);
+  tension.g.gain.setTargetAtTime(.012 + level * .014 + heat * .01, t, .3);
+}
+
 export function sfx(kind, arg){
   if (!AC || !soundOn) return; const t = AC.currentTime + .01;
   switch (kind){
@@ -274,6 +311,18 @@ export function sfx(kind, arg){
     case 'tally-end': if (arg) { [7, 9, 12].forEach((n, i) => bell(note(n), t + i * .05, .02, 2)); } else kalimba(note(9), t, .03); break;
     case 'pick': kalimba(note(9), t, .04); kalimba(note(12), t + .1, .04); break;
     case 'no': noiseHit(t, { f: 300, q: 3, dur: .08, g: .05 }); break;
+    // the reeling game: each pull in a run rings a semitone higher, like a multiplier climbing.
+    // From the fourth pull a low thump lands under it, from the sixth a bell an octave up and a bright swish.
+    case 'combo': { const n = Math.min(arg || 1, 14), f = 392 * Math.pow(2, n / 12), pan = R(-.15, .15);
+      pling(f, t, .05 + Math.min(n, 8) * .004, pan); pling(f * 1.5, t + .045, .022, pan);
+      if (n >= 4) thump(t, 70 + n * 3, .08 + Math.min(n, 10) * .006);
+      if (n >= 6){ bell(f * 2, t + .07, .016, 1.4, pan); noiseHit(t, { f: 5200, q: .8, dur: .18, g: .02 + n * .002, wetAmt: .4 }); }
+      break; }
+    case 'combo-perfect': { const n = Math.min(arg || 1, 14), f = 392 * Math.pow(2, n / 12);
+      sfx('combo', n); [1, 1.26, 1.5, 2].forEach((m, i) => pling(f * m * 2, t + .06 + i * .035, .018, (i - 1.5) * .2)); break; }
+    // the run is broken: the ladder tumbles back down
+    case 'combo-break': { const n = Math.min(arg || 3, 10), f = 392 * Math.pow(2, n / 12);
+      [0, 1, 2].forEach(i => pling(f * Math.pow(2, -i * 4 / 12), t + i * .07, .03 - i * .007, 0)); noiseHit(t, { f: 260, q: 2, dur: .12, g: .05 }); break; }
     case 'snap': { const o = AC.createOscillator(), g = AC.createGain(); o.frequency.setValueAtTime(1400, t); o.frequency.exponentialRampToValueAtTime(260, t + .18);
       g.gain.setValueAtTime(.05, t); g.gain.exponentialRampToValueAtTime(.0001, t + .22); o.connect(g); out(g, .2); o.start(t); o.stop(t + .25); noiseHit(t, { f: 3000, q: 1, dur: .05, g: .06 }); break; }
   }

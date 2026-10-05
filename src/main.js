@@ -18,7 +18,7 @@ import { portrait } from './ui/portraits.js';
 import { SPECIES, SP } from './data/species.js';
 import { LORE, TALE_AT, VILLAGE_NAMES } from './data/lore.js';
 import { NOISE_GLSL, RIM_FRAG, BEND_VERT, BEND_DECL } from './render/shaders.js';
-import { setSound as setAudio, sfx, isSoundOn, setView as setAudioView, playTheme, worldSound, setWeatherSound } from './audio/audio.js';
+import { setSound as setAudio, sfx, isSoundOn, setView as setAudioView, playTheme, worldSound, setWeatherSound, reelTension } from './audio/audio.js';
 import { makeFlow, solveFlow } from './world/flow.js';
 import { makeWisps } from './render/wisps.js';
 import { makeVillage } from './render/village.js';
@@ -1502,15 +1502,34 @@ function nextCrate(){
     cards.appendChild(b);animateCard(b,n,el);});
   sfx('crate');
 }
-function closeCrate(){$('crate').hidden=true;crateOpen=null;refreshUI();save();setTimeout(nextCrate,500);}
+// Every cottage is taken: the newcomer on the left, the keepers who live here now on the right.
+// Each resident shows what they do; hovering one spells out the trade (what leaves, what arrives).
+function keeperSwap(cd){
+  const el=$('crate');el.classList.add('swapping');$('crateK').textContent='Every keeper’s cottage is taken';$('crateH').textContent=`Who makes room for ${cd.name}?`;
+  const sigs=d=>sigsOf(d).map(([ic,l])=>`<span class="ksig">${icon(ic)}<em>${l}</em></span>`).join('');
+  const r=$('crateR');
+  r.innerHTML=`<div class="swap">
+    <div class="sw-new"><span class="sw-tag">Would like to join</span><img class="sw-port" src="${portrait(cd.id)}" alt=""><b>${cd.name}</b><p>${cd.desc}</p><div class="sw-sigs">${sigs(cd.desc)}</div></div>
+    <div class="sw-arrow" aria-hidden="true"><i></i></div>
+    <div class="sw-list"><span class="sw-tag">Living in the valley · ${S.keepers.length} of ${keeperSlots()} cottages</span>
+      ${S.keepers.map(id=>`<button type="button" class="sw-res" data-id="${id}"><img class="sw-port" src="${portrait(id)}" alt=""><span class="sw-t"><b>${KEEPER[id].name}</b><span>${KEEPER[id].desc}</span><span class="sw-sigs">${sigs(KEEPER[id].desc)}</span></span><span class="sw-go">Make room</span></button>`).join('')}
+    </div></div>
+    <div class="sw-trade" aria-live="polite">Hover a keeper to see the trade.</div>
+    <button type="button" class="nav sw-keep">Thank ${cd.name}, but no</button>`;
+  const tr=r.querySelector('.sw-trade');
+  r.querySelectorAll('.sw-res').forEach(b=>{const id=b.dataset.id;
+    const show=()=>{r.querySelectorAll('.sw-res').forEach(o=>o.classList.toggle('on',o===b));tr.innerHTML=`<span class="lose">${KEEPER[id].name} leaves: <i>${KEEPER[id].desc}</i></span><span class="gain">${cd.name} arrives: <i>${cd.desc}</i></span>`;r.querySelector('.swap').classList.add('trading');};
+    b.addEventListener('pointerenter',show);b.addEventListener('focus',show);
+    const hide=()=>{b.classList.remove('on');r.querySelector('.swap').classList.remove('trading');};b.addEventListener('pointerleave',hide);b.addEventListener('blur',hide);
+    b.addEventListener('click',()=>{S.keepers[S.keepers.indexOf(id)]=cd.id;log(`${KEEPER[id].name} moves on. ${cd.name} takes their place.`,'gold');sfx('pick');afterKeepers();closeCrate();});});
+  r.querySelector('.sw-keep').addEventListener('click',closeCrate);
+}
+function closeCrate(){$('crate').classList.remove('swapping');$('crate').hidden=true;crateOpen=null;refreshUI();save();setTimeout(nextCrate,500);}
 function pickCard(cd){
   sfx('pick');
   if(cd.type==='keeper'){if(S.keepers.length<keeperSlots()){S.keepers.push(cd.id);log(`${cd.name} comes to live in the valley. ${cd.desc}`,'gold');afterKeepers();closeCrate();return;}
-    // full: pick someone to let go
-    const r=$('crateR');r.innerHTML=`<div class="rk">Every keeper’s cottage is taken. Who makes room for ${cd.name}?</div>`;
-    for(const id of S.keepers){const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=`${KEEPER[id].name} leaves`;
-      b.addEventListener('click',()=>{S.keepers[S.keepers.indexOf(id)]=cd.id;log(`${KEEPER[id].name} moves on. ${cd.name} takes their place.`,'gold');afterKeepers();closeCrate();});r.appendChild(b);}
-    const no=document.createElement('button');no.type='button';no.className='chip';no.textContent=`Thank ${cd.name}, but no`;no.addEventListener('click',closeCrate);r.appendChild(no);return;}
+    // full: show the newcomer beside everyone who lives here now, with what each of them does, and let the player choose
+    keeperSwap(cd);return;}
   if(cd.type==='boon'){S.boons[cd.id]=boon(cd.id)+1;log(`${cd.name}: ${BOON[cd.id].desc}`,'gold');computeEconomy();}
   if(cd.type==='blueprint'){S.unlocked[cd.id]=true;log(`Blueprint: ${cd.name}. Find it in Build.`,'gold');renderDrawer();}
   if(cd.type==='silver'){earnSilver(100+50*S.crates);}
@@ -2184,14 +2203,18 @@ function updateReel(dt){
     if(best){reel.attach(best,2.4+best.sp.fight*.013);
       if(!S.reelSeen){S.reelSeen=true;log('A fish is on the line. Lend a hand: press Space, or click the ring, when the light crosses the mint arc. When the ring flashes amber the fish is about to surge: once it turns ember, let it run.','gold');}}}
   if(reel.fish){const h=fishHead(reel.fish),p=toScreen(h.x,.4,h.z);reel.update(dt,p.x,p.y+64,reel.fish.surge>0,!(reel.fish.surge>0)&&(reel.fish.surgeT??9)<1.1);}
+  // the tension tone: only once you've lent a hand, rising as the fish tires and the run heats up
+  if(reel.fish&&reel.engaged)reelTension(clamp(reel.fish.progress||0,0,1),reel.heat);else reelTension(null);
 }
 // a pull from the bank: the crew gains on the fish, perfect pulls count toward the release
 function reelPress(){const f=reel.fish;if(!f)return;const q=reel.press();if(!q)return;const h=fishHead(f);
   if(q==='perfect'||q==='good'){const gain=(q==='perfect'?.075:.04)*(1+.08*Math.min(reel.combo,6));f.progress=Math.min(.995,f.progress+gain);f.help=(f.help||0)+(q==='perfect'?2:1);
     for(let n=0;n<(q==='perfect'?10:5);n++)sparkle(h.x+rand(-.3,.3),WATER_Y+rand(.05,.4),h.z+rand(-.3,.3),q==='perfect'?'#ffe9a0':'#bff5df');
-    sfx(q==='perfect'?'pick':'tick',Math.min(reel.combo,7));}
+    sfx(q==='perfect'?'combo-perfect':'combo',reel.combo);
+    // a big perfect pull jolts the view a little, more the hotter the run
+    if(q==='perfect'&&reel.combo>=4){const v=$('view');v.style.setProperty('--jolt',(1+Math.min(reel.combo,10)*.25).toFixed(2)+'px');v.classList.remove('jolt');void v.offsetWidth;v.classList.add('jolt');}}
   else if(q==='slack'){for(const fs of f.hookers)fs.strain=(fs.strain||0)+.28;sfx('no');}
-  else sfx('no');}
+  else{const b=reel.takeBroken();sfx(b>=3?'combo-break':'no',b);}}
 document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('.reel'))reelPress();});
 function incomeRate(){const now=Date.now();S.income=S.income.filter(([t])=>now-t<15*60e3);if(!S.income.length)return 0;
   const span=Math.max(120e3,now-S.income[0][0]);return S.income.reduce((s,[,v])=>s+v,0)/(span/60e3);}

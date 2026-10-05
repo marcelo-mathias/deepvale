@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.7 — keeper swaps you can read, square windows, a reel that heats up
+
+- **Choosing who makes room:** when every keeper's cottage is taken, the crate now shows the newcomer beside everyone who lives in the valley. Each keeper has their portrait, what they do and what it touches. Hover one (or tab to it) and the line underneath spells out the trade: who leaves with what, and who arrives with what. "Make room" swaps them, and you can still thank the newcomer and say no.
+- **Windows:** the panels that open over the valley (trade, codex, map, settings, the plot card, the build drawer), the popups when you meet a fish (the scale tally and the fish card), toasts and the tracked-goals list now have square corners. They have a hairline that fades from 16% to 8% white, and a band of ordered dither just inside the top edge.
+- **The reeling game heats up:**
+  - Each pull in a run rings a semitone higher. From the fourth pull a low thump lands under it, and from the sixth a bell and a bright swish join in. A miss after a run of three or more tumbles back down the ladder.
+  - Once you lend a hand, a soft tension tone rises as the fish tires and as your run grows.
+  - The pull multiplier pops beside the ring (×1.08 up to ×1.48 max), bigger and more tilted the longer the run, with sparks flying off the ring.
+  - The ring's colour climbs from mint through gold and ember to rose, with a glow and a pulsing aura. Big perfect pulls jolt the view a little.
+
 ## 0.11.6 — painted currency medallions, dithered building pictures
 
 - **Currency icons are medallions:** scales, silver, timber, reeds, clay, lanterns and carvings now use the same painted medallion as their treasure card, scaled down, everywhere they appear: the purse at the top, the goods chips, and the sigils on crate cards.

@@ -90,6 +90,16 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 /* heavier glass where there is reading to do */
 #drawer,#trade,#codex,#map,#plot,#debug,#fishcard,#toast,.tally,#settings{
   background:linear-gradient(180deg,var(--glass-hi),transparent 60%),var(--glass-2)}
+/* windows: the panels that open over the valley, what pops up when a fish is met, and the quest log.
+   Square corners, a hairline that fades from 16% white at the top to 8% at the foot, and a band of ordered
+   dither just inside the top edge: dense 16% white pixels thinning to a sparse 8% grain (a 4×96 tile). */
+:root{--dither:url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAABgCAYAAAA6lNMyAAAAqElEQVR42q2MSxKDMAxDfYmWAi39AAXuf0B1AZnKSZwhkCzikfX8BMAiIuKmcACwCIB5CzMT/+VBgshp/VxQTZIg8rt+LqgmSfiOcQsjN2FQS1VajiEIaumLhthZHwS19B29eebCh2fUERJ+ePOMOkoQL54HiSdP+9kEgI5n0tEVcDzSjU0Qec9tImSb22Q5mt2Oxmzq3Y7abG5y8hVyVAUc1wKOy0nFD6eVEsYLGZ4jAAAAAElFTkSuQmCC")}
+.goals,#drawer,#trade,#codex,#map,#plot,#debug,#fishcard,#toast,.tally,#settings,#away{
+  border-radius:0;border:1px solid transparent;
+  border-image:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.08)) 1}
+.goals,#away{background:var(--dither) repeat-x 0 0/4px 96px,linear-gradient(180deg,var(--glass-hi),transparent 60%),var(--glass)}
+#drawer,#trade,#codex,#map,#plot,#debug,#fishcard,#toast,.tally,#settings{
+  background:var(--dither) repeat-x 0 0/4px 96px,linear-gradient(180deg,var(--glass-hi),transparent 60%),var(--glass-2)}
 
 /* menu items: the top bar's look, used everywhere a choice is made.
    hover: a mint line draws out from the middle under the label.
@@ -359,11 +369,37 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .reel.surge .hint{color:var(--ember)}
 .reel.warn .pt rect,.reel.warn .ph rect{fill:rgba(240,190,110,.8);animation:reelWarn .36s ease-in-out infinite alternate}
 .reel.warn .hint{color:#f0c27a}
+/* the run heats up (ui/reel.js): mint → gold → ember → rose, with a glow, a pulsing aura, a multiplier that pops and sparks */
+.reel{--heat:0;--hc:var(--accent)}
+.reel.t2{--hc:#ffd27a} .reel.t3{--hc:#ff9a5c} .reel.t4{--hc:#ff6fa8}
+.reel svg{filter:drop-shadow(0 4px 12px rgba(0,0,0,.5)) drop-shadow(0 0 calc(var(--heat) * 12px) var(--hc))}
+.reel::before{content:'';position:absolute;inset:-30%;border-radius:50%;pointer-events:none;opacity:calc(var(--heat) * .9);
+  background:radial-gradient(closest-side,color-mix(in srgb,var(--hc) 40%,transparent),transparent 70%);transition:opacity .3s}
+.reel.t3::before,.reel.t4::before{animation:aura .55s ease-in-out infinite alternate}
+@keyframes aura{to{transform:scale(1.12)}}
+.reel .combo{color:var(--hc);font-size:calc(24px + var(--heat) * 14px);text-shadow:0 0 calc(6px + var(--heat) * 12px) var(--hc);transition:color .2s,font-size .15s}
+.reel.hit .combo{animation:comboKick .3s cubic-bezier(.2,1.8,.4,1)}
+@keyframes comboKick{0%{transform:scale(1.6) rotate(-8deg)}100%{transform:none}}
+.reel .mult{position:absolute;left:100%;top:6px;margin-left:-4px;font-family:var(--serif);font-size:calc(19px * var(--sz,1));line-height:1;white-space:nowrap;pointer-events:none;
+  color:var(--hc);text-shadow:0 0 10px var(--hc),0 2px 0 rgba(0,0,0,.6);opacity:0;transform-origin:left center}
+.reel .mult.on{animation:multPop .9s cubic-bezier(.2,1.6,.4,1) forwards}
+.reel .mult.pf{color:#fff;-webkit-text-stroke:1px var(--hc)}
+@keyframes multPop{0%{opacity:0;transform:scale(2.1) rotate(var(--rot))}14%{opacity:1;transform:scale(.92) rotate(calc(var(--rot) * -.5))}
+  28%{transform:scale(1.05) rotate(0)}70%{opacity:1;transform:translateY(-6px)}100%{opacity:0;transform:translateY(-16px)}}
+.reel .sparks{position:absolute;left:50%;top:50%;width:0;height:0;pointer-events:none}
+.reel .sparks i{position:absolute;width:4px;height:4px;margin:-2px;background:var(--hc);box-shadow:0 0 6px var(--hc);animation:spark .7s cubic-bezier(.1,.7,.3,1) var(--d) both}
+@keyframes spark{0%{transform:translate(0,0) scale(1.4);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0}}
+.reel.hit svg{--k:calc(1 + var(--heat) * .14)}
+/* a perfect pull deep in a run jolts the view (main.js sets --jolt) */
+#view.jolt{animation:jolt .28s steps(6) both}
+@keyframes jolt{0%,100%{transform:none}20%{transform:translate(var(--jolt),calc(var(--jolt) * -1))}40%{transform:translate(calc(var(--jolt) * -1),var(--jolt))}
+  60%{transform:translate(calc(var(--jolt) * .6),0)}80%{transform:translate(0,calc(var(--jolt) * -.5))}}
+@media (prefers-reduced-motion:reduce){.reel::before,.reel .mult.on,.reel .sparks i,#view.jolt{animation:none}.reel .sparks{display:none}}
 @keyframes reelWarn{to{fill:rgba(240,190,110,.15)}}
 @keyframes reelIn{from{opacity:0;transform:scale(.5)}}
 @keyframes zoneIn{from{opacity:0;stroke-width:1}}
 @keyframes sayUp{0%{opacity:0;transform:translate(-50%,6px)}20%{opacity:1}100%{opacity:0;transform:translate(-50%,-18px)}}
-@keyframes ringHit{40%{transform:scale(1.12)}}
+@keyframes ringHit{40%{transform:scale(var(--k,1.12))}}
 @keyframes ringShake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
 
 /* ---------- 6. Panels ---------- */
@@ -685,6 +721,43 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 #crate .glint{z-index:5}
 #crate .replace{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:16px}
 #crate .replace .rk{width:100%;margin-bottom:4px;font-size:13px;color:var(--mist)}
+/* keeper swap: every cottage is taken (main.js keeperSwap). Newcomer on the left, residents on the right */
+#crate.swapping .cards{display:none}
+#crate.swapping .replace{display:block;margin-top:0}
+#crate .swap{display:grid;grid-template-columns:230px 44px minmax(0,470px);align-items:stretch;justify-content:center;gap:0;text-align:left;animation:menuIn .5s cubic-bezier(.2,.8,.2,1) both}
+#crate .swap .sw-tag{display:block;margin-bottom:10px;font-family:var(--body);font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--txt-3)}
+#crate .sw-new,#crate .sw-list{padding:16px 18px;border:1px solid transparent;border-image:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.08)) 1;
+  background:var(--dither) repeat-x 0 0/4px 96px,var(--glass-2)}
+#crate .sw-new{--cc:#e2c48e;display:flex;flex-direction:column;align-items:center;text-align:center;transition:box-shadow .3s}
+#crate .sw-new b{margin-top:10px;font-family:var(--serif);font-size:26px;font-weight:400;line-height:1.1;color:#fbf3d0}
+#crate .sw-new p{margin:8px 0 0;font-size:13.5px;line-height:1.5;color:var(--mist)}
+#crate .sw-new .sw-port{width:96px;height:96px;box-shadow:0 0 0 3px #1a2316,0 0 0 4px color-mix(in srgb,var(--cc) 70%,transparent),0 0 22px color-mix(in srgb,var(--cc) 40%,transparent)}
+#crate .swap.trading .sw-new{box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 50%,transparent),0 0 30px rgba(134,220,188,.18)}
+#crate .sw-port{display:block;flex:none;image-rendering:pixelated}
+#crate .sw-arrow{display:grid;place-items:center}
+#crate .sw-arrow i{width:22px;height:22px;background:var(--txt-3);clip-path:polygon(0 35%,60% 35%,60% 10%,100% 50%,60% 90%,60% 65%,0 65%);transform:scaleX(-1);transition:background .3s}
+#crate .swap.trading .sw-arrow i{background:var(--accent)}
+#crate .sw-list{display:flex;flex-direction:column;gap:6px}
+#crate .sw-res{display:grid;grid-template-columns:56px 1fr auto;align-items:center;gap:12px;width:100%;padding:8px 10px 8px 8px;text-align:left;cursor:pointer;
+  background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);color:var(--txt);transition:background .2s,border-color .2s,opacity .2s}
+#crate .sw-res .sw-port{width:56px;height:56px;box-shadow:0 0 0 1px rgba(255,255,255,.12)}
+#crate .sw-t{display:flex;flex-direction:column;gap:3px;min-width:0}
+#crate .sw-t b{font-family:var(--serif);font-size:18px;font-weight:400;color:var(--gold2)}
+#crate .sw-t>span:not(.sw-sigs){font-size:12.5px;line-height:1.45;color:var(--mist)}
+#crate .sw-go{font-family:var(--serif);font-size:14px;color:var(--txt-3);white-space:nowrap;transition:color .2s}
+#crate .sw-res.on{background:rgba(233,138,95,.07);border-color:rgba(233,138,95,.4)}
+#crate .sw-res.on .sw-go{color:var(--ember)}
+#crate .swap.trading .sw-res:not(.on){opacity:.55}
+#crate .sw-sigs{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+#crate .sw-new .sw-sigs{justify-content:center;margin-top:12px}
+#crate .ksig{display:inline-flex;align-items:center;gap:4px;padding:2px 7px 2px 3px;font-size:11px;color:var(--txt-2);background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.08)}
+#crate .ksig .ic-svg{width:14px;height:14px}
+#crate .ksig em{font-style:normal}
+#crate .sw-trade{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 18px;min-height:20px;margin:14px auto 0;max-width:760px;font-size:13px;color:var(--txt-3)}
+#crate .sw-trade i{font-style:normal;color:var(--mist)}
+#crate .sw-trade .lose{color:var(--ember)} #crate .sw-trade .gain{color:var(--accent)}
+#crate .sw-keep{margin-top:10px;font-size:16px}
+@media (max-width:760px){#crate .swap{grid-template-columns:1fr;gap:8px}#crate .sw-arrow{height:24px}#crate .sw-arrow i{transform:rotate(-90deg)}}
 
 /* toast: a find in the forest */
 #toast{position:absolute;left:50%;top:18%;z-index:7;width:min(420px,calc(100vw - 32px));box-sizing:border-box;padding:14px 18px;text-align:center;
