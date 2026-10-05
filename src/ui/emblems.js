@@ -2,6 +2,11 @@
 // a bold central glyph, and a painterly swirl laid over everything (an SVG turbulence filter, soft-light blended).
 // Each call gets its own ids, so several emblems can share a page.
 let uid = 0;
+// the swirl is a turbulence filter baked into a cached image: a live filter is re-run on every repaint
+const SWIRL = [];
+const swirl = seed => SWIRL[seed] ||= 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="140" height="140">
+  <filter id="t" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".014 .075" numOctaves="3" seed="${seed * 13 + 1}"/>
+  <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  2.2 0 0 0 -.85"/></filter><rect width="140" height="140" filter="url(#t)"/></svg>`);
 const P = (cx, cy, r, a) => [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
 const star = (n, ro, ri, rot = -Math.PI / 2) => Array.from({ length: n * 2 }, (_, k) => P(50, 50, k % 2 ? ri : ro, rot + k * Math.PI / n).map(v => v.toFixed(1)).join(',')).join(' ');
 const wedges = (n, a, b, rot = 0) => Array.from({ length: n }, (_, k) => {
@@ -34,14 +39,24 @@ export function emblem(kind, cls = 'emb'){
   const e = EMBLEMS[kind] || EMBLEMS.silver, u = 'em' + (++uid), seed = (uid * 13) % 97;
   return `<svg class="${cls}" viewBox="0 0 100 100" aria-hidden="true">
     <defs><clipPath id="c${u}"><circle cx="50" cy="50" r="49"/></clipPath>
-      <filter id="t${u}" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".014 .075" numOctaves="3" seed="${seed}"/>
-        <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  2.2 0 0 0 -.85"/></filter></defs>
+</defs>
     <g clip-path="url(#c${u})">
       ${wedges(10, e.a, e.b, seed / 30)}
       <circle cx="50" cy="50" r="37" fill="${e.disc}" opacity=".55"/>
       ${e.glyph(e.g, e.s)}
-      <rect x="-20" y="-20" width="140" height="140" filter="url(#t${u})" opacity=".42" style="mix-blend-mode:soft-light" transform="rotate(${seed * 3} 50 50)"/>
+      <image href="${swirl(seed % 8)}" x="-20" y="-20" width="140" height="140" opacity=".42" style="mix-blend-mode:soft-light" transform="rotate(${seed * 3} 50 50)"/>
     </g>
     <circle cx="50" cy="50" r="48.5" fill="none" stroke="${e.rim}" stroke-width="2"/>
   </svg>`;
+}
+
+// The same medallion for UI sizes (14–24 px): no swirl or clip (too fine to read that small, and no ids to clash),
+// a heavier rim so the edge still holds. Cached per currency, so the HUD can re-render it freely.
+const MINI = {};
+export const isEmblem = kind => kind in EMBLEMS;
+export function emblemMini(kind, cls = 'ic-svg ic-emb'){
+  const e = EMBLEMS[kind] || EMBLEMS.silver;
+  const body = MINI[kind] ||= `${wedges(10, e.a, e.b, 1.3)}<circle cx="50" cy="50" r="37" fill="${e.disc}" opacity=".55"/>${e.glyph(e.g, e.s)}
+    <circle cx="50" cy="50" r="46" fill="none" stroke="${e.rim}" stroke-width="7"/><circle cx="50" cy="50" r="49" fill="none" stroke="${e.col}" stroke-opacity=".55" stroke-width="2"/>`;
+  return `<svg class="${cls}" viewBox="0 0 100 100" aria-hidden="true">${body}</svg>`;
 }

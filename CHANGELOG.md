@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.11.6 — painted currency medallions, dithered building pictures
+
+- **Currency icons are medallions:** scales, silver, timber, reeds, clay, lanterns and carvings now use the same painted medallion as their treasure card, scaled down, everywhere they appear: the purse at the top, the goods chips, and the sigils on crate cards.
+- **Building pictures:** the Hut, Road, Bridge and Build tools, and every item in the Build drawer (buildings, decor, hut styles, pavings), now show a small pixel-dithered picture of what they build.
+  - They're made from the game's own models, drawn from the valley's camera angle, so they always match what you place.
+  - **Settings → Building icons** switches between **From models** and **Painted**. Painted art goes in `public/icons/buildings/` (one transparent PNG per item plus a `manifest.json`) and is dithered by the same code when it loads. Anything without painted art uses its model picture.
+
+## 0.11.5 — smoother crates
+
+- **Crates no longer stutter the game:** opening a crate and hovering its cards could drop the game to a crawl. The card effects all look the same, but they're much cheaper to draw:
+  - Each card's shadow and hover glow is now a blurred copy of its outline, drawn once in its own layer. It used to be a filter that re-blurred the whole card every frame while its insides animated.
+  - The painted swirls on stained glass and treasure medallions are baked into images instead of being worked out again on every repaint.
+  - The medallion's shine, the tag glint and the keeper gem now animate in a way the GPU can handle alone.
+  - The crate backdrop no longer blurs the valley behind it (it was redone every frame); the backdrop is a shade darker instead.
+  - While a crate is open, the valley behind it is drawn every third frame. The simulation keeps running at full speed.
+- **Treasure medallion fix:** hovering a treasure card and moving off it no longer makes the medallion vanish. It used to replay its spin-in from invisible.
+
 ## 0.11.4 — a shape for every kind of card
 
 Crate cards now have their own silhouettes and surfaces, as in the card shapes proposal:

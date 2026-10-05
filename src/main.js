@@ -13,6 +13,7 @@ import { makeProps } from './render/props.js';
 import { makeTrade } from './game/trade.js';
 import { makeTally } from './ui/tally.js';
 import { icon } from './ui/icons.js';
+import { makeBuildingIcons } from './ui/bldgicons.js';
 import { portrait } from './ui/portraits.js';
 import { SPECIES, SP } from './data/species.js';
 import { LORE, TALE_AT, VILLAGE_NAMES } from './data/lore.js';
@@ -694,6 +695,8 @@ function updateSparkles(dt){for(let k=0;k<SPK;k++){const d=spkData[k];if(d.life<
 /* ================= wisps, warm water & the village ================= */
 const wisps=makeWisps(scene);
 const props=makeProps({rimMat});
+// dithered building icons for the toolbar and Build drawer: rendered from these models, or the painted set (Settings)
+const bicons=makeBuildingIcons({renderer,props,rimMat,camDir:CAM_DIR,sunDir:SUN_DIR,onPainted:()=>{clearTimeout(paintT);paintT=setTimeout(()=>{setToolArt();renderDrawer();},50);}});let paintT=0;let iconSet='models';
 const statueMats={stone:rimMat({color:'#a39d92'},'#ffe6c0',1),bronze:rimMat({color:'#9a7440',metalness:.3,roughness:.5},'#ffd9a0',1.2),gold:rimMat({color:'#d9a94a',metalness:.55,roughness:.35,emissive:new THREE.Color('#5a3a10'),emissiveIntensity:.35},'#fff0c0',1.5)};
 // the carving for a statue: the fish's own shape, centred so it sits on the plinth
 // carved in stone, recast in bronze at the second level, gilded at the third
@@ -2278,7 +2281,8 @@ function renderDrawer(){
   box.innerHTML='';drawerItemsCache=items;
   items.forEach((x,n)=>{const b=document.createElement('button');b.type='button';b.className='item'+(x.lock?' locked':'');b.dataset.tool=x.tool;b.dataset.n=n;
     b.setAttribute('aria-pressed',String(x.sel?x.sel():tool===x.tool));
-    b.innerHTML=`<div class="in">${x.swatch?`<i class="sw" style="background:${x.swatch}"></i>`:''}${x.name}${x.lock?' <span class="lk">locked</span>':''}${x.paint?' <span class="pt">drag</span>':''}</div><div class="ic">${x.cost?costHTML(x.cost):''}</div><div class="id">${x.desc}</div>`;
+    const art=bicons.html(x.key,iconSet);if(art)b.classList.add('has-art');
+    b.innerHTML=`${art}<div class="in">${x.swatch&&!art?`<i class="sw" style="background:${x.swatch}"></i>`:''}${x.name}${x.lock?' <span class="lk">locked</span>':''}${x.paint?' <span class="pt">drag</span>':''}</div><div class="ic">${x.cost?costHTML(x.cost):''}</div><div class="id">${x.desc}</div>`;
     b.addEventListener('click',()=>{if(x.lock){sfx('no');return;}x.on&&x.on();setTool(x.tool);renderDrawer();});box.appendChild(b);});
 }
 let drawerItemsCache=[];
@@ -2476,8 +2480,17 @@ function buildStairs(){
 }
 
 /* ---- icons on the toolbar and chips ---- */
+// the building tools carry a dithered picture of what they build; the others keep their line icons
+const ART_TOOLS=['hut','road','bridge','build'];
+function setToolArt(){for(const t of ART_TOOLS){const ti=document.querySelector(`.tool[data-tool="${t}"] .ti`);if(!ti)continue;const h=bicons.html(t,iconSet,'bicon tool-art');if(h){ti.innerHTML=h;ti.classList.add('art');}}}
+function setIconSet(s){iconSet=s==='painted'?'painted':'models';store.set('deepvale-icons',iconSet);setToolArt();renderDrawer();
+  $('iconSeg').querySelectorAll('[data-icons]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.icons===iconSet)));}
+$('iconSeg').querySelectorAll('[data-icons]').forEach(b=>b.addEventListener('click',()=>setIconSet(b.dataset.icons)));
+iconSet=store.get('deepvale-icons')==='painted'?'painted':'models';
+$('iconSeg').querySelectorAll('[data-icons]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.icons===iconSet)));
 {const T={look:'look',clear:'clear',dig:'dig',hire:'hire',hut:'hut',road:'road',bridge:'bridge',build:'build',remove:'remove'};
   document.querySelectorAll('.tool').forEach(b=>{const n=T[b.dataset.tool];if(n)b.insertAdjacentHTML('afterbegin',`<span class="ti">${icon(n)}</span>`);});
+  setToolArt();
   $('upLine').insertAdjacentHTML('afterbegin',`<span class="ti">${icon('line')}</span>`);$('upBait').insertAdjacentHTML('afterbegin',`<span class="ti">${icon('bait')}</span>`);
   for(const [id,n] of [['btnTrade','trade'],['btnCodex','codex'],['btnMap','map'],['btnSettings','settings']])$(id).insertAdjacentHTML('afterbegin',icon(n));
   $('coinSc').insertAdjacentHTML('afterbegin',icon('scales'));$('coinSv').insertAdjacentHTML('afterbegin',icon('silver'));
@@ -2587,7 +2600,7 @@ $('enter').addEventListener('click',()=>{started=true;$('intro').classList.add('
   if(taleHouseAdded)setTimeout(()=>log('The village has built a Tale House by the Way. Pilgrims come to hear the tales there now, and leave silver in the tale box. It grows as you learn more tales.','gold'),1500);
 });
 
-const clock=new THREE.Clock();let saveT=0,uiT=0;
+const clock=new THREE.Clock();let saveT=0,uiT=0,crateSkip=0;
 // the simulation: run several times a frame when the debug time scale is up
 function simStep(dt,t){
   for(const f of fishes.slice()){updateFish(f,dt);updateFight(f,dt);}
@@ -2610,10 +2623,15 @@ function frame(){
   if(selected){selRing.position.set(selected.x,selected.g.position.y+.02,selected.z);selRing.scale.setScalar(1+Math.sin(t*5)*.12);}
   uiT+=dt;if(uiT>.5){uiT=0;refreshUI();}
   saveT+=dt;if(saveT>10){saveT=0;save();}
-  renderer.setRenderTarget(rt);renderer.setClearColor(0x000000,0);renderer.render(scene,camera);
-  lightsTick(dt);bloom.render(rt,lerp(1.15,.7,lampOn));
-  invPV.copy(camera.projectionMatrix).multiply(camera.matrixWorldInverse).invert();
-  renderer.setRenderTarget(null);renderer.render(postScene,postCam);
+  // while a crate is open the valley sits blurred and dimmed behind the cards: draw it every third frame, so the
+  // full-screen backdrop blur is redone a third as often and the cards get the frame time. The simulation keeps running.
+  lightsTick(dt);
+  if(!crateOpen||++crateSkip%3===0){
+    renderer.setRenderTarget(rt);renderer.setClearColor(0x000000,0);renderer.render(scene,camera);
+    bloom.render(rt,lerp(1.15,.7,lampOn));
+    invPV.copy(camera.projectionMatrix).multiply(camera.matrixWorldInverse).invert();
+    renderer.setRenderTarget(null);renderer.render(postScene,postCam);
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

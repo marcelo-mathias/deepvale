@@ -1,3 +1,4 @@
+import { emblemMini, isEmblem } from './emblems.js';
 // Engraved line icons (24×24, stroke = currentColor). Kept simple so they read at 14–20 px.
 const P = (d, extra = '') => `<svg viewBox="0 0 24 24" class="ic-svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"${extra}>${d}</svg>`;
 export const ICON = {
@@ -35,4 +36,6 @@ export const ICON = {
   settings: P('<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/><circle cx="12" cy="12" r="6.5"/>'),
   keeper: P('<circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/>'),
 };
-export const icon = (name, cls = '') => (ICON[name] || '').replace('class="ic-svg"', `class="ic-svg ${cls}"`);
+// currencies (scales, silver and the five goods) use their painted medallion, the same one the treasure cards carry
+export const icon = (name, cls = '') => isEmblem(name) ? emblemMini(name, `ic-svg ic-emb ${cls}`)
+  : (ICON[name] || '').replace('class="ic-svg"', `class="ic-svg ${cls}"`);

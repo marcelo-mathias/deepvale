@@ -75,6 +75,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 [hidden]{display:none!important}
 .ic-svg{width:15px;height:15px;flex:none;vertical-align:-3px}
 .ic-svg.big{width:30px;height:30px;stroke-width:1.2}
+/* currency medallions (see emblemMini): a touch larger than line icons so the glyph reads */
+.ic-svg.ic-emb{width:17px;height:17px;vertical-align:-4px;border-radius:50%;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45))}
+.coin .ic-svg.ic-emb{width:19px;height:19px}
+#crate .sig .ic-svg.ic-emb{width:18px;height:18px;padding:0;background:none}
 .sw{display:inline-block;width:8px;height:8px;border-radius:1px;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
 
 /* the one surface: every panel, pill and chip */
@@ -383,6 +387,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 #drawer .item[aria-pressed="true"]{border-color:var(--sel-bd);background:var(--sel-bg)}
 #drawer .item[aria-pressed="true"] .in{color:var(--accent)}
 #drawer .item.locked{opacity:.5;cursor:not-allowed}
+/* dithered building pictures (ui/bldgicons.js): 36 px art, shown at 1:1 so every pixel stays a pixel */
+.bicon{display:block;width:36px;height:36px;image-rendering:pixelated;flex:none;pointer-events:none}
+#drawer .item.has-art{display:grid;grid-template-columns:36px 1fr;column-gap:10px;row-gap:3px;align-items:start}
+#drawer .item.has-art .bicon{grid-row:1/4;align-self:center}
+#drawer .item.locked .bicon{filter:grayscale(1) brightness(.8)}
+.tool .ti.art{width:24px;height:24px;margin:-4px 0;align-items:center;justify-content:center}
+.tool .ti.art .bicon{width:36px;height:36px;margin:-6px}
+.tool[aria-pressed="true"] .ti.art .bicon{filter:drop-shadow(0 0 3px rgba(134,220,188,.7))}
 #drawer .in{display:flex;align-items:center;gap:6px;font-family:var(--serif);font-size:16px;color:var(--txt)}
 #drawer .lk,#drawer .pt{padding:0 4px;font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mist-2);border:1px solid var(--line);border-radius:2px}
 #drawer .pt{color:var(--jade)}
@@ -479,8 +491,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 #plot .small{margin-top:6px;font-size:11px}
 
 /* crates: pick one card */
-#crate{position:absolute;inset:0;z-index:10;display:grid;place-items:center;background:radial-gradient(80% 70% at 50% 45%,rgba(6,12,11,.55),rgba(4,8,7,.82));
-  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);overflow:hidden}
+/* no backdrop-filter here: a full-screen blur over the live game canvas was redone every frame while the cards animated,
+   and under this much dimming it barely showed. The overlay is a shade darker to make up for it. */
+#crate{position:absolute;inset:0;z-index:10;display:grid;place-items:center;background:radial-gradient(80% 70% at 50% 45%,rgba(6,12,11,.62),rgba(4,8,7,.86));overflow:hidden}
 #crate .crate-in{position:relative;max-width:calc(100vw - 32px);text-align:center;perspective:1100px}
 #crate .ck{font-family:var(--body);font-size:15px;letter-spacing:.14em;color:var(--accent);animation:menuIn .7s cubic-bezier(.2,.8,.2,1) both}
 #crate h3{margin:2px 0 30px;font-family:var(--serif);font-size:clamp(32px,5vw,56px);font-weight:400;line-height:1.1;color:#f5ecd9;text-shadow:0 4px 30px rgba(0,0,0,.5);
@@ -505,7 +518,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 #crate .cbk{display:none}
 #crate .cf{display:flex;flex-direction:column;overflow:visible;background:linear-gradient(180deg,#10201c,#0c1714);border:0;
   box-shadow:0 18px 40px rgba(0,0,0,.45),0 0 0 0 transparent;animation:breathe 4s ease-in-out calc(var(--deal,0) * .7s) infinite;transition:border-color .3s,transform .3s}
-#crate .card:hover .cf{box-shadow:0 26px 50px rgba(0,0,0,.5),0 0 28px color-mix(in srgb,var(--cc) 35%,transparent)}
+#crate .card:hover .cf{box-shadow:none}
 #crate .cbk{transform:rotateY(180deg);display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--cc) 40%,transparent);
   background:repeating-linear-gradient(45deg,rgba(134,220,188,.06) 0 2px,transparent 2px 9px),repeating-linear-gradient(-45deg,rgba(134,220,188,.06) 0 2px,transparent 2px 9px),#0d1916}
 #crate .cbk .seal{display:grid;place-items:center;width:64px;height:64px;color:var(--cc);border:1px solid color-mix(in srgb,var(--cc) 50%,transparent);transform:rotate(45deg)}
@@ -514,8 +527,15 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 @keyframes deal{0%{opacity:0;transform:translateY(105vh) rotate(5deg)}12%{opacity:1}62%{transform:translateY(-16px) rotate(-1deg)}82%{transform:translateY(4px) rotate(.3deg)}100%{transform:none}}
 @keyframes cardBob{50%{transform:translateY(-5px)}}
 /* ---- shapes: the face is clipped to its outline (set from cards.js), the stroke traced over it fades in from the foot ---- */
-#crate .cin{filter:drop-shadow(0 16px 26px rgba(0,0,0,.5))}
-#crate .card:hover .cin{filter:drop-shadow(0 22px 30px rgba(0,0,0,.55)) drop-shadow(0 0 16px color-mix(in srgb,var(--cc) 35%,transparent))}
+/* The shadow and hover glow used to be a filter:drop-shadow on .cin. A filter on an element whose insides are always
+   animating (motes, aurora, medallion…) makes the browser re-render the whole card and re-blur it every frame,
+   which is what stuttered when a crate opened. Now they're a blurred copy of the outline in their own layer, painted once. */
+#crate .cin{will-change:transform}
+#crate .cshade{position:absolute;z-index:-1;pointer-events:none;overflow:visible;will-change:transform;transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+#crate .cshade .sh{fill:rgba(0,0,0,.5)}
+#crate .cshade .gl{fill:color-mix(in srgb,var(--cc) 35%,transparent);opacity:0;transition:opacity .3s}
+#crate .card:hover .cshade{transform:translateY(6px)}
+#crate .card:hover .cshade .gl{opacity:1}
 #crate .cf{animation:none;box-shadow:none;min-height:330px}
 #crate .cstroke{position:absolute;z-index:3;pointer-events:none;overflow:visible;color:var(--cc);opacity:.85;transition:opacity .3s}
 #crate .cstroke path{fill:none;stroke-width:1.6}
@@ -549,8 +569,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 #crate .shape-banner .cbody{text-align:center}
 #crate .shape-banner .cfoot{justify-content:center}
 #crate .shape-banner .cgem{position:absolute;left:50%;bottom:12px;width:13px;height:13px;transform:translateX(-50%) rotate(45deg);z-index:2;
-  background:linear-gradient(135deg,#f6e6a8,#b9944a);box-shadow:0 0 10px color-mix(in srgb,var(--cc) 80%,transparent);animation:gem 2.4s ease-in-out infinite}
-@keyframes gem{50%{box-shadow:0 0 18px var(--cc)}}
+  background:linear-gradient(135deg,#f6e6a8,#b9944a);box-shadow:0 0 10px color-mix(in srgb,var(--cc) 80%,transparent)}
+#crate .shape-banner .cgem::after{content:'';position:absolute;inset:0;box-shadow:0 0 18px var(--cc);opacity:0;animation:gem 2.4s ease-in-out infinite}
+@keyframes gem{50%{opacity:1}}
 #crate .shape-banner .cport{position:absolute;z-index:4;left:50%;top:0;width:96px;height:96px;margin-left:-48px;image-rendering:pixelated;border-radius:10px;
   border:1px solid color-mix(in srgb,var(--cc) 70%,transparent);box-shadow:0 0 0 3px #1a2316,0 0 18px color-mix(in srgb,var(--cc) 45%,transparent);animation:portrait 6s ease-in-out infinite}
 #crate .shape-banner .ctag{top:50px}
@@ -580,17 +601,17 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   box-shadow:0 0 0 5px #1c2a30,0 0 0 6px color-mix(in srgb,var(--cc) 60%,transparent),0 10px 24px rgba(0,0,0,.55),0 0 26px color-mix(in srgb,var(--cc) 30%,transparent);
   animation:spinIn 1.1s cubic-bezier(.2,1.3,.4,1) calc(var(--deal,0) * .16s + .9s) both,embFloat 5s ease-in-out calc(var(--deal,0) * .16s + 2s) infinite}
 #crate .shape-tablet .cmedal .emb{width:100%;height:100%;display:block}
-#crate .shape-tablet .cmedal::after{content:'';position:absolute;inset:0;border-radius:50%;pointer-events:none;background:conic-gradient(from var(--ea,0deg),transparent 0 70%,rgba(255,255,255,.4) 78%,transparent 86%);mix-blend-mode:overlay;animation:embShine 6s linear infinite}
+#crate .shape-tablet .cmedal::after{content:'';position:absolute;inset:0;border-radius:50%;pointer-events:none;background:conic-gradient(transparent 0 70%,rgba(255,255,255,.4) 78%,transparent 86%);mix-blend-mode:overlay;animation:embShine 6s linear infinite}
 #crate .shape-tablet .cribs{position:absolute;z-index:3;left:50%;top:0;width:128px;height:128px;margin-left:-64px;border-radius:50%;
   background:repeating-conic-gradient(color-mix(in srgb,var(--cc) 45%,transparent) 0 3deg,transparent 3deg 9deg);-webkit-mask:radial-gradient(circle,transparent 58px,#000 59px);mask:radial-gradient(circle,transparent 58px,#000 59px)}
-#crate .card:hover .shape-tablet .cmedal{animation:embPop .6s cubic-bezier(.2,1.5,.4,1)}
+/* the hop goes on the emblem inside: swapping .cmedal's own animation restarted its spin-in on hover-out (invisible for ~1s) */
+#crate .card:hover .shape-tablet .cmedal .emb{animation:embPop .6s cubic-bezier(.2,1.5,.4,1)}
 #crate .shape-tablet .ctag{top:54px;z-index:6}
-@property --ea{syntax:'<angle>';initial-value:0deg;inherits:false}
-@keyframes embShine{to{--ea:360deg}}
+@keyframes embShine{to{transform:rotate(360deg)}}
 @keyframes embFloat{50%{transform:translateY(-4px) rotate(-2deg)}}
 @keyframes embPop{40%{transform:scale(1.08) rotate(6deg)}}
 @keyframes spinIn{0%{transform:rotateY(90deg) scale(.6);opacity:0}100%{transform:none;opacity:1}}
-@media (prefers-reduced-motion:reduce){#crate .shape-tablet .cmedal,#crate .shape-arch .cf::after,#crate .shape-banner .cgem{animation:none}#crate .shape-sheet .cdraw .ln{animation:none;stroke-dashoffset:0}}
+@media (prefers-reduced-motion:reduce){#crate .shape-tablet .cmedal,#crate .shape-arch .cf::after,#crate .shape-banner .cgem::after{animation:none}#crate .shape-sheet .cdraw .ln{animation:none;stroke-dashoffset:0}}
 @keyframes breathe{50%{box-shadow:0 18px 40px rgba(0,0,0,.45),0 0 18px color-mix(in srgb,var(--cc) 18%,transparent)}}
 
 /* tag on the top edge */
@@ -598,7 +619,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   color:var(--accent-ink);background:var(--cc);border-radius:2px;overflow:hidden}
 #crate .ctag::after{content:'';position:absolute;top:0;bottom:0;left:-40%;width:30%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.8),transparent);
   transform:skewX(-20deg);animation:tagShine 5s ease-in-out calc(var(--deal,0) * .9s + 2s) infinite}
-@keyframes tagShine{0%,70%{left:-40%}100%{left:130%}}
+@keyframes tagShine{0%,70%{transform:translateX(0) skewX(-20deg)}100%{transform:translateX(567%) skewX(-20deg)}}
 
 /* header: a glow rising from below, drifting motes, the name and the sigil chain */
 #crate .chead{position:relative;padding:28px 18px 16px;min-height:62px;border-radius:7px 7px 0 0;overflow:hidden;
