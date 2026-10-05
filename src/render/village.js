@@ -118,7 +118,7 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, deco, meta
       if (b === B.PIER){ y = DECK_Y; g.rotation.y = pierAxis(i, j); }
       else if (b === B.JETTY){ const w = waterDir(i, j); g.rotation.y = Math.atan2(w.a, w.b); }
       else if (b !== B.FENCE && b !== B.REED) g.rotation.y = ((r >> 4) % 4) * Math.PI / 2 * (b === B.STONES || b === B.FLOWERS || b === B.CHERRY ? 1 : 0) + (b === B.BONES ? (r % 7) * .4 : 0);
-      if (![B.FENCE, B.REED, B.PIER, B.JETTY, B.FLOWERS, B.WEIR].includes(b)) g.scale.setScalar((b === B.STATUE ? 1.05 : b === B.TALEHALL ? 1.32 : 1.2) * [1, 1.04, 1.08][(meta()[k]?.lvl || 1) - 1]);
+      if (![B.FENCE, B.REED, B.PIER, B.JETTY, B.FLOWERS, B.WEIR].includes(b)) g.scale.setScalar((b === B.STATUE ? 1.05 : b === B.TALEHALL ? 1.32 : b >= B.TEMPLE && b <= B.GATE ? 1 : 1.2) * [1, 1.04, 1.08][(meta()[k]?.lvl || 1) - 1]);
       if (meta()[k]?.rot !== undefined && ![B.JETTY, B.PIER, B.FENCE, B.REED, B.WEIR].includes(b)) g.rotation.y = meta()[k].rot * Math.PI / 2;
       g.position.set(c.x, y, c.z); root.add(g);
       if (b === B.SHOP){ g.updateMatrixWorld(); const cp = new THREE.Vector3(-.15, .46, -.08); g.localToWorld(cp); huts.push({ chim: cp, t: Math.random() * 2 }); }

@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.10.0 — a wider valley, the seasons, and the giants of the high country
+
+**A wider valley**
+- The playable valley is now 68 × 46 tiles, about 2.4× the area it was. There's more forest to clear, the river runs further, and there are two more old channels out at the far ends.
+- Older saves grow in place. Everything you built stays where it was, in the middle of the new valley, and the Pilgrim Way is extended to the new north edge.
+- The mountains stand further out, and the camera can roam the whole valley zoomed right out.
+
+**Landmarks in the deep wood**
+- There are four new secrets that are much bigger than the rest, each one far from the others:
+  - **The Bell Temple:** you hear its bell before you find it. Offerings work 15% better.
+  - **The Elder Cedar:** a tree as tall as a hill, visible from anywhere. Woodcutters work 30% faster.
+  - **The Lantern Tower:** an old lighthouse whose beam sweeps the valley at dusk. Pilgrims +10%, and secret hints show within 14 tiles of it.
+  - **The Mist Gate:** a stone gate with glowing runes, found by the mist that hangs around it. Giants come twice as often.
+- Discovering the temple, the tower or the gate clears the ground around it. Landmarks can't be removed.
+
+**Seasons**
+- Each season lasts 7 days, and the valley changes as one turns into the next:
+  - **spring:** blossom trees in pink and greener grass
+  - **autumn:** a third of the forest turns gold, orange and red
+  - **winter:** snow on the ground and on the trees, and the backwaters ice over at the edges
+
+**Weather**
+- Clear skies, rain, storms, fog and snow, rolled by season. Weather lasts a few minutes at a time.
+- **Rain:** falling streaks and the sound of drops. Fish rise 25% more.
+- **Storms:** darker skies, lightning flashes and thunder. Fish rise 50% more.
+- **Fog:** lies in the low ground and drifts. Fish rise 10% more.
+- **Snow:** falls in winter. Petals drift in spring and leaves in autumn.
+
+**Wildlife**
+- Herons stand in the backwaters and strike at fish. Ducks paddle on the backwaters, and dragonflies dart over them on warm days.
+- Deer graze at the forest's edge and bolt when workers come near.
+- How much wildlife you see follows the valley's health. Frogs croak on the backwaters at dusk.
+
+**The giants of the high country**
+- Every so often, something enormous passes beyond the valley. A chip at the screen's edge points to it, and clicking the chip brings it into view. Click the giant itself to greet it and receive its gift:
+
+| Giant | When it appears | Gift |
+|---|---|---|
+| The Mountain Stag | by day | timber from a shed antler |
+| The Grey Owl | at dusk | every secret hint shows for a day, plus a crate |
+| The Cloud Whale | by day, but not in storms | a good tide, scales, and a shoal of fish |
+| The Lamp Moth | at night, and it perches on the Lantern Tower once that is found | lanterns |
+| The Lantern Bell, a jellyfish of light | on summer and autumn nights | silver |
+| The Bone Elk | at dusk in autumn and winter | a new tale about a fish you've met |
+| The Fog Wyrm | in fog or rain | scales and a keeper crate |
+
+- Gifts grow with the tales you know and the secrets you've found.
+
 ## 0.9.0 — a guided tour, progress over tiles, and a hand on the line
 
 **Guided tour**

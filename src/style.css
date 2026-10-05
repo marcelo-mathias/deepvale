@@ -668,6 +668,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   filter:drop-shadow(0 0 6px var(--c,#fff3cf));animation:glint 1.05s ease-out forwards}
 @keyframes glint{0%{transform:scale(0) rotate(var(--r,0deg));opacity:0}35%{transform:scale(1) rotate(calc(var(--r,0deg) + 25deg));opacity:1}100%{transform:scale(0) rotate(calc(var(--r,0deg) + 70deg));opacity:0}}
 
+/* a chip at the screen edge pointing to a giant out of view */
+.gchip{position:absolute;z-index:6;display:flex;align-items:center;gap:8px;padding:6px 12px 6px 8px;transform:translate(-50%,-50%);cursor:pointer;
+  font-family:var(--serif);font-size:15px;color:var(--txt);background:rgba(8,13,12,.72);border:1px solid rgba(134,220,188,.35);border-radius:20px;
+  box-shadow:0 0 18px rgba(134,220,188,.25);animation:chipPulse 2.4s ease-in-out infinite}
+.gchip:hover{border-color:var(--accent);color:var(--accent)}
+.gchip .ga{width:0;height:0;border:6px solid transparent;border-left:9px solid var(--accent);transform:rotate(var(--a,0));filter:drop-shadow(0 0 4px var(--accent))}
+@keyframes chipPulse{50%{box-shadow:0 0 30px rgba(134,220,188,.45)}}
+
 /* the guided tour: a soft spotlight that never blocks the game, and a card beside it */
 #tour{position:absolute;inset:0;z-index:11;pointer-events:none}
 #tour .hole{position:absolute;box-shadow:0 0 0 200vmax rgba(4,8,7,.55);border:1.5px solid var(--accent);

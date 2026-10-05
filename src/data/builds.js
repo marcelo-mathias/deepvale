@@ -5,6 +5,7 @@ export const B = {
   WOOD:4, REED:5, CLAY:6, SHOP:7, POST:8, JETTY:9, MARKET:10,
   NETS:11, RACK:12, LANTERN:13, STATUE:14, FLOWERS:15, FENCE:16, CHERRY:17, PIER:18,
   SHRINE:19, STONES:20, BONES:21, WEIR:22, TALEHALL:23,
+  TEMPLE:24, ELDER:25, TOWER:26, GATE:27,
 };
 
 /* ---------- goods ---------- */
@@ -56,6 +57,11 @@ export const DEFS = {
   stones:     { code:B.STONES, cat:'found', name:'Standing stones', charm:[3,2], desc:'One more keeper can live in the valley.' },
   weir:       { code:B.WEIR,   cat:'found', name:'Old mill weir', desc:'A stone weir from the old mill. It holds the river back: fewer fish come up, and the valley can’t heal while it stands.' },
   bones:      { code:B.BONES,  cat:'found', name:'Giant’s bones', charm:[3,2], desc:'The ribs of something that swam here before the river had a name.' },
+  // landmarks: one of each in every valley, deep in the forest
+  temple:     { code:B.TEMPLE, cat:'found', name:'The Drowned Temple', charm:[4,3], desc:'Older than the weir, older than the Way. Its bell still calls the fish: they take the line 15% more often everywhere in the valley.' },
+  elder:      { code:B.ELDER,  cat:'found', name:'The Elder Cedar', charm:[3,3], desc:'The first tree of the valley. While it stands, woodcutters everywhere cut 30% more, and no one would dream of felling it.' },
+  tower:      { code:B.TOWER,  cat:'found', name:'The Lantern Tower', charm:[3,2], desc:'A keeper’s tower that once lit the river for barges. Lit again, its beam shows what hides in the forest within 14 tiles, and draws 10% more pilgrims. Something large likes to rest against it at night.' },
+  gate:       { code:B.GATE,   cat:'found', name:'The Sunken Gate', charm:[3,2], desc:'A stone gate half swallowed by moss, carved with animals bigger than mountains. Since it was found, the giants of the high country wander past twice as often.' },
 };
 export const DEF_BY_CODE = Object.fromEntries(Object.entries(DEFS).map(([k,d])=>[d.code,{...d,id:k}]));
 export const CATS = [

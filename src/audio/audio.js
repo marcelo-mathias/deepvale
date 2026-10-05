@@ -138,7 +138,36 @@ export function worldSound(kind, pan = 0, vol = 1){
       thunk(t + .72, 90, 45, .25, .08 * v, pan);
       break;
     case 'creak': creak(t, pan, v); break;
+    case 'thunder': { // a low roll that swells and fades
+      const src = AC.createBufferSource(); src.buffer = brownBuf; const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(380, t); lp.frequency.exponentialRampToValueAtTime(90, t + 4);
+      const g = AC.createGain(), p = AC.createStereoPanner(); p.pan.value = pan; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.32 * v, t + .25); g.gain.linearRampToValueAtTime(.18 * v, t + 1.2); g.gain.exponentialRampToValueAtTime(.0001, t + 4.5);
+      src.connect(lp).connect(g).connect(p); out(p, .5); src.start(t, Math.random() * 2); src.stop(t + 4.6); break; }
+    case 'frog': { // two or three croaks: a low buzz pulsed quickly
+      const n = 2 + Math.floor(Math.random() * 2), f = 120 + Math.random() * 90;
+      for (let q = 0; q < n; q++){ const t0 = t + q * .22, o = AC.createOscillator(), g = AC.createGain(), bp = AC.createBiquadFilter(), p = AC.createStereoPanner(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f, t0); o.frequency.linearRampToValueAtTime(f * .8, t0 + .12);
+        bp.type = 'bandpass'; bp.frequency.value = f * 4; bp.Q.value = 3; p.pan.value = pan; g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(.05 * v, t0 + .015); g.gain.exponentialRampToValueAtTime(.0001, t0 + .13);
+        o.connect(bp).connect(g).connect(p); out(p, .25); o.start(t0); o.stop(t0 + .15); } break; }
+    case 'bell': bell(146.8, t, .05 * v, 6, pan); bell(220, t + .02, .018 * v, 5, pan); break; // the temple bell, low and slow
   }
+}
+
+/* ---------- rain: drops, not hiss ----------
+   Single drops ticking on leaves and water, many of them, over a very soft low wash. */
+let rainLvl = 0, rainWant = 0, rainBus = null, rainBed = null;
+export function setWeatherSound(kind, on){ rainWant = on ? ({ rain: .7, storm: 1, snow: 0, fog: 0 }[kind] || 0) : 0; if (!AC || !soundOn) return; startRain(); }
+function startRain(){
+  if (rainBus) return; rainBus = AC.createGain(); rainBus.gain.value = 1; out(rainBus, .12);
+  const bed = loop(brownBuf), lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; rainBed = AC.createGain(); rainBed.gain.value = 0; bed.connect(lp).connect(rainBed).connect(rainBus);
+  const drop = () => {
+    rainLvl += (rainWant - rainLvl) * .02; if (rainBed) rainBed.gain.setTargetAtTime(.05 * rainLvl, AC.currentTime, .5);
+    if (soundOn && AC.state === 'running' && !document.hidden && rainLvl > .02){
+      const t = AC.currentTime + .01, n = 1 + Math.floor(rainLvl * 3);
+      for (let k = 0; k < n; k++){ const t0 = t + Math.random() * .05; if (Math.random() < .5) noiseHit(t0, { f: R(2500, 6000), q: 4, dur: .02, g: R(.004, .012) * rainLvl, pan: R(-.9, .9), wetAmt: .1 });
+        else bubbleAt(rainBus, t0, R(1500, 3200), R(.012, .025), R(.003, .009) * rainLvl, R(-.9, .9)); }
+    }
+    setTimeout(drop, 40);
+  };
+  drop();
 }
 
 /* ---------- birdsong ---------- */

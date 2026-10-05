@@ -222,6 +222,59 @@ export function makeProps({ rimMat }){
     put(g, ico(.08), bone, .5, .03, 0).scale.set(1.4, .7, 1);
     return finish(g); };
 
+  /* ---------- landmarks: bigger than a tile, they rise out of the forest ---------- */
+  const moss = '#5f7a45', moss2 = '#6f8a4f', old = '#8e877c', old2 = '#6f6a62';
+  B.temple = (r) => { const g = new THREE.Group(), rnd = R(r);
+    put(g, box(1.5, .1, 1.5), mat(old2, '#ffe0b0', .5), 0, .05, 0);
+    put(g, box(1.25, .1, 1.25), mat(old, '#ffe0b0', .5), 0, .15, 0);
+    for (let q = 0; q < 5; q++) put(g, box(.5, .04, .12), mat(old, '#ffe0b0', .5), 0, .03 + q * .035, .78 + q * -.03).scale.z = 1;
+    // hall: posts, walls, two curved roofs
+    for (const [x, z] of [[-.45, -.45], [.45, -.45], [-.45, .45], [.45, .45], [-.15, .45], [.15, .45]]) put(g, cyl(.04, .045, .55, 6), mat('#6b3a2a', '#ffd0a0', .6), x, .47, z);
+    put(g, box(.86, .5, .8), mat('#cfc4ad', '#fff0d0', .4), 0, .45, -.05);
+    put(g, box(.14, .26, .02), mat('#2a1d14'), 0, .33, .36);
+    const roof1 = put(g, cone(.82, .32, 4), mat('#3f4f48', '#cfe8d8', .8), 0, .9, 0, Math.PI / 4); roof1.scale.set(1.05, 1, 1.05);
+    put(g, box(.5, .2, .5), mat('#cfc4ad', '#fff0d0', .4), 0, 1.12, 0);
+    const roof2 = put(g, cone(.55, .3, 4), mat('#3f4f48', '#cfe8d8', .8), 0, 1.36, 0, Math.PI / 4);
+    put(g, cyl(.012, .012, .22, 4), mat('#c9a36a'), 0, 1.6, 0); put(g, ico(.04), glowM('#ffd27a', 2.2), 0, 1.72, 0);
+    // the bell, hung in a small frame beside the steps
+    put(g, box(.03, .4, .03), mat(dark), .62, .4, .55); put(g, box(.03, .4, .03), mat(dark), .82, .4, .55); put(g, box(.26, .03, .04), mat(dark), .72, .6, .55);
+    put(g, cyl(.05, .08, .13, 8), mat('#7a6a3a', '#ffe6a0', 1.1), .72, .5, .55);
+    // moss creeping over the stone, and two lanterns
+    for (let q = 0; q < 14; q++) put(g, ico(.06 + rnd() * .07), mat(q % 2 ? moss : moss2, '#e0ffb0', .4), (rnd() - .5) * 1.4, .12, (rnd() - .5) * 1.4).scale.y = .45;
+    for (const x of [-.3, .3]){ const l = B.lantern(r + (x > 0 ? 3 : 4)); l.scale.setScalar(1.3); l.position.set(x, .2, .92); g.add(l); }
+    return finish(g); };
+  B.elder = (r) => { const g = new THREE.Group();
+    put(g, cyl(.13, .26, 1.6, 7), mat('#5a3a28', '#ffd0a0', .5), 0, .8, 0);
+    for (let q = 0; q < 5; q++){ const a = q / 5 * 6.28; const root = put(g, box(.07, .14, .5), mat('#5a3a28', '#ffd0a0', .4), Math.cos(a) * .3, .05, Math.sin(a) * .3, -a + Math.PI / 2, 0, .35); }
+    const tiers = [[1.05, .9, 1.0], [.85, .8, 1.55], [.66, .72, 2.05], [.46, .62, 2.5], [.26, .5, 2.9]];
+    tiers.forEach(([rad, h, y], n) => { put(g, cone(rad, h, 8), mat(['#24452a', '#2b502e', '#325a33', '#3a6437', '#44703c'][n], '#ffd59a', .7), 0, y + h / 2, 0, n * .4); });
+    put(g, ico(.05), glowM('#fff0b0', 2), 0, 3.48, 0);
+    return finish(g); };
+  B.tower = (r) => { const g = new THREE.Group();
+    put(g, cyl(.24, .32, 1.9, 10), mat('#d8d0bf', '#fff0d0', .5), 0, .95, 0);
+    for (const y of [.5, 1.1, 1.6]) put(g, box(.07, .1, .02), mat('#2a1d14'), 0, y, .27 - y * .02);
+    put(g, cyl(.32, .28, .07, 10), mat('#3a3436'), 0, 1.93, 0);
+    put(g, cyl(.19, .19, .26, 10), glowM('#ff8a5a', 2.6), 0, 2.1, 0);
+    for (let q = 0; q < 8; q++){ const a = q / 8 * 6.28; put(g, box(.012, .26, .012), mat('#2a1d14'), Math.cos(a) * .195, 2.1, Math.sin(a) * .195); }
+    put(g, cone(.24, .2, 10), mat('#3a3436'), 0, 2.33, 0); put(g, ico(.035), mat('#3a3436'), 0, 2.46, 0);
+    // the keeper's house at its foot, with a chimney
+    put(g, box(.62, .32, .42), mat('#cfc6b4', '#fff0d0', .4), .3, .16, .22);
+    roof(g, .7, .5, .2, .32, '#4a4044').position.set(.3, .42, .22);
+    put(g, box(.05, .08, .01), glowM('#ffb35a', 1.8), .1, .17, .435); put(g, box(.05, .14, .05), mat('#4a4044'), .5, .52, .1);
+    return finish(g); };
+  B.gate = (r) => { const g = new THREE.Group(), rnd = R(r);
+    for (const x of [-.55, .55]){ put(g, box(.22, 1.5, .22), mat(old, '#ffe0b0', .6), x, .72, 0, 0, 0, x * .04);
+      for (let q = 0; q < 4; q++) put(g, box(.1, .1, .01), glowM('#9ff0d0', 1.6), x, .35 + q * .3, .115); }
+    put(g, box(1.6, .18, .3), mat(old2, '#ffe0b0', .6), 0, 1.52, 0, 0, 0, -.06);
+    put(g, box(1.3, .1, .24), mat(old, '#ffe0b0', .6), 0, 1.3, 0);
+    // carved beasts on the lintel: a stag, an owl, a whale
+    put(g, box(.18, .1, .02), mat('#9a948a'), -.4, 1.53, .16); put(g, box(.12, .12, .02), mat('#9a948a'), 0, 1.53, .16); put(g, box(.24, .08, .02), mat('#9a948a'), .4, 1.53, .16);
+    for (let q = 0; q < 18; q++) put(g, ico(.06 + rnd() * .08), mat(q % 2 ? moss : moss2, '#e0ffb0', .4), (rnd() - .5) * 1.8, rnd() < .3 ? 1.55 : .05, (rnd() - .5) * .9).scale.y = .5;
+    put(g, box(.9, .03, .5), mat('#4a6a5a', '#9ff0d0', .5), 0, .01, .1);
+    return finish(g); };
+  // the landmarks that can be seen before they are found
+  function landmark(type, r){ return type === 'elder' ? B.elder(r) : type === 'tower' ? B.tower(r) : null; }
+
   /* ---------- vehicles ---------- */
   function wagon(){
     const g = new THREE.Group();
@@ -307,5 +360,5 @@ export function makeProps({ rimMat }){
     else if (type === 'wall'){ put(g, box(.94, .07, .06), mat(stone2, '#ffe0b0', .6), 0, .035, 0); put(g, box(.94, .015, .075), mat(stone, '#ffe0b0', .6), 0, .075, 0); }
     else { for (const x of [-.45, -.15, .15, .45]) put(g, box(.022, .12, .022), mat(dark), x, .06, 0); for (const y of [.05, .1]) put(g, box(.94, .016, .014), mat('#9a7048'), 0, y, 0); }
     return finish(g); }
-  return { setGlow, B, Y, lamp, edge, wagon, barge, setCargo, bird, mat };
+  return { setGlow, B, Y, lamp, edge, wagon, barge, setCargo, bird, mat, landmark };
 }

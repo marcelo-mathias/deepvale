@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clamp, lerp, smooth, rand, hash2, fbm, ridged, fmt, store } from './core/utils.js';
 import { GW, GH, HX, HZ, WATER_Y, BED_Y, LAND_Y, WILD, LAND, WATER, idx, tileC, inGrid, riverZ, setRiver, randomRiver,
-  NONE, HUT, ROAD, BRIDGE, WAY_I, DECK_Y, HOUSING, mouthRows, OLD_GW, OLD_GH, OLD_OFF_I, OLD_OFF_J } from './world/constants.js';
+  NONE, HUT, ROAD, BRIDGE, WAY_I, DECK_Y, HOUSING, mouthRows, LEGACY_GRIDS, GROW } from './world/constants.js';
 import { B, DEFS, DEF_BY_CODE, CATS, GOODS, GOOD_IDS, RESERVE, STYLES, STYLE_IDS, PAVES, PAVE_IDS, STATUE_FX, BLUEPRINTS,
   KEEPERS, KEEPER, BOONS, BOON, SETS, SET } from './data/builds.js';
 import { makeSecrets, makeChannels, SECRET_TYPES } from './world/secrets.js';
@@ -15,7 +15,7 @@ import { portrait } from './ui/portraits.js';
 import { SPECIES, SP } from './data/species.js';
 import { LORE, TALE_AT, VILLAGE_NAMES } from './data/lore.js';
 import { NOISE_GLSL, RIM_FRAG, BEND_VERT, BEND_DECL } from './render/shaders.js';
-import { setSound as setAudio, sfx, isSoundOn, setView as setAudioView, playTheme, worldSound } from './audio/audio.js';
+import { setSound as setAudio, sfx, isSoundOn, setView as setAudioView, playTheme, worldSound, setWeatherSound } from './audio/audio.js';
 import { makeFlow, solveFlow } from './world/flow.js';
 import { makeWisps } from './render/wisps.js';
 import { makeVillage } from './render/village.js';
@@ -26,6 +26,9 @@ import { makeMenu } from './ui/menu.js';
 import { cardHTML, animateCard, chooseCard, CARD_COL } from './ui/cards.js';
 import { makeReel } from './ui/reel.js';
 import { makeTour } from './ui/tour.js';
+import { makeWeather } from './render/weather.js';
+import { makeWildlife } from './render/wildlife.js';
+import { makeGiants, GIANTS } from './render/giants.js';
 
 function setSound(on){ setAudio(on); const b=document.getElementById('btnSound'); b.textContent = on ? 'Sound on' : 'Sound off'; b.setAttribute('aria-pressed',on); }
 
@@ -40,7 +43,7 @@ const tiles=new Uint8Array(GW*GH);
 const builds=new Uint8Array(GW*GH);
 let INLET=mouthRows(0),OUTLET=mouthRows(GW-1);
 // mountains around the valley: [x, z, height, spread]; new games shift them about
-let MTS=[[-20,-40,40,12.5],[-58,-10,19,10],[14,-60,24,13],[-52,-52,16,11]];
+let MTS=[[-31,-52,40,14],[-82,-14,19,11],[20,-80,24,14],[-74,-70,16,12]];
 const wildH=new Float32Array(GW*GH);
 for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){wildH[idx(i,j)]=.2+fbm(i*.41+3,j*.41+9,3)*.42;}
 function initTiles(T=tiles){
@@ -94,7 +97,8 @@ const SUN_DIR=new THREE.Vector3(-1,.62,.2).normalize();
 const sun=new THREE.DirectionalLight(new THREE.Color('#ffd2a1'),3.4);
 sun.position.copy(SUN_DIR).multiplyScalar(110);sun.castShadow=true;
 sun.shadow.mapSize.set(2048,2048);
-Object.assign(sun.shadow.camera,{left:-44,right:44,top:44,bottom:-44,near:1,far:320});
+Object.assign(sun.shadow.camera,{left:-62,right:62,top:62,bottom:-62,near:1,far:360});
+sun.shadow.mapSize.set(3072,3072);
 sun.shadow.bias=-.0006;sun.shadow.normalBias=.03;
 scene.add(sun,sun.target);
 const hemi=new THREE.HemisphereLight(new THREE.Color('#a6c8d6'),new THREE.Color('#3b3122'),1.15);scene.add(hemi);
@@ -127,6 +131,7 @@ function updateDusk(dt){duskT-=dt;const target=duskT>0?duskLvl:0;giantDusk+=(tar
 }
 
 const U={time:{value:0},sunView:{value:new THREE.Vector3()},dusk:{value:0}};
+const SEASON_U={value:new THREE.Vector4(0,0,0,0)}; // spring, autumn, snow, -
 
 
 /* rim light shared by objects: bright edge on the sun-facing silhouette */
@@ -261,14 +266,19 @@ function updateFlowTex(){
 }
 const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,flatShading:true,roughness:.95,metalness:0});
 terrainMat.onBeforeCompile=sh=>{
-  sh.uniforms.uTime=U.time;sh.uniforms.uWaterY={value:WATER_Y};sh.uniforms.uFlow={value:flowTex};
+  sh.uniforms.uTime=U.time;sh.uniforms.uWaterY={value:WATER_Y};sh.uniforms.uFlow={value:flowTex};sh.uniforms.uSeason=SEASON_U;
   sh.vertexShader='varying vec3 vWPos;\n'+sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\n vWPos=(modelMatrix*vec4(transformed,1.0)).xyz;');
-  sh.fragmentShader='varying vec3 vWPos;\nuniform float uTime;\nuniform float uWaterY;\n'+NOISE_GLSL+FLOW_GLSL+sh.fragmentShader
+  sh.fragmentShader='varying vec3 vWPos;\nuniform float uTime;\nuniform float uWaterY;\nuniform vec4 uSeason;\n'+NOISE_GLSL+FLOW_GLSL+sh.fragmentShader
    .replace('#include <color_fragment>',`#include <color_fragment>
     float depthW=uWaterY-vWPos.y;
     float cloud=clouds(vWPos.xz,uTime);
     diffuseColor.rgb*=1.0-cloud*0.34;
     float stillB=0.0;
+    // seasons: x = spring, y = autumn, z = snow cover
+    if(depthW<-0.02){vec3 dc=diffuseColor.rgb;float green=clamp((dc.g-max(dc.r,dc.b))*6.0,0.0,1.0);
+      diffuseColor.rgb=mix(dc,dc*vec3(0.95,1.12,0.9),uSeason.x*green*0.6);
+      float leaf=vns(vWPos.xz*0.9)*0.6+0.4;diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.62,0.46,0.2)*(0.8+0.3*leaf),uSeason.y*green*0.45);
+      float cover=smoothstep(0.25,0.6,vns(vWPos.xz*0.35+3.1)*0.7+0.5*uSeason.z)*uSeason.z;diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.9,0.93,0.96),cover*0.92);}
     if(depthW>0.0){stillB=1.0-smoothstep(0.1,0.4,flowAt(vWPos.xz).a);
       diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(0.012,0.085,0.075),vec3(0.05,0.075,0.02),stillB),clamp(depthW*0.55,0.0,0.82));}
     float ch=vWPos.y/0.75; float fw=max(fwidth(ch),1e-4); float cd=abs(fract(ch+0.5)-0.5);
@@ -288,9 +298,9 @@ const heatU=Array.from({length:HEATN},()=>new THREE.Vector4(0,0,1,0)); // x,z,ra
 const waterMat=new THREE.ShaderMaterial({
   transparent:true,depthWrite:false,
   blending:THREE.CustomBlending,blendSrc:THREE.SrcAlphaFactor,blendDst:THREE.OneMinusSrcAlphaFactor,blendSrcAlpha:THREE.OneFactor,blendDstAlpha:THREE.OneMinusSrcAlphaFactor,
-  uniforms:{uTime:U.time,uDusk:U.dusk,uSun:{value:SUN_DIR},uView:{value:CAM_DIR},uFog:{value:FOG},uFogNear:{value:210},uFogFar:{value:400},uFlow:{value:flowTex},uHeat:{value:heatU}},
+  uniforms:{uTime:U.time,uDusk:U.dusk,uSeason:SEASON_U,uSun:{value:SUN_DIR},uView:{value:CAM_DIR},uFog:{value:FOG},uFogNear:{value:210},uFogFar:{value:400},uFlow:{value:flowTex},uHeat:{value:heatU}},
   vertexShader:`varying vec3 vW;varying float vFogD;void main(){vec4 w=modelMatrix*vec4(position,1.0);vW=w.xyz;vec4 mv=viewMatrix*w;vFogD=-mv.z;gl_Position=projectionMatrix*mv;}`,
-  fragmentShader:`uniform float uTime;uniform float uDusk;uniform vec3 uSun;uniform vec3 uView;uniform vec3 uFog;uniform float uFogNear;uniform float uFogFar;uniform vec4 uHeat[${HEATN}];varying vec3 vW;varying float vFogD;
+  fragmentShader:`uniform float uTime;uniform float uDusk;uniform vec4 uSeason;uniform vec3 uSun;uniform vec3 uView;uniform vec3 uFog;uniform float uFogNear;uniform float uFogFar;uniform vec4 uHeat[${HEATN}];varying vec3 vW;varying float vFogD;
   ${NOISE_GLSL}
   ${FLOW_GLSL}
   float wh(vec2 p,float drift){return vns(p*0.8+uTime*vec2(0.10,0.06)*drift)*0.55+vns(p*2.1-uTime*vec2(0.08,0.13)*drift)*0.3+vns(p*5.3+uTime*vec2(0.2,-0.1)*drift)*0.15;}
@@ -330,7 +340,9 @@ const waterMat=new THREE.ShaderMaterial({
     col+=vec3(1.0,0.42,0.14)*heat*(0.22+0.2*shim);
     col*=1.0-cloud*0.25;
     col=mix(col,col*vec3(0.45,0.55,0.75),uDusk*0.7);
-    float a=clamp(0.2+fres*0.35+shaft*0.1*live+spec*0.6+still*0.42+str*0.1+heat*0.12,0.0,0.94);
+    // winter: still water and the shallow edges freeze over
+    float ice=uSeason.z*clamp(still+(1.0-live)*0.3,0.0,1.0)*smoothstep(0.2,0.5,vns(p*1.3)+0.3);col=mix(col,vec3(0.72,0.82,0.88)*(1.0-uDusk*0.6)+vec3(1.0)*spec*0.4,ice*0.9);
+    float a=clamp(0.2+fres*0.35+shaft*0.1*live+spec*0.6+still*0.42+str*0.1+heat*0.12+ice*0.6,0.0,0.96);
     float f=smoothstep(uFogNear,uFogFar,vFogD);col=mix(col,uFog,f);a=mix(a,1.0,f);
     gl_FragColor=vec4(col,a);
   }`
@@ -346,7 +358,7 @@ const coneG=(()=>{const tiers=[[.22,.3,.18,.82],[.17,.27,.36,.94],[.12,.24,.52,1
     g.setAttribute('color',new THREE.BufferAttribute(col,3));return g;});
   return mergeGeometries(parts);})();
 const trunkG=new THREE.CylinderGeometry(.025,.035,.2,4).translate(0,.1,0);
-const MAXT=15500;
+const MAXT=24000;
 const foliage=new THREE.InstancedMesh(coneG,rimMat({color:'#ffffff',vertexColors:true},'#ffc98a',.7),MAXT);
 const trunks=new THREE.InstancedMesh(trunkG,rimMat({color:'#5a4330'},'#ffc98a',.3),MAXT);
 foliage.castShadow=trunks.castShadow=true;foliage.receiveShadow=true;
@@ -355,10 +367,10 @@ const trees=[];// {x,z,s,tile,col}
 const treeCols=['#2f5a2b','#3c6b30','#27502a','#4a7a36','#6d7f33','#8a7a2e'].map(C);
 // h stretches a tree up, w narrows it: stout pines, tall thin spruces, and now and then an old giant
 function addTree(x,z,s,tile){const tall=Math.random()<.3,giant=Math.random()<.06;
-  trees.push({x,z,s:s*(giant?1.15:1),tile,h:giant?rand(1.55,1.9):tall?rand(1.2,1.5):rand(.75,1.15),w:tall?rand(.72,.88):rand(.9,1.12),
+  trees.push({x,z,s:s*(giant?1.15:1),tile,sea:Math.random(),h:giant?rand(1.55,1.9):tall?rand(1.2,1.5):rand(.75,1.15),w:tall?rand(.72,.88):rand(.9,1.12),
     col:treeCols[Math.random()<.9?Math.floor(Math.random()*4):4+Math.floor(Math.random()*2)],r:Math.random()*6});}
 const treeScale=(t,sc)=>s4.set(sc*t.w,sc*t.h,sc*t.w);
-for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const c=tileC(i,j);const n=2+Math.floor(hash2(i*3.1,j*7.7)*3);
+for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const c=tileC(i,j);const n=2+Math.floor(hash2(i*3.1,j*7.7)*2.4);
   for(let k=0;k<n;k++)addTree(c.x+rand(-.38,.38),c.z+rand(-.38,.38),rand(.9,1.5),idx(i,j));}
 // a thick band of forest on the foothills first, so the slopes rising from the valley are wooded, not bare
 function scatterFoothills(){let tries=0,n=0;
@@ -671,6 +683,100 @@ function statueFish(id,lvl=1){const sp=SP[id]||SP.koi,geo=fishGeoCache[sp.id]||(
   m.scale.setScalar(sc);m.position.copy(c).multiplyScalar(-sc);m.castShadow=true;const g=new THREE.Group();g.add(m);return g;}
 const roads=makeRoads({scene,heightAt,isRoad:(i,j)=>builds[idx(i,j)]===ROAD,paveAt:(i,j)=>S.meta[idx(i,j)]?.pave||'dirt',linkAt,tileC,GW,GH});
 const village=makeVillage({scene,rimMat,heightAt,tiles,builds,wayPts:()=>wayPath(),deco:()=>({corners:S.corners||{},edges:S.edges||{}}),meta:()=>S.meta,emit:wisps.emit,wayX,props,isLive:k=>isLive(k),statueFish,lore:()=>({tales:allTales(),met:SPECIES.filter(s=>S.codex[s.id]).map(s=>s.id)})});
+
+/* ================= seasons, weather, wildlife and the giants ================= */
+// the season as weights [spring, summer, autumn, winter]; each season blends into the next over its last day
+function seasonW(){const d=((S.clock?.day||1)-1)+(S.clock?.t||0),p=(d/7)%4,i=Math.floor(p),f=smooth(6/7,1,p-i),w=[0,0,0,0];w[i]+=1-f;w[(i+1)%4]+=f;return w;}
+const LEAF=['#c8662e','#d8963a','#b84a2a','#c9a83a'].map(C),BLOSSOM=C('#e8a6bc'),BARE=C('#7a6a5c'),SNOWC=C('#e8eef2');
+let seasonKey='',seasonCT=0;const _sc=new THREE.Color(),_sa=new THREE.Color();
+function seasonTick(dt){seasonCT-=dt;if(seasonCT>0)return;seasonCT=2;
+  const w=seasonW(),key=w.map(v=>v.toFixed(2)).join();SEASON_U.value.set(w[0],w[2],w[3]*.95,0);if(key===seasonKey)return;seasonKey=key;
+  // trees: a third of them are broadleaf, and turn; everything else darkens and catches snow
+  trees.forEach((t,k)=>{const b=t.col,dec=t.sea<.36;_sc.setRGB(0,0,0);
+    _sa.copy(t.sea<.07?BLOSSOM:b).multiplyScalar(t.sea<.07?1:1.12);_sc.r+=_sa.r*w[0];_sc.g+=_sa.g*w[0];_sc.b+=_sa.b*w[0];
+    _sc.r+=b.r*w[1];_sc.g+=b.g*w[1];_sc.b+=b.b*w[1];
+    _sa.copy(dec?LEAF[Math.floor(t.sea*97)%4]:b).multiplyScalar(dec?1:.9);_sc.r+=_sa.r*w[2];_sc.g+=_sa.g*w[2];_sc.b+=_sa.b*w[2];
+    _sa.copy(dec?BARE:b).lerp(SNOWC,dec?.25:.42);_sc.r+=_sa.r*w[3];_sc.g+=_sa.g*w[3];_sc.b+=_sa.b*w[3];
+    foliage.setColorAt(k,_sc);});
+  if(foliage.instanceColor)foliage.instanceColor.needsUpdate=true;}
+const seasonNow=()=>calendar().season;
+
+// weather: a little state machine that rolls something new every few minutes, by season
+const WEATHER={clear:'clear skies',rain:'rain',storm:'a storm',fog:'fog',snow:'snow'};
+const W_ODDS={Spring:{clear:.5,rain:.3,storm:.04,fog:.16},Summer:{clear:.62,rain:.14,storm:.1,fog:.14},Autumn:{clear:.38,rain:.3,storm:.06,fog:.26},Winter:{clear:.35,fog:.2,snow:.45}};
+const weather=makeWeather(scene);let wMist=0,wGloom=0,wSnow=0,flash=0,boltT=10;
+function rollWeather(){const o=W_ODDS[seasonNow()];let r=Math.random(),k='clear';for(const [kk,p] of Object.entries(o)){r-=p;if(r<=0){k=kk;break;}}
+  const prev=S.weather?.k;S.weather={k,left:rand(240,540)};if(booted&&k!==prev&&k!=='clear')log({rain:'Rain moves in over the valley. Fish rise to it.',storm:'A storm is coming down the valley. The fish are restless: they rise more often while it lasts.',fog:'Fog settles in the low ground.',snow:'Snow begins to fall. The backwaters freeze at the edges.'}[k]);}
+const weatherFish=()=>({rain:1.25,storm:1.5,fog:1.1}[S.weather?.k]||1);
+function weatherTick(dt,t){
+  if(!S.weather||(S.weather.left-=dt)<=0||(S.weather.k==='snow'&&seasonNow()!=='Winter'))rollWeather();
+  const k=S.weather.k,sw=seasonW();
+  const tm={fog:.8,rain:.22,storm:.32,snow:.18}[k]||0,tg={rain:.55,storm:.9,snow:.3,fog:.25}[k]||0;
+  wMist+=(tm-wMist)*Math.min(1,dt*.15);wGloom+=(tg-wGloom)*Math.min(1,dt*.15);wSnow+=((k==='snow'?1:0)-wSnow)*Math.min(1,dt*.15);
+  postMat.uniforms.uMist.value=wMist;postMat.uniforms.uGloom.value=wGloom;postMat.uniforms.uSnowSky.value=wSnow;
+  // lightning: a flash, then the thunder a moment later
+  if(k==='storm'){boltT-=dt;if(boltT<0){boltT=rand(7,20);flash=1;const d=rand(.6,2.4);setTimeout(()=>worldSound('thunder',rand(-.6,.6),.9),d*1000);}}
+  flash=Math.max(0,flash-dt*3.5);postMat.uniforms.uFlash.value=flash*flash*.5*(Math.random()<.85?1:0);
+  // what falls: weather first, else petals in spring and leaves in autumn
+  if(k==='rain'||k==='storm'||k==='snow')weather.set(k,1);else if(sw[0]>.5)weather.set('petals',sw[0]*.8);else if(sw[2]>.5)weather.set('leaves',sw[2]);else weather.set('none',0);
+  weather.update(dt,t,view,(x,z)=>Math.max(heightAt(x,z),WATER_Y));
+  setWeatherSound(k,started?1:0);
+}
+
+// wildlife: on the backwaters and at the forest's edge, more of it as the valley heals
+const wildlife=makeWildlife({scene,rimMat,heightAt,WATER_Y});let wildT=3;
+const stillK=k=>tiles[k]===WATER&&!FLOW.live[k];
+function wildSpot(kind){
+  const pick=f=>{for(let n=0;n<400;n++){const k=Math.floor(Math.random()*GW*GH);if(f(k))return k;}return -1;};
+  const at=(k,j=.3)=>{const c=tileC(k%GW,(k/GW)|0);return {x:c.x+rand(-j,j),z:c.z+rand(-j,j),k};};
+  if(kind==='duck'||kind==='fly'){const k=pick(stillK);return k<0?null:at(k);}
+  if(kind==='heron'){const k=pick(q=>stillK(q)&&nb4(q%GW,(q/GW)|0,LAND));if(k<0)return null;const i=k%GW,j=(k/GW)|0;
+    for(const [a,b] of [[1,0],[-1,0],[0,1],[0,-1]])if(inGrid(i+a,j+b)&&tiles[idx(i+a,j+b)]===LAND){const c=tileC(i,j);return {x:c.x+a*.42,z:c.z+b*.42,k};}return null;}
+  if(kind==='deer'){const edge=q=>{const i=q%GW,j=(q/GW)|0;return [[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>inGrid(i+a,j+b)&&tiles[idx(i+a,j+b)]!==WILD);};const k=pick(q=>tiles[q]===WILD&&edge(q));return k<0?null:at(k,.35);}
+}
+function wildTick(dt,t){
+  wildT-=dt;if(wildT<0){wildT=6;const h=health/100,sw=seasonW(),day=night<.2,warm=sw[0]+sw[1]>.5;
+    wildlife.sync({heron:Math.min(3,Math.floor(stillCount/9*(.4+h))),duck:Math.min(6,Math.floor(stillCount/5*(.3+h))),fly:warm&&day&&!['rain','storm'].includes(S.weather?.k)?Math.min(8,Math.floor(stillCount/4)):0,deer:Math.min(6,1+Math.floor(h*5))},
+      {heron:()=>wildSpot('heron'),duck:()=>wildSpot('duck'),fly:()=>wildSpot('fly'),deer:()=>wildSpot('deer')});}
+  wildlife.update(dt,t,{night:night>.45,flies:true,frozen:SEASON_U.value.z>.6,stillAt:(x,z)=>{const i=Math.floor(x+HX),j=Math.floor(z+HZ);return inGrid(i,j)&&stillK(idx(i,j));},
+    busyNear:(x,z)=>workers.some(w=>w.g.visible&&Math.hypot(w.x-x,w.z-z)<1.2),spot:()=>wildSpot('deer')});
+  // frogs at dusk on the backwaters
+  if(started&&stillCount&&dusk>.2&&dusk<.85&&SEASON_U.value.z<.5&&Math.random()<dt*.35){const p=wildSpot('duck');if(p)soundAt('frog',p.x,p.z);}
+}
+
+// the giants of the high country
+const giants=makeGiants({scene,heightAt,rimMat,bird:()=>props.bird(),HX,HZ,MTS:()=>MTS});
+function giantOK(k){const ct=S.clock?.t||0,day=ct>.04&&ct<.66,dsk=ct>.6&&ct<.97,nt=night>.4,sw=seasonW(),wk=S.weather?.k;
+  return {stag:day,whale:day&&wk!=='storm',owl:dsk,moth:nt,jelly:nt&&sw[0]<.5&&sw[3]<.5,elk:dsk&&sw[2]+sw[3]>.5,wyrm:wk==='fog'||wk==='rain'}[k];}
+function giantTick(dt){if(!started)return;
+  S.giantT=(S.giantT??150)-dt*(builds.includes(B.GATE)?2:1);if(S.giantT>0||giants.list.length)return;
+  const ok=Object.keys(GIANTS).filter(giantOK);if(!ok.length){S.giantT=30;return;}
+  const seen=S.giantsSeen||(S.giantsSeen={});const fresh=ok.filter(k=>!seen[k]);const k=(fresh.length&&Math.random()<.7?fresh:ok)[Math.floor(Math.random()*(fresh.length&&Math.random()<.7?fresh:ok).length)];
+  S.giantT=rand(420,720);const tk=builds.indexOf(B.TOWER);let tower=null;if(tk>=0){const c=tileC(tk%GW,(tk/GW)|0);tower={x:c.x,z:c.z,y:heightAt(c.x,c.z)};}
+  giants.spawn(k,{tower:k==='moth'?tower:null});log(GIANTS[k].line+' Click it to greet it.','gold');sfx('discover');
+}
+// a chip at the edge of the screen points to a giant you can't see; click it to look
+const giantChip=document.createElement('button');giantChip.type='button';giantChip.className='gchip';giantChip.hidden=true;document.getElementById('dv').appendChild(giantChip);
+let chipFor=null;
+giantChip.addEventListener('click',()=>{const gi=chipFor;if(!gi)return;const p=gi.g.position;tweenTo({x:p.x*.8,y:p.y*.72,z:p.z*.8},Math.min(ZMAX,95),2.5);});
+function updateGiantChip(){const gi=giants.list.find(g=>!g.gifted&&g.fade>.3);chipFor=gi||null;if(!gi||!started||cine.fish){giantChip.hidden=true;return;}
+  const p=gi.g.position,s=toScreen(p.x,p.y,p.z),m=70;const on=s.x>m&&s.x<innerWidth-m&&s.y>m&&s.y<innerHeight-m;
+  if(on){giantChip.hidden=true;return;}giantChip.hidden=false;const cx=innerWidth/2,cy=innerHeight/2,dx=s.x-cx,dy=s.y-cy,k=Math.min((cx-m-40)/Math.abs(dx||1e-3),(cy-m)/Math.abs(dy||1e-3));
+  const x=cx+dx*k,y=cy+dy*k;giantChip.style.left=x+'px';giantChip.style.top=y+'px';giantChip.style.setProperty('--a',Math.atan2(dy,dx)+'rad');
+  const h=`<i class="ga"></i><span>${GIANTS[gi.kind].name}</span>`;if(giantChip.dataset.k!==gi.kind){giantChip.innerHTML=h;giantChip.dataset.k=gi.kind;}}
+function giantGift(gi){if(gi.gifted)return;gi.gifted=true;gi.life=Math.min(gi.life,gi.t+25);const k=gi.kind,nm=GIANTS[k].name;
+  const seen=S.giantsSeen||(S.giantsSeen={});const first=!seen[k];seen[k]=(seen[k]||0)+1;
+  const sc=1+allTales()*.08+S.found.length*.04,p=gi.g.position;let body='';
+  if(k==='stag'){const tb=Math.round(40*sc);S.goods.timber+=tb;body=`It lowers its head to look at the valley, and an antler it has shed slides down the ridge. The woodcutters bring back <b>${tb} timber</b>.`;}
+  if(k==='owl'){S.owlUntil=(S.clock.day||1)+(S.clock.t||0)+1;updateHintVis();queueCrate({source:nm,kind:'mixed'});body='It watches the valley for a long time without blinking. For a day, every secret in the forest shows itself. It leaves something on the peak, too.';}
+  if(k==='whale'){S.tide={n:Math.max(S.tide.n,8),t:Date.now()};const v=Math.round(120*sc);earn(v,p.x*.3,p.z*.3);const main=comps.reduce((a,c)=>c.size>a.size?c:a,comps[0]);if(main)for(let n=0;n<3;n++)spawnFish(n?SP.koi:SP.reed,main);
+    body=`It sings, very low, and the river answers: fish rise all along it, and a <b>good tide</b> builds. Scales fall like rain: <b>${fmt(v)}</b>.`;}
+  if(k==='moth'){const n=Math.round(5*sc);S.goods.lanterns+=n;body=`Dust from its wings settles on the village, faintly glowing. The workshop gathers it into <b>${n} lanterns</b>.`;}
+  if(k==='jelly'){const v=Math.round(90*sc);earnSilver(v);body=`Its threads brush the peaks and something falls from them, ringing: <b>${fmt(v)} silver</b>.`;}
+  if(k==='elk'){const met=SPECIES.filter(sp=>S.codex[sp.id]&&talesKnown(sp.id)<3);if(met.length){const sp=met[Math.floor(Math.random()*met.length)];const n=talesKnown(sp.id);S.codex[sp.id]=Math.max(S.codex[sp.id],TALE_AT[n]);renderCodex();
+      body=`It stops, and the birds settle on its ribs for a moment. In the village, someone remembers an old story: <b>a new tale of the ${sp.name}</b>.`;}else{queueCrate({source:nm,kind:'keeper'});body='It stops, and the birds settle on its ribs for a moment. Someone in the hills saw it too, and comes down to ask about it.';}}
+  if(k==='wyrm'){const v=Math.round(200*sc);earn(v,p.x*.3,p.z*.3);queueCrate({source:nm,kind:'keeper'});body=`It turns its red eye on the valley, then slides back into the fog. Where it passed, the moss has turned to scales: <b>${fmt(v)}</b>. A hermit who followed it asks to stay.`;}
+  toast(nm+(first?' · first sighting':''),body);$('toast').querySelector('.k').textContent='A giant of the high country';sfx('awe');for(let n=0;n<10;n++)sparkle(p.x+rand(-4,4),p.y+rand(-2,4),p.z+rand(-4,4),'#fff3cf');refreshUI();save();}
 // the Ember Showa warms the water it passes through: heat spots along its body and a short fading trail, plus rising steam
 const heatTrail=[];let heatT=0;
 function updateHeat(dt){
@@ -707,7 +813,7 @@ const cost={clear:()=>Math.round(4*Math.pow(1.025,S.clears)),dig:()=>Math.round(
   line:()=>Math.round(60*Math.pow(2.3,S.lineLv)),bait:()=>Math.round(90*Math.pow(2.5,S.baitLv))};
 const has=id=>S.keepers.includes(id);
 const boon=id=>S.boons[id]||0;
-const lineMult=()=>(1+.3*S.lineLv)*(1+.15*boon('hands')),baitMult=()=>(1+.25*S.baitLv)*(1+.15*boon('sweet'))*(activeSets.walk?1.1:1);
+const lineMult=()=>(1+.3*S.lineLv)*(1+.15*boon('hands')),baitMult=()=>(1+.25*S.baitLv)*(1+.15*boon('sweet'))*(activeSets.walk?1.1:1)*(builds.includes(B.TEMPLE)?1.15:1);
 const hutCount=()=>{let n=0;for(let k=0;k<GW*GH;k++)if(builds[k]===HUT)n++;return n;};
 const LVL=k=>S.meta[k]?.lvl||1;
 const HUT_BONUS=[0,2,5];
@@ -780,7 +886,7 @@ function canDo(tool,i,j){
     if(!nbLink(i,j))return {ok:false,why:'Bridges must join a road or bridge'};return {ok:true,c:cost.bridge()};}
   if(tool==='scout'){if(t!==WILD||!hintVis.has(k))return {ok:false,why:'Send the crow to a spot with a sign above the trees'};if(crows.some(c=>c.k===k))return {ok:false,why:'A crow is already on its way'};return {ok:true,c:10};}
   if(tool==='remove'){if(b===NONE)return {ok:false,why:'Nothing built here'};if(b===ROAD)return {ok:false,why:'Lift roads with the road tool'};
-    if(b===B.WEIR)return {ok:false,why:'Click the weir to take it down properly'};if(b===B.SHRINE||b===B.STONES||b===B.BONES)return {ok:false,why:'That was here long before the village'};
+    if(b===B.WEIR)return {ok:false,why:'Click the weir to take it down properly'};if(b===B.SHRINE||b===B.STONES||b===B.BONES||(b>=B.TEMPLE&&b<=B.GATE))return {ok:false,why:'That was here long before the village'};
     if(fishersOn(i,j).length)return {ok:false,why:'Move the fishers off first'};
     if(b===HUT&&fishersState.length>housing()-HOUSING-HUT_BONUS[LVL(k)-1])return {ok:false,why:'Every bed in this hut is taken'};
     if(b===BRIDGE)return {ok:true,refund:{scales:Math.round(cost.bridge()/1.2*.4)}};
@@ -874,7 +980,7 @@ function updateCrows(dt,time){
     if(c.t>9){scene.remove(c.g);crows.splice(crows.indexOf(c),1);const s=secretAt[c.k];
       if(s&&!S.found.includes(c.k)){if(['bones','stones','shrine'].includes(s.type)){tiles[c.k]=LAND;worldChanged();}if(s.type==='grove')S.goods.timber+=20;revealAt(c.k);refreshUI();}}}
 }
-function worldChanged(){roads.sync();buildTerrain(true);updateTrees();analyzeWater();fishersState.forEach(placeFisher);updateMarks();computeVillages();computeEconomy();village.sync();trade.sync();updateHintVis();updateLilies();}
+function worldChanged(){wildlife.clear();wildT=0;roads.sync();buildTerrain(true);updateTrees();analyzeWater();fishersState.forEach(placeFisher);updateMarks();computeVillages();computeEconomy();village.sync();trade.sync();updateHintVis();updateLilies();}
 function buildsChanged(){roads.sync();buildTerrain(true);if(arguments[0])updateTrees();computeVillages();computeEconomy();village.sync();trade.sync();fishersState.forEach(placeFisher);updateMarks();}
 
 /* ================= auras, charm, production ================= */
@@ -908,7 +1014,7 @@ function computeEconomy(){computeHealth();
   producers=[];
   for(let k=0;k<GW*GH;k++){const b=builds[k],i=k%GW,j=(k/GW)|0;let good=null,rate=0;
     if(b===B.WOOD){let n=0;for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++){if((x||y)&&inGrid(i+x,j+y)&&tiles[idx(i+x,j+y)]===WILD)n++;}
-      good='timber';rate=.9*n*(1+.25*boon('wood'))*(has('garrow')?1.6:1);}
+      good='timber';rate=.9*n*(1+.25*boon('wood'))*(has('garrow')?1.6:1)*(builds.includes(B.ELDER)?1.3:1);}
     else if(b===B.REED){let n=0;for(const [x,y] of [[1,0],[-1,0],[0,1],[0,-1]]){const nk=idx(i+x,j+y);if(inGrid(i+x,j+y)&&tiles[nk]===WATER&&!FLOW.live[nk])n++;}
       good='reeds';rate=(2.5+.7*n)*(1+.25*boon('reed'))*(has('wren')?2:1);}
     else if(b===B.CLAY){good='clay';rate=2*(deposit[k]?3:1)*(1+.25*boon('clay'))*(has('kiln')?1.25:1);}
@@ -982,7 +1088,7 @@ const talesKnown=id=>{const n=S.codex[id]||0;return TALE_AT.filter(t=>n>=t).leng
 const allTales=()=>SPECIES.reduce((s,sp)=>s+talesKnown(sp.id),0);
 function avgCharm(){if(!villages.length){const lh=linkedHuts();if(!lh.length)return 0;return lh.reduce((s,h)=>s+charm[h.k],0)/lh.length;}return villages.reduce((s,v)=>s+villageCharm(v),0)/villages.length;}
 // pilgrims come to hear the tales at the Tale House, and buy at market stalls
-function pilgrimMult(){return (1+.15*allTales()*(has('pell')?2:1))*(1+avgCharm()/25)*(1+.2*boon('hosts'))*(activeSets.garden?1.15:1);}
+function pilgrimMult(){return (1+.15*allTales()*(has('pell')?2:1))*(1+avgCharm()/25)*(1+.2*boon('hosts'))*(activeSets.garden?1.15:1)*(builds.includes(B.TOWER)?1.1:1);}
 let pilgrimT=4;
 function pilgrimTick(dt){
   pilgrimT-=dt;if(pilgrimT>0)return;
@@ -1097,7 +1203,7 @@ function releaseTally(f,cx,cz){
 /* ================= spawning & giant sightings ================= */
 let spawnTimer=6;
 function spawnTick(dt){
-  spawnTimer-=dt*baitMult()*healthSpawn()*debugSpeed.spawn;if(spawnTimer>0)return;spawnTimer=rand(20,36);
+  spawnTimer-=dt*baitMult()*healthSpawn()*weatherFish()*debugSpeed.spawn;if(spawnTimer>0)return;spawnTimer=rand(20,36);
   const cap=Math.min(20,comps.reduce((s,c)=>s+Math.max(1,Math.floor(c.size/7)),0));
   if(fishes.filter(f=>f.state!=='leave').length>=cap)return;
   const counts={};fishes.forEach(f=>{const c=compAt(f.x,f.z);counts[c]=(counts[c]||0)+1;});
@@ -1157,11 +1263,29 @@ function initSecrets(){
   secrets=makeSecrets(S.seed,pristineTiles()).filter(s=>tiles[s.k]===WILD||S.found.includes(s.k));
   S.drops=(S.drops||[]).filter(d=>tiles[d.k]===WILD&&!S.found.includes(d.k)&&!secrets.some(s=>s.k===d.k));secrets.push(...S.drops);
   for(const s of secrets){secretAt[s.k]=s;if(s.type==='clay')deposit[s.k]=1;}
-  const pt=pristineTiles();oldCh.set(makeChannels(S.seed,pt));wild0=pt.reduce((a,t)=>a+(t===WILD?1:0),0);
+  const pt=pristineTiles();oldCh.set(makeChannels(S.seed,pt,S.legacyCh));wild0=pt.reduce((a,t)=>a+(t===WILD?1:0),0);
   trees.forEach((t,n)=>{if(t.tile>=0&&oldCh[t.tile]&&hash2(n*.37,t.tile*.11)<.7)t.gone=true;}); // the dry beds are only scrub
   for(const s of secrets)if(oldCh[s.k])oldCh[s.k]=0;
+  placeLandmarks();
 }
 let wild0=1;
+/* ---- landmarks you can see before you find them: the Elder Cedar over the canopy, the Lantern Tower's top ---- */
+const landmarkMeshes=new Map();
+function placeLandmarks(){for(const [,m] of landmarkMeshes)scene.remove(m);landmarkMeshes.clear();
+  for(const s of secrets){if(S.found.includes(s.k)||tiles[s.k]!==WILD)continue;const m=props.landmark(s.type,s.k);if(!m)continue;const c=tileC(s.i,s.j);
+    m.position.set(c.x,heightAt(c.x,c.z)-.02,c.z);scene.add(m);landmarkMeshes.set(s.k,m);
+    trees.forEach(t=>{if(Math.hypot(t.x-c.x,t.z-c.z)<(s.type==='tower'?.75:.45))t.gone=true;});}updateTrees();}
+function hideLandmark(k){const m=landmarkMeshes.get(k);if(m){scene.remove(m);landmarkMeshes.delete(k);}}
+// the tower's beam sweeps the valley at dusk and through the night, found or not
+const beamMat=new THREE.MeshBasicMaterial({color:'#ffcf9a',transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false});
+const beam=new THREE.Mesh(new THREE.ConeGeometry(1.1,9,12,1,true).translate(0,-4.5,0).rotateZ(Math.PI/2),beamMat);beam.visible=false;scene.add(beam);
+function updateBeam(dt,t){const tk=builds.indexOf(B.TOWER),s=tk>=0?null:secrets.find(x=>x.type==='tower'&&!S.found.includes(x.k));
+  const k=tk>=0?tk:s?s.k:-1;if(k<0||dusk<.15){beam.visible=false;return;}const c=tileC(k%GW,(k/GW)|0);
+  beam.visible=true;beam.position.set(c.x,heightAt(c.x,c.z)+2.1,c.z);beam.rotation.y=t*.45;beamMat.opacity=clamp((dusk-.15)*.5,0,.22)*(tk>=0?1.3:.8);}
+let bellT=8;
+function bellTick(dt){bellT-=dt;if(bellT>0)return;bellT=rand(26,48);const s=secrets.find(x=>x.type==='temple'&&!S.found.includes(x.k)&&hintVis.has(x.k));
+  const tk=builds.indexOf(B.TEMPLE);const k=s?s.k:tk;if(k<0||!started)return;const c=tileC(k%GW,(k/GW)|0);soundAt('bell',c.x,c.z);
+  for(let n=0;n<8;n++)sparkle(c.x+Math.cos(n/8*6.28)*.6,1.2,c.z+Math.sin(n/8*6.28)*.6,'#ffe9a0');}
 const hintVis=new Set();
 // old chests surface at the forest's edge every few minutes, so there is always something to look for
 function dropChest(){
@@ -1174,8 +1298,9 @@ function dropChest(){
   log('Something glints at the edge of the forest: an old chest, half sunk in the moss. Send a crow, or clear the tile.','gold');return true;}
 function dropTick(dt){S.dropT=(S.dropT||0)+dt;if(S.dropT<(S.dropNext||150))return;S.dropT=0;S.dropNext=200+Math.random()*160;dropChest();}
 function updateHintVis(){
-  hintVis.clear();const R=has('quill')?11:7;
-  for(const s of secrets){if(S.found.includes(s.k)||tiles[s.k]!==WILD)continue;let near=false;
+  hintVis.clear();const R=has('quill')?11:7;const tw=builds.indexOf(B.TOWER);
+  const owl=S.owlUntil&&((S.clock?.day||1)+(S.clock?.t||0))<S.owlUntil;
+  for(const s of secrets){if(S.found.includes(s.k)||tiles[s.k]!==WILD)continue;let near=owl||SECRET_TYPES[s.type].big||(tw>=0&&Math.hypot(s.i-tw%GW,s.j-((tw/GW)|0))<=14);
     for(let b=-R;b<=R&&!near;b++)for(let a=-R;a<=R;a++){const ni=s.i+a,nj=s.j+b;if(inGrid(ni,nj)&&tiles[idx(ni,nj)]!==WILD){near=true;break;}}
     if(near||debugFlags.allHints)hintVis.add(s.k);}
   syncBirds();
@@ -1199,6 +1324,8 @@ function updateHints(dt,t){
   for(const k of hintVis){const s=secretAt[k],c=tileC(s.i,s.j),h=SECRET_TYPES[s.type].hint;
     if(h==='smoke'&&Math.random()<.8)wisps.emit(c.x+rand(-.1,.1),.9,c.z+rand(-.1,.1),'smoke');
     else if(h==='glint'&&Math.random()<(s.type==='chest'?.7:.25))sparkle(c.x+rand(-.3,.3),rand(.6,1.1),c.z+rand(-.3,.3),'#fff0c0');
+    else if(h==='mist'){if(Math.random()<.6)wisps.emit(c.x+rand(-.6,.6),.3+Math.random()*.5,c.z+rand(-.6,.6),'mist');if(Math.random()<.15)sparkle(c.x+rand(-.4,.4),rand(.4,1),c.z+rand(-.4,.4),'#9ff0d0');}
+    else if(h==='bell'){if(Math.random()<.2)sparkle(c.x+rand(-.5,.5),rand(.9,1.5),c.z+rand(-.5,.5),'#ffe9a0');}
     else if(h==='light'){if(Math.random()<.5)sparkle(c.x+rand(-.4,.4),rand(.8,1.4),c.z+rand(-.4,.4),'#ffe9a0');if(Math.random()<.3)wisps.emit(c.x,.9,c.z,'mist');}}
 }
 function revealAt(k){
@@ -1216,9 +1343,15 @@ function revealAt(k){
     chest:()=>{S.drops=(S.drops||[]).filter(d=>d.k!==k);const left=BLUEPRINTS.filter(b=>!unlocked(b.id));
       if(left.length&&Math.random()<.7){const b=left[Math.floor(Math.random()*left.length)];S.unlocked[b.id]=true;renderDrawer();toast('An old chest',`Under the lid, wrapped in oilcloth: drawings for <b>${b.name}</b>. You can build them now.`);}
       else{toast('An old chest','Rope, oilcloth and something heavy inside.');queueCrate({source:'an old chest',kind:'mixed'});}},
+    temple:()=>{builds[k]=B.TEMPLE;toast('The Drowned Temple','Steps worn by water that left long ago, and a bell that still rings when the wind is right. The village hears it, and so do the fish: they take the line <b>15% more often</b> everywhere.');queueCrate({source:'the Drowned Temple',kind:'mixed'});},
+    elder:()=>{builds[k]=B.ELDER;hideLandmark(k);toast('The Elder Cedar','The first tree of the valley. The woodcutters stand under it a long while without speaking. While it stands they cut <b>30% more</b>, everywhere.');},
+    tower:()=>{builds[k]=B.TOWER;hideLandmark(k);toast('The Lantern Tower','A keeper’s tower from the days of the barges. Someone lights it again. Its beam shows what hides in the forest <b>within 14 tiles</b>, and draws more pilgrims down the Way.');},
+    gate:()=>{builds[k]=B.GATE;const v=Math.round(150*(1+S.found.length*.15));earn(v,c.x,c.z);toast('The Sunken Gate',`Two pillars and a lintel, carved with a stag, an owl and a whale, each bigger than the mountains behind them. The giants of the high country will wander past <b>twice as often</b> now. Moss scraped from it sheds <b>${fmt(v)} scales</b>.`);},
     grove:()=>{toast('An old cedar grove','Tall straight trunks. The woodcutters take <b>20 timber</b> from it.');},
   };
-  T[s.type]();if(s.type==='bones'||s.type==='stones'||s.type==='shrine'){buildsChanged();}
+  // the bigger landmarks clear a little ground around themselves
+  if(['temple','tower','gate'].includes(s.type)){for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++){const ni=s.i+a,nj=s.j+b;if(!inGrid(ni,nj))continue;const q=idx(ni,nj);if(tiles[q]===WILD&&!secretAt[q]){tiles[q]=LAND;fellTrees(q);}}worldChanged();}
+  T[s.type]();if(['bones','stones','shrine','temple','elder','tower','gate'].includes(s.type)){buildsChanged();updateHintVis();}
   wishEvent('find');save();
 }
 function toast(title,body){const el=$('toast');el.innerHTML=`<div class="k">Found in the forest</div><h4>${title}</h4><p>${body}</p>`;el.classList.remove('on');void el.offsetWidth;el.classList.add('on');
@@ -1564,7 +1697,7 @@ function updateCamera(dt){
   if(tween){tween.t+=dt/tween.dur;const k=easeInOut(Math.min(1,tween.t));
     view.t.set(lerp(tween.from.x,tween.to.x,k),lerp(tween.from.y,tween.to.y,k),lerp(tween.from.z,tween.to.z,k));view.z=Math.exp(lerp(Math.log(tween.from.zoom),Math.log(tween.to.zoom),k));
     if(tween.t>=1)tween=null;}
-  view.t.x=clamp(view.t.x,-60,60);view.t.z=clamp(view.t.z,-60,46);
+  view.t.x=clamp(view.t.x,-HX-26,HX+26);view.t.z=clamp(view.t.z,-HZ-45,HZ+24);
   const w=innerWidth,h=innerHeight,a=w/h,zz=view.z;
   camera.left=-zz*a/2;camera.right=zz*a/2;camera.top=zz/2;camera.bottom=-zz/2;camera.updateProjectionMatrix();
   camera.position.copy(view.t).addScaledVector(CAM_DIR,200);camera.lookAt(view.t);camera.updateMatrixWorld();
@@ -1586,6 +1719,7 @@ function gatherLamps(){const L=[];const at=(kind,x,z,scale)=>L.push({kind,x,y:he
     else if(b===B.SHOP||b===B.MARKET||b===B.POST)at('shop',c.x,c.z,1+.2*(LVL(k)-1));
     else if(b===B.SHRINE)at('shrine',c.x,c.z);
     else if(b===B.TALEHALL)at('shop',c.x,c.z+.2,1.5+allTales()/24);
+    else if(b===B.TOWER)at('lantern',c.x,c.z,2.4);else if(b===B.TEMPLE)at('shrine',c.x,c.z+.6,1.6);else if(b===B.GATE)at('shrine',c.x,c.z,.7);
     else if(b===B.STATUE&&LVL(k)>=2)at('lantern',c.x,c.z+.3,LVL(k)>=3?.8:.55);
     if(S.meta[k]?.slots?.lamp)at('lamp',c.x+.3,c.z+.3);}
   for(const key of Object.keys(S.corners||{})){const [ci,cj]=key.split(',').map(Number);at(S.corners[key]==='lamp'?'lamp':'lantern',ci-HX,cj-HZ);}
@@ -1601,11 +1735,12 @@ const bloom=makeBloom(renderer),lamps=makeLamps();
 const invPV=new THREE.Matrix4();
 const postMat=new THREE.ShaderMaterial({
   uniforms:{tScene:{value:null},tDepth:{value:null},tBloomA:{value:null},tBloomB:{value:null},uBloom:{value:.3},uInvPV:{value:invPV},
-    uRes:{value:new THREE.Vector2(1,1)},uTime:U.time,uDusk:U.dusk,...lamps.uniforms},
+    uRes:{value:new THREE.Vector2(1,1)},uTime:U.time,uDusk:U.dusk,uMist:{value:0},uGloom:{value:0},uFlash:{value:0},uSnowSky:{value:0},...lamps.uniforms},
   vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`,
   fragmentShader:`uniform sampler2D tScene;uniform sampler2D tDepth;uniform sampler2D tBloomA;uniform sampler2D tBloomB;uniform float uBloom;uniform mat4 uInvPV;
-  uniform vec2 uRes;uniform float uTime;uniform float uDusk;varying vec2 vUv;
+  uniform vec2 uRes;uniform float uTime;uniform float uDusk;uniform float uMist;uniform float uGloom;uniform float uFlash;uniform float uSnowSky;varying vec2 vUv;
   ${LAMP_GLSL}
+  ${NOISE_GLSL}
   vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}
   float bayer4(vec2 p){int x=int(mod(p.x,4.0)),y=int(mod(p.y,4.0));int i=x+y*4;
     float m[16]=float[16](0.,8.,2.,10.,12.,4.,14.,6.,3.,11.,1.,9.,15.,7.,13.,5.);return m[i]/16.0;}
@@ -1617,11 +1752,18 @@ const postMat=new THREE.ShaderMaterial({
     sky=mix(sky,vec3(0.05,0.07,0.15)+vec3(0.35,0.3,0.45)*exp(-length((uv-vec2(0.0,0.92))*vec2(1.3,1.0))*2.6),uDusk*0.85);
     // lamp light: rebuild each pixel's world position from depth and light it from nearby lamps
     vec3 lit=s.rgb;
+    float dep=texture2D(tDepth,uv).r;vec4 wp=uInvPV*vec4(uv*2.0-1.0,dep*2.0-1.0,1.0);wp/=wp.w;
     if(uLampOn>0.001&&a>0.0){
-      float dep=texture2D(tDepth,uv).r;vec4 wp=uInvPV*vec4(uv*2.0-1.0,dep*2.0-1.0,1.0);wp/=wp.w;
       vec3 L=lampLight(wp.xyz,uTime);
       lit=s.rgb*(1.0-0.15*uLampOn)*(1.0+L*2.6)+L*0.05;}
+    // grey weather: a lower, flatter light
+    sky=mix(sky,vec3(0.55,0.6,0.64)*(1.0-uDusk*0.7),uGloom*0.7);sky=mix(sky,vec3(0.86,0.88,0.92)*(1.0-uDusk*0.6),uSnowSky*0.4);
+    lit=mix(lit,vec3(dot(lit,vec3(0.3,0.5,0.2)))*vec3(0.92,0.97,1.02),uGloom*0.35)*(1.0-uGloom*0.18);
     vec3 col=mix(sky,lit,a);
+    // fog: thickest in the low ground and over the water, drifting
+    if(uMist>0.001){float lowg=smoothstep(4.0,-0.6,wp.y)*a+(1.0-a);float drift=vns(wp.xz*0.08+vec2(uTime*0.03,uTime*0.012))*0.5+vns(wp.xz*0.21-uTime*0.02)*0.5;
+      vec3 mc=mix(vec3(0.82,0.84,0.83),vec3(0.16,0.2,0.26),uDusk);col=mix(col,mc,clamp(uMist*(0.25+0.6*lowg)*(0.65+0.6*drift),0.0,0.88));}
+    col+=vec3(0.75,0.82,1.0)*uFlash;
     // bloom: glowing things bleed soft light around them
     col+=(texture2D(tBloomA,uv).rgb*0.7+texture2D(tBloomB,uv).rgb*1.1)*uBloom;
     col=aces(col*1.05);
@@ -1791,6 +1933,8 @@ function rotateAt(k){if(k<0||!inGrid(k%GW,(k/GW)|0))return;const b=builds[k];if(
   S.meta[k]={...(S.meta[k]||{})};S.meta[k].rot=((S.meta[k].rot??-1)+1)%4;village.sync();sfx('pluck');save();}
 function hover(cx,cy){
   lastPtr={x:cx,y:cy};ptrIn=true;
+  {ndc.set(cx/innerWidth*2-1,-(cy/innerHeight)*2+1);ray.setFromCamera(ndc,camera);const gi=giants.pick(ray);
+    if(gi){hoverLoop.visible=false;canvas.style.cursor='pointer';tip.innerHTML=`<div>${GIANTS[gi.kind].name}</div><div class="dim">Click to greet it</div>`;tip.style.display='block';tip.style.left=Math.min(cx,innerWidth-250)+'px';tip.style.top=Math.min(cy,innerHeight-80)+'px';return;}}
   const p=groundAt(cx,cy);if(!p){hoverLoop.visible=false;tip.style.display='none';return;}
   const i=Math.floor(p.x+HX),j=Math.floor(p.z+HZ);
   hovered=cine.fish?null:pickFish(cx,cy);canvas.style.cursor=hovered?'pointer':'crosshair';
@@ -1842,6 +1986,7 @@ function hover(cx,cy){
   if(html){tip.innerHTML=html;tip.style.display='block';tip.style.left=Math.min(cx,innerWidth-250)+'px';tip.style.top=Math.min(cy,innerHeight-80)+'px';}else tip.style.display='none';
 }
 function click(cx,cy){
+  {ndc.set(cx/innerWidth*2-1,-(cy/innerHeight)*2+1);ray.setFromCamera(ndc,camera);const gi=giants.pick(ray);if(gi){giantGift(gi);return;}}
   if(pinned){pinned=null;updateCard();if(tool==='look'&&!selected)return;}
   if(tool==='look'&&!selected){const f=pickFish(cx,cy);if(f){pinned=f;updateCard();return;}}
   const p=groundAt(cx,cy);if(!p)return;const i=Math.floor(p.x+HX),j=Math.floor(p.z+HZ);
@@ -1952,7 +2097,7 @@ function refreshUI(){
   $('rate').textContent=`${r>0?`~${r<10?r.toFixed(1):fmt(r)} scales / min`:'No fish met yet'} · ${sr>0?`~${sr<10?sr.toFixed(1):fmt(sr)} silver / min from trade`:'no trade yet'}`;
   $('housing').textContent=`${fishersState.length} / ${housing()} fishers housed · ${hutCount()} hut${hutCount()>1?'s':''}${lh<hutCount()?` (${lh} on the Way)`:''}`;
   const cal=calendar();$('calY').textContent='Year '+cal.year;$('calS').textContent=cal.season;$('calD').textContent=cal.dom;$('calP').textContent=cal.phase;
-  $('stSub').textContent=(villages[0]?villages[0].name:'A valley on the Pilgrim Way')+' · '+(night>.3?'night falls':cal.phase.toLowerCase());
+  $('stSub').textContent=(villages[0]?villages[0].name:'A valley on the Pilgrim Way')+' · '+(night>.3?'night':cal.phase.toLowerCase())+(S.weather&&S.weather.k!=='clear'?' · '+WEATHER[S.weather.k]:'');
   $('talesN').textContent=String(allTales()).padStart(2,'0');
   {const lk=allTales()+'|'+SPECIES.filter(s=>S.codex[s.id]).length;if(lk!==loreKey){const grew=loreKey&&TALE_STAGES.some(n=>allTales()>=n&&+loreKey.split('|')[0]<n);loreKey=lk;village.sync();
     if(grew&&booted)log('The Tale House grows: there are more tales to tell than it had room for.','gold');}}
@@ -2088,25 +2233,34 @@ function load(){
   try{const d=JSON.parse(raw);if(!d.tiles)return false;
     // 0.1 saves had one currency (silver from selling fish): it becomes scales
     if(d.scales===undefined){d.scales=d.coins||0;d.silver=10;delete d.coins;migrated='0.1';}
-    const oldGrid=d.tiles.length===OLD_GW*OLD_GH;
-    if(!oldGrid&&d.tiles.length!==GW*GH)return false;
-    const rawTiles=d.tiles,rawBuilds=d.builds,rawHV=d.hutVillage||{},rawFishers=d.fishers||[];
+    const old=LEGACY_GRIDS.find(g=>d.tiles.length===g.w*g.h);
+    if(!old&&d.tiles.length!==GW*GH)return false;
+    const rawTiles=d.tiles,rawBuilds=d.builds,rawFishers=d.fishers||[];
     delete d.tiles;delete d.builds;
+    if(old){
+      // an older, smaller valley: re-key everything stored by tile so it lands in the middle of the bigger one
+      const {w,offI,offJ}=old,rk=k=>idx(k%w+offI,((k/w)|0)+offJ),reKey=o=>Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[rk(+k),v]));
+      d.meta=reKey(d.meta);d.hutVillage=reKey(d.hutVillage);d.found=(d.found||[]).map(rk);
+      d.drops=(d.drops||[]).map(x=>({...x,i:x.i+offI,j:x.j+offJ,k:rk(x.k)}));
+      d.jobs=(d.jobs||[]).map(x=>({...x,i:x.i+offI,j:x.j+offJ}));
+      const sh=(key,f)=>Object.fromEntries(Object.entries(d[key]||{}).map(([k,v])=>[f(k),v]));
+      d.corners=sh('corners',k=>{const [ci,cj]=k.split(',').map(Number);return `${ci+offI},${cj+offJ}`;});
+      d.edges=sh('edges',k=>{const [i,j]=k.slice(2).split(',').map(Number);return `${k.slice(0,2)}${i+offI},${j+offJ}`;});
+      d.legacyCh=w===44?offI:(LEGACY_GRIDS[1].offI); // channels keep the 44-wide layout they were dug against
+    }
     for(const key of ['goods','reserve','boons','unlocked','counts','meta','tide'])if(d[key])d[key]={...S[key],...d[key]};
     Object.assign(S,d);
-    if(oldGrid){
-      // 0.2 valley (28×20): lay it into the middle of the bigger valley. Tile centres keep their world position.
-      initTiles();builds.fill(NONE);const hv={};
-      for(let j=0;j<OLD_GH;j++)for(let i=0;i<OLD_GW;i++){const k=idx(i+OLD_OFF_I,j+OLD_OFF_J),o=j*OLD_GW+i;tiles[k]=rawTiles[o];builds[k]=rawBuilds&&rawBuilds.length===rawTiles.length?rawBuilds[o]:NONE;
-        if(rawHV[o])hv[k]=rawHV[o];}
-      S.hutVillage=hv;S.fishers=rawFishers.map(f=>({...f,i:f.i+OLD_OFF_I,j:f.j+OLD_OFF_J}));
+    if(old){const {w,h,offI,offJ}=old;
+      applyMap(S.map);initTiles();builds.fill(NONE); // the new edges follow this valley's own river
+      for(let j=0;j<h;j++)for(let i=0;i<w;i++){const k=idx(i+offI,j+offJ),o=j*w+i;tiles[k]=rawTiles[o];builds[k]=rawBuilds&&rawBuilds.length===rawTiles.length?rawBuilds[o]:NONE;}
+      S.fishers=rawFishers.map(f=>({...f,i:f.i+offI,j:f.j+offJ}));
       if(!rawBuilds||rawBuilds.length!==rawTiles.length){initBuilds();}
-      else{ // the Pilgrim Way now starts further north
-        for(let j=0;j<OLD_OFF_J;j++){const k=idx(WAY_I,j);tiles[k]=LAND;builds[k]=ROAD;}
-        let best=-1,bd=1e9;for(let k=0;k<GW*GH;k++){const i=k%GW,j=(k/GW)|0;if(tiles[k]===LAND&&builds[k]===NONE&&nbLinkStrict(i,j)){const dd=Math.hypot(i-WAY_I,j-OLD_OFF_J-2);if(dd<bd){bd=dd;best=k;}}}
-        if(best>=0)builds[best]=B.POST;}
-      for(let k=0;k<GW*GH;k++)if(builds[k]===HUT)S.meta[k]={style:'thatch'};
-      S.goods.timber+=20;migrated=migrated||'0.2';
+      else{ // the Pilgrim Way now comes down further from the north edge
+        for(let j=0;j<offJ;j++){const k=idx(WAY_I,j);tiles[k]=LAND;builds[k]=ROAD;}
+        if(w===28){let best=-1,bd=1e9;for(let k=0;k<GW*GH;k++){const i=k%GW,j=(k/GW)|0;if(tiles[k]===LAND&&builds[k]===NONE&&nbLinkStrict(i,j)){const dd=Math.hypot(i-WAY_I,j-offJ-2);if(dd<bd){bd=dd;best=k;}}}
+          if(best>=0)builds[best]=B.POST;}}
+      if(w===28){for(let k=0;k<GW*GH;k++)if(builds[k]===HUT)S.meta[k]={style:'thatch'};S.goods.timber+=20;}
+      migrated=migrated||(w===28?'0.2':'grow');
     }else{tiles.set(rawTiles);if(rawBuilds&&rawBuilds.length===GW*GH)builds.set(rawBuilds);else initBuilds();S.fishers=rawFishers;}
     return true;}catch(e){console.error(e);return false;}
 }
@@ -2139,12 +2293,18 @@ function renderDebug(){
   <div class="dg"><span>Give</span><button type="button" data-a="scales">+1k scales</button><button type="button" data-a="silver">+1k silver</button><button type="button" data-a="goods">+100 goods</button><button type="button" data-a="rich">+100k all</button></div>
   <div class="dg"><span>Fish</span><select id="dbgSp">${spOpts}</select><button type="button" data-a="spawn">Spawn</button><button type="button" data-a="meet">Meet all ×12</button></div>
   <div class="dg"><span>Crates</span><button type="button" data-a="crate">Crate</button><button type="button" data-a="hermit">Keeper</button><button type="button" data-a="unlock">Unlock all</button><button type="button" data-a="slot">+1 keeper slot</button><button type="button" data-a="chest">Chest</button></div>
+  <div class="dg"><span>Weather</span>${['clear','rain','storm','fog','snow'].map(k=>`<button type="button" data-w="${k}" aria-pressed="${S.weather?.k===k}">${k}</button>`).join('')}</div>
+  <div class="dg"><span>Season</span>${['Spring','Summer','Autumn','Winter'].map((k,n)=>`<button type="button" data-se="${n}">${k}</button>`).join('')}</div>
+  <div class="dg"><span>Giant</span>${Object.keys(GIANTS).map(k=>`<button type="button" data-g="${k}">${k}</button>`).join('')}</div>
   <div class="dg"><span>World</span><button type="button" data-a="clear">Clear 9×9 at view</button><button type="button" data-a="find">Find all secrets</button><button type="button" data-a="fishers">+6 fishers</button></div>
   <div class="dg"><span>Trade</span><button type="button" data-a="ship">Send vehicles now</button><button type="button" data-a="back">Bring them home</button><button type="button" data-a="wish">Grant wish</button><button type="button" data-a="tide">Tide ×1.5</button><button type="button" data-a="work">Finish all work</button></div>
   <div class="dg">${resetArm?'<span>Wipe this valley?</span><button type="button" data-a="wipe" class="warn">Yes, start over</button><button type="button" data-a="keep">Keep it</button>':'<button type="button" data-a="reset" class="warn">Reset save</button>'}</div>`;
   d.querySelectorAll('[data-clock]').forEach(b=>b.addEventListener('click',()=>{S.clock.t=+b.dataset.clock;}));
   d.querySelectorAll('[data-ts]').forEach(b=>b.addEventListener('click',()=>{timeScale=+b.dataset.ts;renderDebug();}));
   d.querySelectorAll('[data-a]').forEach(b=>b.addEventListener('click',()=>debugAct(b.dataset.a)));
+  d.querySelectorAll('[data-w]').forEach(b=>b.addEventListener('click',()=>{S.weather={k:b.dataset.w,left:600};renderDebug();}));
+  d.querySelectorAll('[data-se]').forEach(b=>b.addEventListener('click',()=>{const day=S.clock.day||1,y=Math.floor((day-1)/28);S.clock.day=y*28+(+b.dataset.se)*7+3;seasonCT=0;if(S.weather?.k==='snow'&&b.dataset.se!=='3')S.weather.left=0;renderDebug();}));
+  d.querySelectorAll('[data-g]').forEach(b=>b.addEventListener('click',()=>{giants.list.forEach(g=>giants.depart(g));const tk=builds.indexOf(B.TOWER);let tower=null;if(tk>=0){const c=tileC(tk%GW,(tk/GW)|0);tower={x:c.x,z:c.z,y:heightAt(c.x,c.z)};}giants.spawn(b.dataset.g,{tower:b.dataset.g==='moth'?tower:null});}));
 }
 let resetArm=false;
 function debugAct(a){
@@ -2206,7 +2366,7 @@ const loaded=load();
 // the valley's shape: saved games keep theirs (old saves the original valley); new games roll one from a seed
 function applyMap(map){if(!map)return;setRiver(map.river);MTS=map.mts;INLET=mouthRows(0);OUTLET=mouthRows(GW-1);}
 function rollMap(seed){let s=seed>>>0||1;const R=()=>(s=(s*1664525+1013904223)>>>0)/4294967296;
-  const mts=[[-44+R()*54,-44+R()*10,28+R()*22,10+R()*5],[-64+R()*14,-24+R()*26,12+R()*12,8+R()*4],[-8+R()*36,-66+R()*12,18+R()*14,11+R()*4],[-60+R()*14,-58+R()*12,12+R()*10,9+R()*3]];
+  const G=GROW*.95,mts=[[-44+R()*54,-44+R()*10,28+R()*22,10+R()*5],[-64+R()*14,-24+R()*26,12+R()*12,8+R()*4],[-8+R()*36,-66+R()*12,18+R()*14,11+R()*4],[-60+R()*14,-58+R()*12,12+R()*10,9+R()*3]].map(([x,z,h,s])=>[x*G,z*G,h,s*1.15]);
   if(R()<.6)mts.push([10+R()*24,-40+R()*8,20+R()*14,9+R()*3]); // sometimes a second peak to the north-east
   return {seed,river:randomRiver(seed),mts};}
 if(loaded)applyMap(S.map);
@@ -2217,8 +2377,8 @@ initSecrets();
 buildTerrain(false);buildStairs();scatterOuter();updateTrees();analyzeWater();computeVillages();computeEconomy();village.sync();trade.sync();trade.topUpOrders();updateHintVis();
 if(loaded&&S.fishers.length){S.fishers.forEach(f=>{if(inGrid(f.i,f.j))makeFisher(f.i,f.j,f.slot,f.c??0);});}
 else{const spot=[];for(let j=0;j<GH;j++)for(let i=0;i<GW;i++)if(standable(i,j)&&builds[idx(i,j)]!==BRIDGE)spot.push([i,j]);
-  spot.sort((a,b)=>Math.hypot(a[0]-WAY_I,a[1]-15)-Math.hypot(b[0]-WAY_I,b[1]-15));
-  const s=spot[0]||[WAY_I,12];makeFisher(s[0],s[1],1,0);}
+  const hut=builds.indexOf(HUT),hj=hut>=0?(hut/GW)|0:GH/2;spot.sort((a,b)=>Math.hypot(a[0]-WAY_I,a[1]-hj-2)-Math.hypot(b[0]-WAY_I,b[1]-hj-2));
+  const s=spot[0]||[WAY_I,GH/2];makeFisher(s[0],s[1],1,0);}
 // a few fish already in the river
 {const main=comps.reduce((a,c)=>c.size>a.size?c:a,comps[0]);if(main){for(let n=0;n<4;n++)spawnFish(n<3?SP.reed:SP.koi,main,{emerge:false});}}
 if(!S.weirGone&&!builds.includes(B.WEIR))placeWeir();
@@ -2295,6 +2455,7 @@ $('enter').addEventListener('click',()=>{started=true;$('intro').classList.add('
   tweenTo({x:0,y:0,z:-2},innerWidth<700?24:32,5.5);
   // a new valley starts with the guided tour; the old opening notes stay for anyone who skips it
   if(!loaded||S.first||S.tourPending){S.first=false;S.tourPending=false;setTimeout(()=>{if(!tour.active)tour.start(TOUR());},5600);}
+  else if(migrated==='grow'){log('The valley has grown on every side. More forest to clear, old landmarks deep in the wood, and the river runs further. Everything you built is where you left it.','gold');}
   else if(migrated==='0.2'){log('The valley has grown. There is more forest to clear, and a trading post by the Pilgrim Way. Pilgrims buy at market stalls now.','gold');}
   else if(migrated)log('The valley has changed: fish are released now, and a village has grown by the Pilgrim Way.','gold');
   else log('Welcome back to the valley.');
@@ -2306,7 +2467,7 @@ const clock=new THREE.Clock();let saveT=0,uiT=0;
 function simStep(dt,t){
   for(const f of fishes.slice()){updateFish(f,dt);updateFight(f,dt);}
   hookTimer+=dt;if(hookTimer>.5){hookTimer=0;hookCheck();}
-  clockTick(dt);spawnTick(dt);if(started)dropTick(dt);pilgrimTick(dt);productionTick(dt);trade.update(dt,t);village.update(dt,t);workTick(dt,t);
+  clockTick(dt);spawnTick(dt);giantTick(dt);if(started)dropTick(dt);pilgrimTick(dt);productionTick(dt);trade.update(dt,t);village.update(dt,t);workTick(dt,t);
 }
 // before the valley is entered, the camera drifts slowly over it
 function menuDrift(){if(started||tween)return;const tt=performance.now()/1000;view.t.x=-13+Math.sin(tt*.045)*5;view.t.z=-24+Math.sin(tt*.031)*2.5;}
@@ -2315,6 +2476,7 @@ function frame(){
   keyPan(dt);menuDrift();updateCamera(dt);
   for(let n=0;n<timeScale;n++)simStep(dt,t+n*dt);
   fishersState.forEach(fs=>updateFisher(fs,dt,t));
+  updateBeam(dt,t);if(started)bellTick(dt);seasonTick(dt);weatherTick(dt,t);wildTick(dt,t);giants.update(dt,t);updateGiantChip();
   updateCine(dt);updateSparkles(dt);updateHeat(dt);updateHints(dt,t);updateDusk(dt);updateFallers(dt);updateCrows(dt,t);
   wisps.update(dt,(innerHeight/PIX)/view.z);
   updateLabels();updateReel(dt);tour.tick();drawPreview();positionPlot();
@@ -2330,4 +2492,4 @@ function frame(){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-if (import.meta.env.DEV) window.__dv={THREE,makeFishMesh,U,groundAt,camera,S,fishes,fishersState,spawnFish,SP,comps:()=>comps,view,tweenTo,startCine,tiles,builds,FLOW,act,worldChanged,buildsChanged,refreshUI,pickFish,toScreen,setTool,hookCheck,trade,secrets:()=>secrets,queueCrate,debugAct,canDo,villages:()=>villages,producers:()=>producers,activeSets:()=>activeSets,setTimeScale:n=>{timeScale=n;},hintVis,newWish,linkedOf,tally,sfx,simStep,jobs,workers,openPlot,snapAt:(p,k)=>snapAt(p,k),actDeco:(t,s)=>actDeco(t,s),corners:()=>S.corners,edges:()=>S.edges};
+if (import.meta.env.DEV) window.__dv={save,wildFx:()=>{wildT=0;},seasonFx:()=>{seasonCT=0;seasonTick(0);},THREE,seasonW,SEASON_U,foliage,makeFishMesh,U,groundAt,camera,giants,wildlife,giantGift,S,fishes,fishersState,spawnFish,SP,comps:()=>comps,view,tweenTo,startCine,tiles,builds,FLOW,act,worldChanged,buildsChanged,refreshUI,pickFish,toScreen,setTool,hookCheck,trade,secrets:()=>secrets,queueCrate,debugAct,canDo,villages:()=>villages,producers:()=>producers,activeSets:()=>activeSets,setTimeScale:n=>{timeScale=n;},hintVis,newWish,linkedOf,tally,sfx,simStep,jobs,workers,openPlot,snapAt:(p,k)=>snapAt(p,k),actDeco:(t,s)=>actDeco(t,s),corners:()=>S.corners,edges:()=>S.edges};
