@@ -100,6 +100,7 @@ function updateTileBars(){
   // workshops, when you are close: a ring at the bench
   if(view.z<42)for(const p of producers){if(p.good!=='craft')continue;const key='w'+p.k;want.add(key);const el=ringEl(key,'carvings');placeRing(el,p.k);
     const g=shopProg.get(p.k)||0;setRing(el,p.stall?1:Math.min(1,g),p.stall?'bad soft':'craft soft',1,p.stall?`Needs ${p.stall}`:`Crafting ${p.making?GOODS[p.making].name.toLowerCase():''}`.trim());}
+  findRings(want);
   for(const [key,el] of tileBars)if(!want.has(key)){el.remove();tileBars.delete(key);}
 }
 

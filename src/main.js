@@ -16,6 +16,7 @@
 // game/economy/trade-secrets.js
 // game/economy/crates.js
 // game/village/village.js
+// game/village/gather.js
 // game/ui/view.js
 // game/ui/input.js
 // game/ui/hud.js

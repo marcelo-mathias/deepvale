@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.13.4 — finds in the forest, and the gatherers who fetch them
+
+**Finds**
+- **Every valley has five finds in the forest,** a little way out from the cleared land: fallen cedars (timber), a red clay seam (clay, near water), a wild reed marsh (reeds, near water) and wild hives (honey, sold to pilgrims for scales).
+- **They are part of the valley from the start.** Each stands in its own small glade so you can see it, and slowly fills up to what it can hold.
+- **A ring over each find** shows how full it is. It's dim until a road reaches it and gold once it does. Hover the ring or the tile for the details.
+
+**Gatherers**
+- **The game never changes the land for you.** Clear a way and lay a road from your huts to a tile beside a find, and gatherers start fetching it.
+- **What they do:** they walk out along the road from the nearest hut, pick up a load (10 timber or reeds, 8 clay, 50 scales of honey), and carry it home with the bundle on their back.
+- **How many:** one gatherer at first, and one more for every 3 huts on the Pilgrim Way, up to 4.
+- **Clearing a find's tile is your choice too:** the crew brings home what was there, and the find is gone.
+- **While you're away,** gatherers keep fetching from every find a road reaches, at the away pace (60%, or 75% with The Night Watch). Finds no road reaches fill up. The letter tells you what they brought home.
+
 ## 0.13.3 — the tapestry at the Tale House
 
 **Threads**

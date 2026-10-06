@@ -185,6 +185,7 @@ function hover(cx,cy){
         if(fishersOn(i,j).length)html+=`<div class="dim">${fishersOn(i,j).length} fisher${fishersOn(i,j).length>1?'s':''} here · click to move one</div>`;}
       else if(fishersOn(i,j).length)html=`<div>${fishersOn(i,j).length} fisher${fishersOn(i,j).length>1?'s':''}</div><div class="dim">Click to move one</div>`;
       else if(b===ROAD)html=`<div>${i===WAY_I&&j===0?'The Pilgrim Way':PAVES[S.meta[k]?.pave||'dirt'].name+' road'}</div>`;
+      else if(t===WILD&&findAt(k)){const f=findAt(k),F=FINDS[f.type];html=`<div>${F.name}</div><div class="dim">${F.line}</div><div class="gold">${fmt(Math.floor(f.stock))} of ${F.cap} ${label(F.good)}</div><div class="dim">${findHome.has(k)?'Gatherers come for it along the road.':'Lay a road from your huts to a tile beside it, and gatherers will fetch it. Clearing it takes what’s there, and it’s gone.'}</div>`;}
       else if(t===WILD&&hintVis.has(k))html=`<div>Forest</div><div class="gold">${SECRET_TYPES[secretAt[k].type].hintTxt}</div><div class="dim">Send a crow to look (Build → Work & trade), or clear it</div>`;
       else if(oldCh[k]&&t!==WATER)html=`<div>The old river bed</div><div class="dim">The river ran here once. Dig it out to bring it back: cheaper than a new channel, and it heals the valley.</div>`;
       else if(t===WILD&&deposit[k])html=`<div>Forest</div><div class="gold">${SECRET_TYPES.clay.hintTxt}</div>`;

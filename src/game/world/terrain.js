@@ -283,7 +283,7 @@ function scatterOuter(){scatterFoothills();let tries=0;
 }
 const m4=new THREE.Matrix4(),q4=new THREE.Quaternion(),s4=new THREE.Vector3(),p4=new THREE.Vector3(),yAxis=new THREE.Vector3(0,1,0);
 function updateTrees(box){ // box: [x0,x1,z0,z1] to touch only the trees inside it
-  trees.forEach((t,k)=>{if(box&&(t.x<box[0]||t.x>box[1]||t.z<box[2]||t.z>box[3]))return;const show=(t.tile<0||tiles[t.tile]===WILD)&&!t.gone;
+  trees.forEach((t,k)=>{if(box&&(t.x<box[0]||t.x>box[1]||t.z<box[2]||t.z>box[3]))return;const show=(t.tile<0||tiles[t.tile]===WILD)&&!t.gone&&!(t.tile>=0&&findAt(t.tile)); // a find stands in its own little glade
     p4.set(t.x,heightAt(t.x,t.z)-.03,t.z);q4.setFromAxisAngle(yAxis,t.r);treeScale(t,show?t.s:0);
     m4.compose(p4,q4,s4);foliage.setMatrixAt(k,m4);trunks.setMatrixAt(k,m4);foliage.setColorAt(k,t.col);});
   foliage.count=trunks.count=trees.length;

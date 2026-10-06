@@ -55,10 +55,10 @@ function offlineGain(ms,jobs=0){
   if(ms<60e3)return;const m=capped/60e3,left=Date.now()-ms;
   const g=Math.floor(incomeRate(left)*m*awayPace());
   const made={};for(const id of ['timber','reeds','clay']){const q=Math.floor(goodRate(id)*m*awayPace());if(q>0){S.goods[id]+=q;made[id]=q;}}
-  const met=offlineMeets(ms,m);
-  if(g<=0&&!Object.keys(made).length&&!met.n&&!jobs)return;
+  const met=offlineMeets(ms,m),fetched=gatherAway(m);
+  if(g<=0&&!Object.keys(made).length&&!met.n&&!jobs&&!Object.keys(fetched).length)return;
   S.scales+=g;S.earned+=g;if(met.n)renderCodex();
-  writeLetter({ms,g,made,met,jobs,cal0,cal1:calendar(),days:(S.clock?.day||1)-day0});
+  writeLetter({ms,g,made,met,jobs,fetched,cal0,cal1:calendar(),days:(S.clock?.day||1)-day0});
 }
 let hiddenAt=0;
 document.addEventListener('visibilitychange',()=>{if(document.hidden){hiddenAt=Date.now();save();}else if(hiddenAt){offlineGain(Date.now()-hiddenAt);hiddenAt=0;refreshUI();}});

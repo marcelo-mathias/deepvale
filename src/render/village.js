@@ -149,6 +149,47 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, deco, meta
     const path = []; for (let k = end; k >= 0; k = prev[k]){ const c = tileC(k % GW, (k / GW) | 0); path.push({ x: c.x, z: c.z, k }); }
     return path.reverse();
   }
+  // road route between two places (each {i,j}): from a road tile next to `from` to one next to `to`, or null
+  function roadBetween(from, to){
+    const prev = new Int32Array(GW*GH).fill(-2), q = [];
+    for (const [a, b] of N4){ const i = from.i+a, j = from.j+b; if (isLinkish(i, j)){ const k = idx(i, j); prev[k] = -1; q.push(k); } }
+    const goal = new Set(); for (const [a, b] of N4) if (inGrid(to.i+a, to.j+b)) goal.add(idx(to.i+a, to.j+b));
+    let end = -1;
+    for (let hq = 0; hq < q.length; hq++){ const k = q[hq]; if (goal.has(k)){ end = k; break; }
+      const i = k % GW, j = (k / GW) | 0;
+      for (const [a, b] of N4){ const ni = i+a, nj = j+b; if (!isLinkish(ni, nj)) continue; const nk = idx(ni, nj); if (prev[nk] !== -2) continue; prev[nk] = k; q.push(nk); } }
+    if (end < 0) return null;
+    const path = []; for (let k = end; k >= 0; k = prev[k]){ const c = tileC(k % GW, (k / GW) | 0); path.push({ x: c.x, z: c.z, k }); }
+    return path.reverse();
+  }
+  // --- gatherers: villagers who walk a road out to a find in the forest, pick up a load, and carry it home
+  const gatherers = [], workM = rimMat({ color: '#7d8f6a' }, '#ffd9a8', 1), bundleG = new THREE.BoxGeometry(.07, .07, .06).translate(0, .15, -.05), bundleMs = {};
+  const bundleM = c => bundleMs[c] ||= rimMat({ color: c }, '#fff0c8', 1);
+  // home and target: {i,j}; col: the bundle's colour; onPick() → load (0 = nothing there); onHome(load) when back
+  function spawnGatherer(home, target, col, onPick, onHome){
+    const road = roadBetween(home, target); if (!road) return false;
+    const hc = tileC(home.i, home.j), tc = tileC(target.i, target.j), j = () => (Math.random() - .5) * .12;
+    const out = [{ x: hc.x, z: hc.z }, ...road.map(s => ({ x: s.x + j(), z: s.z + j() })), { x: tc.x, z: tc.z }];
+    const g = new THREE.Group(); g.add(new THREE.Mesh(pBody, workM), new THREE.Mesh(pHead, skinM), new THREE.Mesh(pHat, hatM));
+    const bundle = new THREE.Mesh(bundleG, bundleM(col)); bundle.visible = false; g.add(bundle);
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; }); root.parent.add(g);
+    gatherers.push({ g, bundle, path: out, back: out.slice().reverse(), seg: 0, u: 0, speed: .34, ph: Math.random() * 6, leg: 'out', wait: 0, load: 0, onPick, onHome, fade: 1 });
+    return true;
+  }
+  function updateGatherers(dt, t){
+    for (const p of gatherers.slice()){
+      if (p.leg === 'pick'){ p.wait -= dt; if (p.wait <= 0){ p.leg = 'back'; p.path = p.back; p.seg = 0; p.u = 0; } continue; }
+      if (p.leg === 'gone'){ p.fade -= dt / .8; p.g.scale.setScalar(Math.max(.001, p.fade)); if (p.fade <= 0){ root.parent.remove(p.g); gatherers.splice(gatherers.indexOf(p), 1); } continue; }
+      const a = p.path[p.seg], b = p.path[p.seg + 1];
+      if (!b){ if (p.leg === 'out'){ p.load = p.onPick ? p.onPick() : 0; p.bundle.visible = p.load > 0; p.leg = 'pick'; p.wait = .9; }
+        else { p.onHome && p.onHome(p.load); p.leg = 'gone'; } continue; }
+      const L = Math.hypot(b.x - a.x, b.z - a.z) || 1e-3; p.u += dt * p.speed * (p.load ? .8 : 1) / L;
+      if (p.u >= 1){ p.u = 0; p.seg++; continue; }
+      const x = a.x + (b.x - a.x) * p.u, z = a.z + (b.z - a.z) * p.u;
+      p.g.position.set(x, yAt(x, z) + Math.abs(Math.sin(t * 7 + p.ph)) * .012, z);
+      p.g.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
+    }
+  }
   function route(target){
     const p = roadPath(target); if (!p) return null;
     const path = p.map(s => ({ ...s, x: s.x + (Math.random() - .5) * .16, z: s.z + (Math.random() - .5) * .16 }));
@@ -177,6 +218,7 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, deco, meta
     return ground; }
   const yAt = walkY;
   function update(dt, t){
+    updateGatherers(dt, t);
     for (const hu of huts){ hu.t -= dt; if (hu.t <= 0){ hu.t = .7 + Math.random() * .6; emit(hu.chim.x, hu.chim.y, hu.chim.z, 'smoke'); } }
     for (const p of pilgrims.slice()){
       const a = p.path[p.seg], b = p.path[p.seg + 1];
@@ -190,5 +232,5 @@ export function makeVillage({ scene, rimMat, heightAt, tiles, builds, deco, meta
     }
   }
   function setNight(n){ winM.emissiveIntensity = 1.4 + 3.2 * n; lampM.emissiveIntensity = 2.5 + 3 * n; }
-  return { setNight, sync, update, spawnPilgrim, roadPath, wayOut, yAt, walkY, axis: bridgeAxis, waterDir, get pilgrimCount(){ return pilgrims.length; } };
+  return { setNight, sync, update, spawnPilgrim, spawnGatherer, roadBetween, get gathererCount(){ return gatherers.length; }, roadPath, wayOut, yAt, walkY, axis: bridgeAxis, waterDir, get pilgrimCount(){ return pilgrims.length; } };
 }

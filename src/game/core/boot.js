@@ -24,7 +24,7 @@ else{const spot=[];for(let j=0;j<GH;j++)for(let i=0;i<GW;i++)if(standable(i,j)&&
 if(!S.weirGone&&!builds.includes(B.WEIR))placeWeir();
 const taleHouseAdded=loaded&&placeTaleHouse();if(taleHouseAdded)buildsChanged();
 migrateDeco();
-computeEconomy();roads.sync();updateLilies();
+computeEconomy();roads.sync();updateLilies();placeFinds();syncFinds();
 booted=true;
 // work that was still going when the valley was closed gets finished while you were away
 let jobsDoneAway=0;if(loaded&&Array.isArray(S.jobs)){const js=S.jobs;S.jobs=[];for(const jb of js){if(inGrid(jb.i,jb.j)){applyJob({...jb,quiet:true});jobsDoneAway++;}}}
@@ -108,7 +108,7 @@ const clock=new THREE.Clock();let saveT=0,uiT=0,crateSkip=0;
 function simStep(dt,t){
   for(const f of fishes.slice()){updateFish(f,dt);updateFight(f,dt);}
   hookTimer+=dt;if(hookTimer>.5){hookTimer=0;hookCheck();}
-  clockTick(dt);spawnTick(dt);giantTick(dt);if(started)dropTick(dt);pilgrimTick(dt);productionTick(dt);trade.update(dt,t);village.update(dt,t);workTick(dt,t);
+  clockTick(dt);spawnTick(dt);giantTick(dt);if(started)dropTick(dt);pilgrimTick(dt);productionTick(dt);trade.update(dt,t);village.update(dt,t);gatherTick(dt);workTick(dt,t);
 }
 // before the valley is entered, the camera drifts slowly over it
 function menuDrift(){if(started||tween)return;const tt=performance.now()/1000;view.t.x=-13+Math.sin(tt*.045)*5;view.t.z=-24+Math.sin(tt*.031)*2.5;}

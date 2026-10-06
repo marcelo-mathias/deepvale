@@ -36,11 +36,12 @@ function writeLetter(d){
   {const T=d.met.tales;if(T.length===1&&T[0].n-T[0].from===1)lines.push({ic:icon('tales'),t:`A new tale of the ${SP[T[0].id].name} is told in the village now (${T[0].n} of 3).`});
    else if(T.length)lines.push({ic:icon('tales'),t:`New tales are told in the village now, of the ${listAnd(T.map(t=>SP[t.id].name))}. Pilgrims will come to hear them.`});}
   for(const [g,q] of Object.entries(d.made))lines.push({ic:emblemMini(g),t:GOOD_LINE[g]?GOOD_LINE[g](q):`${fmt(q)} ${GOODS[g].name.toLowerCase()} were made.`});
+  for(const [type,q] of Object.entries(d.fetched||{})){const F=FINDS[type];lines.push({ic:emblemMini(F.good),t:`Gatherers brought ${fmt(q)} ${label(F.good)} home from ${F.name.replace(/^A /,'the ').replace(/^Wild/,'the wild')}.`});}
   if(linkedOf(B.TALEHALL).length)lines.push({ic:icon('keeper'),t:'Pilgrims came down the Way to hear the tales, and left scales in the box.'});
   if(!lines.length)lines.push({ic:icon('tide'),t:'The river ran on, and the village kept watch.'});
   const k=S.keepers.length?KEEPER[S.keepers[Math.floor(Math.random()*S.keepers.length)]]:null,v=villages[0]?.name||S.valleyName||'the village';
   pendingLetter={from:v,seal:(villages[0]?.name||S.valleyName||'Deepvale')[0],when:`${d.cal1.season}, day ${d.cal1.dom} · you were away ${awayWords(d.ms)}`,lines,sign:k?`${k.name}, for everyone in ${v}`:`Everyone in ${v}`,
-    sums:[...(d.g>0?[['scales',d.g]]:[]),...Object.entries(d.made)]};
+    sums:(()=>{const t={};if(d.g>0)t.scales=d.g;for(const [g,q] of Object.entries(d.made))t[g]=(t[g]||0)+q;for(const [ty,q] of Object.entries(d.fetched||{})){const g=FINDS[ty].good;t[g]=(t[g]||0)+q;}return Object.entries(t);})()};
   if(started)setTimeout(showLetter,600);
 }
 

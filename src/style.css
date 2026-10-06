@@ -347,6 +347,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   font:600 9.5px/13px var(--body);color:var(--txt);text-align:center}
 .tring.wait{color:#f0d6a0} .tring.wait .ti{opacity:.85}
 .tring.bad{color:var(--ember)} .tring.bad .rp{opacity:.35}
+.tring.find{color:#e9c67a;width:34px;height:34px;filter:drop-shadow(0 0 5px rgba(233,198,122,.45))} .tring.find.off{color:rgba(232,226,210,.6)} .tring.find.off .rp{opacity:.5}
 .tring.craft{color:#ffd88a} .tring.soft{width:24px;height:24px;opacity:.9} .tring.soft .ti .ic-svg{width:11px;height:11px}
 .tring.far{width:18px;height:18px} .tring.far .ti,.tring.far .tn{display:none}
 @keyframes tbarIn{from{opacity:0;transform:translate(-50%,-80%)}}
