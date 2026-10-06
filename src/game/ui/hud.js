@@ -143,9 +143,9 @@ function nextGoal(){
 }
 let lastGoal='';
 function refreshUI(){
-  $('scales').textContent=fmt(S.scales);$('silver').textContent=fmt(S.silver);
-  const r=incomeRate(),sr=silverIncomeRate(),lh=linkedHuts().length;
-  $('rate').textContent=`${r>0?`~${r<10?r.toFixed(1):fmt(r)} scales / min`:'No fish met yet'} · ${sr>0?`~${sr<10?sr.toFixed(1):fmt(sr)} silver / min from trade`:'no trade yet'}`;
+  $('scales').textContent=fmt(S.scales);
+  const r=incomeRate(),lh=linkedHuts().length;
+  $('rate').textContent=r>0?`~${r<10?r.toFixed(1):fmt(r)} scales / min`:'No fish met yet';
   $('housing').textContent=`${fishersState.length} / ${housing()} fishers housed · ${hutCount()} hut${hutCount()>1?'s':''}${lh<hutCount()?` (${lh} on the Way)`:''}`;
   const cal=calendar();$('calY').textContent='Year '+cal.year;$('calS').textContent=cal.season;$('calD').textContent=cal.dom;$('calP').textContent=cal.phase;
   $('stSub').textContent=(villages[0]?villages[0].name:'A valley on the Pilgrim Way')+' · '+(night>.3?'night':cal.phase.toLowerCase())+(S.weather&&S.weather.k!=='clear'?' · '+WEATHER[S.weather.k]:'');
@@ -161,7 +161,7 @@ function refreshUI(){
   const g=nextGoal();if(g!==lastGoal){$('goal').innerHTML=`<div class="gl"><span class="gi">${icon('fish')}</span><div class="gt"><b>${nextGoalTitle()}</b><span>${g}</span></div></div>`;lastGoal=g;}
   for(const t of ['clear','dig','hire','hut','road','bridge']){const c=cost[t]();$('c-'+t).textContent=fmt(c);$('tool-'+t).classList.toggle('poor',S[COST[t]]<c);}
   $('cLine').textContent=fmt(cost.line());$('cBait').textContent=fmt(cost.bait());$('lvLine').textContent='Lv '+S.lineLv;$('lvBait').textContent='Lv '+S.baitLv;
-  $('upLine').disabled=S.silver<cost.line();$('upBait').disabled=S.silver<cost.bait();
+  $('upLine').disabled=S.scales<cost.line();$('upBait').disabled=S.scales<cost.bait();
   {const met=SPECIES.filter(s=>S.codex[s.id]).length;$('codexCount').textContent=`${met}/${SPECIES.length}`;$('btnCodex').title=`Codex · ${met} of ${SPECIES.length} fish met`;$('codexDot').hidden=met<=(S.codexSeen||0);}
   const busy=trade.vehicles.filter(v=>v.state!=='load'&&v.state!=='stuck').length;$('tradeN').textContent=`${busy}/${trade.vehicles.length}`;{const hub=tradeHub()>=0,b=$('btnTrade');b.classList.toggle('locked',!hub);b.title=hub?'Open the ledger at the trading post (T)':'Trade is run from a trading post. Build one first';}
   if(!$('trade').hidden)renderTrade();
@@ -179,8 +179,6 @@ function orderHint(o){const g=o.good,nm=GOODS[g].name.toLowerCase();
   {const v=trade.vehicles.find(v=>v.kind===(o.route==='north'?'wagon':'barge'));if(v&&v.state==='load'&&(S.goods[g]||0)>=1&&!trade.plan(v)[g])return `Load the ${nm} at the ${o.route==='north'?'trading post':'jetty'} and press Go.`;}
   return '';}
 function renderOrdersGoal(){const os=[...(S.orders||[]).filter(o=>!o.contract).slice(0,2),...(S.orders||[]).filter(o=>o.contract).slice(0,1)];const h=os.map(o=>{const hint=orderHint(o);return `<div class="gl"><span class="gi">${icon('order')}</span><div class="gt"><b>${o.regionName}</b><span>${o.contract?'Contract: ':''}Send ${fmt(o.qty)} ${GOODS[o.good].name.toLowerCase()} by ${o.route==='north'?'wagon':'barge'}</span>${hint?`<span class="still">${hint}</span>`:''}</div><span class="gn">${fmt(o.got)}/${fmt(o.qty)}</span></div>`;}).join('');if($('goalOrders').innerHTML!==h)$('goalOrders').innerHTML=h;}
-function silverIncomeRate(){const now=Date.now();S.sIncome=S.sIncome.filter(([t])=>now-t<15*60e3);if(!S.sIncome.length)return 0;
-  const span=Math.max(180e3,now-S.sIncome[0][0]);return S.sIncome.reduce((s,[,v])=>s+v,0)/(span/60e3);}
 
 /* ---- the build drawer ---- */
 let drawerTab='work';
@@ -194,7 +192,7 @@ function drawerItems(){
       it.push({tool:'pave',key:'pave:'+id,name:`${pv.name} paving`,desc:lk?'Needs a blueprint.':`Drag along roads. Wagons ×${pv.speed}${pv.charm?', +1 charm':''}.`,lock:lk,cost:pv.cost,on:()=>{S.pave=id;},sel:()=>tool==='pave'&&S.pave===id,swatch:pv.col});}
     return it;}
   const it=[];
-  if(drawerTab==='work')it.push({tool:'scout',key:'scout',name:'Send a crow',desc:'Scouts a spot with a sign above the trees and finds what is there, without cutting the forest.',cost:{silver:10}});
+  if(drawerTab==='work')it.push({tool:'scout',key:'scout',name:'Send a crow',desc:'Scouts a spot with a sign above the trees and finds what is there, without cutting the forest.',cost:{scales:10}});
   if(drawerTab==='decor'){for(const [id,c] of Object.entries(CORNER))it.push({tool:'c:'+id,key:'c'+id,name:c.name,desc:c.lock&&!unlocked(c.lock)?'Needs a blueprint.':`Goes on a corner where tiles meet. +${c.charm} charm to the tiles around it.`,lock:!!(c.lock&&!unlocked(c.lock)),cost:c.cost});
     for(const [id,e] of Object.entries(EDGE))it.push({tool:'e:'+id,key:'e'+id,name:e.name,desc:`Goes on the edge between two tiles. Drag to draw a line. +${e.charm} charm to both tiles.`,cost:e.cost,paint:true});}
   for(const [id,d] of Object.entries(DEFS)){if(d.cat!==drawerTab||id==='lantern'||id==='fence')continue;
@@ -264,8 +262,8 @@ function renderTrade(){
     return `<div class="man${v.state==='stuck'?' bad':''}"><div class="mh"><b>${nm}</b><span class="cap"><i style="width:${(on/cap*100).toFixed(0)}%"></i></span><span class="dim">${on} / ${cap} on board</span></div>
       ${v.state==='stuck'?`<div class="small" style="color:var(--ember)">${vehicleLine(v)}</div>`:''}${rows}
       <div class="mf"><button type="button" class="chip" data-fill="${n}">Load what orders want</button><button type="button" class="chip" data-clear="${n}"${on?'':' disabled'}>Clear</button>
-      <span class="dim small">${on?`worth ~${fmt(value)} silver`:''}</span><button type="button" class="go" data-go="${n}"${on&&v.state!=='stuck'?'':' disabled'}>Go ›</button></div></div>`;}).join('')||'<p class="dim">No trading posts or jetties yet. Build them from Build → Work &amp; trade.</p>';
-  const ord=o=>`<li class="${o.contract?'contract':''}"><div>${o.contract?'<span class="ct">Contract</span> ':''}<b>${o.regionName}</b> wants <b>${fmt(o.qty)} ${GOODS[o.good].name.toLowerCase()}</b> <span class="dim">by ${o.route==='north'?'wagon':'barge'}${o.contract?`, ${o.why}`:''}</span></div><div class="ob"><i style="width:${(o.got/o.qty*100).toFixed(0)}%"></i></div><div class="dim">${fmt(o.got)}/${fmt(o.qty)} · pays +${fmt(o.reward)} silver and a crate${o.contract?' · filled over many trips':''}</div></li>`;
+      <span class="dim small">${on?`worth ~${fmt(value)} scales`:''}</span><button type="button" class="go" data-go="${n}"${on&&v.state!=='stuck'?'':' disabled'}>Go ›</button></div></div>`;}).join('')||'<p class="dim">No trading posts or jetties yet. Build them from Build → Work &amp; trade.</p>';
+  const ord=o=>`<li class="${o.contract?'contract':''}"><div>${o.contract?'<span class="ct">Contract</span> ':''}<b>${o.regionName}</b> wants <b>${fmt(o.qty)} ${GOODS[o.good].name.toLowerCase()}</b> <span class="dim">by ${o.route==='north'?'wagon':'barge'}${o.contract?`, ${o.why}`:''}</span></div><div class="ob"><i style="width:${(o.got/o.qty*100).toFixed(0)}%"></i></div><div class="dim">${fmt(o.got)}/${fmt(o.qty)} · pays +${fmt(o.reward)} scales${o.contract?' and a crate · filled over many trips':''}</div></li>`;
   const os=(S.orders||[]).filter(o=>!o.contract).map(ord).join(''),cs=(S.orders||[]).filter(o=>o.contract).map(ord).join('');
   const html=`<h4>Orders from along the river</h4><ul class="os">${os}</ul>${cs?`<h4>Contracts</h4><ul class="os">${cs}</ul>`:''}
     <h4>Load and send</h4><p class="dim small">Nothing leaves until you say Go. Put on board what the orders need (or anything else to sell), then send it off. The load is remembered for next time.</p>${man}
@@ -273,8 +271,8 @@ function renderTrade(){
   if(html!==lastTradeHTML){lastTradeHTML=html;body.innerHTML=html;}
 }
 $('upLine').title='Crews bring fish in 30% faster per level';$('upBait').title='Rice and song left at the water: fish arrive and take the line 25% more often per level';
-$('upLine').addEventListener('click',()=>{if(spend(cost.line(),'silver')){S.lineLv++;log(`Braided lines, level ${S.lineLv}. Crews bring fish in faster.`);refreshUI();save();}});
-$('upBait').addEventListener('click',()=>{if(spend(cost.bait(),'silver')){S.baitLv++;log(`Offerings, level ${S.baitLv}. Fish come to the banks more often.`);refreshUI();save();}});
+$('upLine').addEventListener('click',()=>{if(spend(cost.line())){S.lineLv++;log(`Braided lines, level ${S.lineLv}. Crews bring fish in faster.`);refreshUI();save();}});
+$('upBait').addEventListener('click',()=>{if(spend(cost.bait())){S.baitLv++;log(`Offerings, level ${S.baitLv}. Fish come to the banks more often.`);refreshUI();save();}});
 function toggleCodex(){const c=$('codex');c.hidden=!c.hidden;if(!c.hidden){renderCodex();S.codexSeen=SPECIES.filter(s=>S.codex[s.id]).length;refreshUI();}}
 $('btnCodex').addEventListener('click',toggleCodex);$('codexClose').addEventListener('click',toggleCodex);
 const regionMap=initMap($('map'));

@@ -75,7 +75,7 @@ function giantTick(dt){if(!started)return;
   S.giantT=(S.giantT??150)-dt*(builds.includes(B.GATE)?2:1);if(S.giantT>0||giants.list.length)return;
   const ok=Object.keys(GIANTS).filter(giantOK);if(!ok.length){S.giantT=30;return;}
   const seen=S.giantsSeen||(S.giantsSeen={});const fresh=ok.filter(k=>!seen[k]);const k=(fresh.length&&Math.random()<.7?fresh:ok)[Math.floor(Math.random()*(fresh.length&&Math.random()<.7?fresh:ok).length)];
-  S.giantT=rand(420,720);giants.spawn(k);log(GIANTS[k].line+' Click it to greet it.','gold');sfx('discover');
+  S.giantT=rand(...PACING.giant);giants.spawn(k);log(GIANTS[k].line+' Click it to greet it.','gold');sfx('discover');
 }
 // a chip at the edge of the screen points to a giant you can't see; click it to look
 const giantChip=document.createElement('button');giantChip.type='button';giantChip.className='gchip';giantChip.hidden=true;document.getElementById('dv').appendChild(giantChip);

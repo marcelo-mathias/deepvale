@@ -9,7 +9,7 @@ function jobDur(jb){const t=jb.tool;if(t==='weir')return 18;if(t==='clear')retur
   const d=DEFS[t.slice(2)];return 4+Math.min(10,((d?.cost?.scales)||10)/8);}
 function queueJob(jb){const k=idx(jb.i,jb.j);Object.assign(jb,{k,prog:0,crew:[]});jb.dur=jobDur(jb);busy.set(k,jb);jobs.push(jb);makeSite(jb);
   if(jb.tool==='clear')jb.treeIdx=trees.map((t,n)=>t.tile===k&&!t.gone?n:-1).filter(n=>n>=0);updateMarks();}
-function cancelJob(k){const jb=busy.get(k);if(!jb)return;for(const [g,v] of Object.entries(jb.cost||{})){if(g==='scales'||g==='silver')S[g]+=v;else S.goods[g]=(S.goods[g]||0)+v;}
+function cancelJob(k){const jb=busy.get(k);if(!jb)return;for(const [g,v] of Object.entries(jb.cost||{})){if(money(g))S.scales+=v;else S.goods[g]=(S.goods[g]||0)+v;}
   endJob(jb);log('Work called off. Everything was given back.');sfx('dig');save();}
 function endJob(jb){busy.delete(jb.k);const n=jobs.indexOf(jb);if(n>=0)jobs.splice(n,1);if(jb.site)scene.remove(jb.site);jb.crew.forEach(w=>{w.job=null;goHome(w);});jb.crew=[];updateMarks();}
 function finishJob(jb){endJob(jb);applyJob(jb);save();}

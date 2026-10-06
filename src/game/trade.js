@@ -1,5 +1,5 @@
 // Trade: every trading post keeps a wagon that rolls up the Pilgrim Way, every jetty keeps a barge that rides the
-// current east. They carry goods out of the valley and come back with silver. Orders from along the river pay extra.
+// current east. They carry goods out of the valley and come back with scales. Orders from along the river pay extra.
 // Nothing leaves on its own: at the post you choose what goes on board (the manifest), check it against the orders,
 // and say Go. The manifest is remembered, so the same run can be sent again.
 import { GW, GH, WATER, WATER_Y, HX, idx, tileC, inGrid, riverZ } from '../world/constants.js';
@@ -141,14 +141,14 @@ export function makeTrade(ctx){
   /* ---------- selling and orders ---------- */
   function sell(v){
     const route = v.kind === 'wagon' ? 'north' : 'east';
-    const lines = []; let silver = 0;
-    for (const g of GOOD_IDS){ const q = v.cargo[g] || 0; if (!q) continue; const p = ctx.price(g, v.kind); silver += q * p; lines.push({ g, q, p }); }
+    const lines = []; let earned = 0;
+    for (const g of GOOD_IDS){ const q = v.cargo[g] || 0; if (!q) continue; const p = ctx.price(g, v.kind); earned += q * p; lines.push({ g, q, p }); }
     const done = [];
     for (const o of S.orders){ if (o.route !== route || o.got >= o.qty) continue; const q = v.cargo[o.good] || 0; if (!q) continue;
       o.got = Math.min(o.qty, o.got + q); if (o.got >= o.qty) done.push(o); }
     let bonus = 0; for (const o of done){ bonus += o.reward; if (o.contract) S.contractsDone = (S.contractsDone || 0) + 1; else S.ordersDone = (S.ordersDone || 0) + 1; }
     S.orders = S.orders.filter(o => o.got < o.qty);
-    return { silver: Math.round(silver), bonus, lines, done, route };
+    return { earned: Math.round(earned), bonus, lines, done, route };
   }
   function newOrder(route, contract){
     const regions = ORDER_REGIONS.filter(r => !route || r.route === route);

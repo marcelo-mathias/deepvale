@@ -2,10 +2,13 @@
 // Costs and actions (clear, dig, build), falling trees, crows, auras and production, valley health, villages and pilgrims.
 // Part of the game's one shared scope: see src/main.js for the order. Names from other parts are in scope here.
 /* ================= economy & rules ================= */
-// scales pay for work on the land and river; silver (from trade) pays fishers and upgrades; goods pay for buildings and leave on wagons and barges
-const COST={scout:'silver',clear:'scales',dig:'scales',hut:'scales',road:'scales',bridge:'scales',hire:'silver',line:'silver',bait:'silver'};
-const cost={clear:()=>Math.round(4*Math.pow(1.025,S.clears)),dig:()=>Math.round(12*Math.pow(1.028,S.digs)),hire:()=>Math.round(15*Math.pow(1.3,S.hires)),
-  hut:()=>Math.round(25*Math.pow(1.3,S.huts)),road:()=>3,bridge:()=>Math.round(30*Math.pow(1.2,S.bridges)),
+// One money: scales. Fish shed them, and trade, markets and the tale box pay in them too. They pay for everything:
+// work on the land and river, buildings, fishers and upgrades. Goods pay for buildings and leave on wagons and barges.
+// (Silver was a second money until 0.13; old saves fold it into scales, and any 'silver' cost left in a save counts as scales.)
+const COST={scout:'scales',clear:'scales',dig:'scales',hut:'scales',road:'scales',bridge:'scales',hire:'scales',line:'scales',bait:'scales'};
+const money=g=>g==='scales'||g==='silver';
+const cost={clear:()=>Math.round(4*Math.pow(1.025,S.clears)),dig:()=>Math.round(12*Math.pow(1.028,S.digs)),hire:()=>Math.round(15*Math.pow(PACING.hireGrow,S.hires)),
+  hut:()=>Math.round(25*Math.pow(PACING.hutGrow,S.huts)),road:()=>3,bridge:()=>Math.round(30*Math.pow(1.2,S.bridges)),
   line:()=>Math.round(60*Math.pow(2.3,S.lineLv)),bait:()=>Math.round(90*Math.pow(2.5,S.baitLv))};
 const has=id=>S.keepers.includes(id);
 const boon=id=>S.boons[id]||0;
@@ -18,19 +21,20 @@ const bAt=(i,j)=>inGrid(i,j)?builds[idx(i,j)]:NONE;
 const nbLink=(i,j)=>[[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>{const t=bAt(i+a,j+b);return t===ROAD||t===BRIDGE;})||(j===0&&i===WAY_I);
 // a fisher can stand on cleared land at the water's edge (if nothing is built there), on a bridge or on a pier
 function standable(i,j){const k=idx(i,j),b=builds[k];if(b===BRIDGE||b===B.PIER)return true;return tiles[k]===LAND&&(b===NONE||b===ROAD||b===B.JETTY)&&nb8(i,j,WATER);}
-const have=g=>g==='scales'||g==='silver'?S[g]:(S.goods[g]||0);
-const label=g=>g==='scales'||g==='silver'?g:GOODS[g].name.toLowerCase();
+const have=g=>money(g)?S.scales:(S.goods[g]||0);
+const label=g=>money(g)?'scales':GOODS[g].name.toLowerCase();
 const afford=c=>Object.entries(c).every(([g,v])=>have(g)>=v);
 function pay(c){const miss=Object.entries(c).find(([g,v])=>have(g)<v);
   if(miss){log(`Not enough ${label(miss[0])}. That needs ${fmt(miss[1])}.`,'warn');sfx('no');return false;}
-  for(const [g,v] of Object.entries(c)){if(g==='scales'||g==='silver')S[g]-=v;else S.goods[g]-=v;}return true;}
-const costHTML=c=>Object.entries(c).map(([g,v])=>`<span class="c ${g} ${have(g)<v?'short':''}">${fmt(v)} ${label(g)}</span>`).join(' ');
+  for(const [g,v] of Object.entries(c)){if(money(g))S.scales-=v;else S.goods[g]-=v;}return true;}
+const costHTML=c=>Object.entries(c).map(([g,v])=>`<span class="c ${money(g)?'scales':g} ${have(g)<v?'short':''}">${fmt(v)} ${label(g)}</span>`).join(' ');
 function buildCost(id){const d=DEFS[id],n=S.counts[id]||0,o={};for(const [g,v] of Object.entries(d.cost||{}))o[g]=Math.max(1,Math.round(v*Math.pow(d.grow||1,n)));return o;}
 const unlocked=id=>!!S.unlocked[id];
 const defLocked=id=>DEFS[id].lock&&!unlocked(id);
-function spend(c,cur='scales'){if(S[cur]<c){log(`Not enough ${cur}. That costs ${fmt(c)}.`,'warn');sfx('no');return false;}S[cur]-=c;return true;}
+function spend(c){if(S.scales<c){log(`Not enough scales. That costs ${fmt(c)}.`,'warn');sfx('no');return false;}S.scales-=c;return true;}
 function earn(v,x,z,popIt=true){S.scales+=v;S.earned+=v;S.income.push([Date.now(),v]);if(x!==undefined&&popIt)popAt(x,z,'+'+fmt(v)+' scales');}
-function earnSilver(v,x,z){v=Math.round(v);if(v<=0)return;S.silver+=v;S.sIncome.push([Date.now(),v]);if(x!==undefined)popAt(x,z,'+'+fmt(v)+' silver','sv');}
+// what trade, markets and the tale box pay: scales, counted with the rest of the valley's income
+function earnTrade(v,x,z){v=Math.round(v);if(v<=0)return;earn(v,x,z);}
 const isLiveK=k=>tiles[k]===WATER&&FLOW.live[k]===1;
 function placeRule(id,i,j){
   const d=DEFS[id],k=idx(i,j),t=tiles[k],b=builds[k];
@@ -101,7 +105,7 @@ function act(tool,i,j,quiet=false){
   const job=JOB_TOOLS(tool)&&!r.restyle;
   if(job){const c=r.cost||(r.c?{[cur]:r.c}:{});if(!pay(c))return false;queueJob({tool,i,j,sp:S.statueSp,style:S.hutStyle,cost:c,quiet});if(tool==='clear'||tool==='dig')themeNote(tool);else sfx('pluck');refreshUI();if(!quiet)save();return true;}
   if(tool==='relocate'){relocate(i,j);setTool('look');}
-  else if(tool==='scout'){if(!spend(r.c,'silver'))return false;sendCrow(k);sfx('pluck');log('A crow lifts off from the village and heads for the trees.');}
+  else if(tool==='scout'){if(!spend(r.c))return false;sendCrow(k);sfx('pluck');log('A crow lifts off from the village and heads for the trees.');}
   else if(tool==='hire'){if(!spend(r.c,cur))return false;makeFisher(i,j,freeSlot(i,j),S.hires+1);S.hires++;log(`A new fisher joins the bank. You have ${fishersState.length} of ${housing()} housed.`);sfx('pluck');wishEvent('hire');}
   else if(tool==='hut'){if(!pay(r.cost))return false;S.meta[k]={...(S.meta[k]||{}),style:S.hutStyle};buildsChanged(false,k);sfx('build');}
   else if(tool.startsWith('b:')){if(!pay(r.cost))return false;applyJob({tool,i,j,sp:S.statueSp,style:S.hutStyle,quiet});}
@@ -286,7 +290,7 @@ function productionTick(dt){
 }
 function craftPuff(k,col){if(!started)return;const c=tileC(k%GW,(k/GW)|0);for(let n=0;n<3;n++)sparkle(c.x+rand(-.15,.15),.3,c.z+rand(-.15,.15),col);}
 function goodRate(g){let r=0;for(const p of producers)if(p.good===g)r+=p.rate;return r;}
-// silver a unit of a good fetches: kind is 'wagon', 'barge' or 'market'
+// scales a unit of a good fetches: kind is 'wagon', 'barge' or 'market'
 function price(g,kind){let p=GOODS[g].price;
   if(!GOODS[g].raw)p*=(1+.15*boon('craft'))*(activeSets.craft?1.2:1);
   if(g==='lanterns'&&has('ysolde'))p*=2;
@@ -341,15 +345,15 @@ function pilgrimTick(dt){
 }
 function marketMult(k){const v=villages.find(v=>v.huts.some(h=>Math.max(Math.abs(h%GW-k%GW),Math.abs(((h/GW)|0)-((k/GW)|0)))<=3));
   return 1.5*[1,1.25,1.5][LVL(k)-1]*(1+charm[k]/30)*(1+(prodBoost[B.MARKET][k]||0))*(v?.harmony?1.2:1)*(activeSets.harmony?1.2:1);}
-// silver a pilgrim leaves in the tale box: more for every tale the house can tell
+// scales a pilgrim leaves in the tale box: more for every tale the house can tell
 const taleGift=k=>(3+.9*allTales())*(1+charm[k]/30)*(1+.2*boon('hosts'));
 function pilgrimArrive(t,pos){
-  if(t.tales){if(builds[t.k]!==B.TALEHALL)return;const c=tileC(t.i,t.j);earnSilver(taleGift(t.k),c.x,c.z);sfx('coins');return;}
+  if(t.tales){if(builds[t.k]!==B.TALEHALL)return;const c=tileC(t.i,t.j);earnTrade(taleGift(t.k),c.x,c.z);sfx('coins');return;}
   if(!t.market||builds[t.k]!==B.MARKET)return;
   const order=['lanterns','carvings','reeds','timber','clay'];
   const g=order.find(g=>S.goods[g]-(S.reserve[g]||0)>=1);if(!g)return;
   const q=Math.min(Math.floor(S.goods[g]-(S.reserve[g]||0)),GOODS[g].raw?3:1+(Math.random()<.3?1:0));
   S.goods[g]-=q;const v=q*price(g,'market')*marketMult(t.k);
-  const c=tileC(t.i,t.j);earnSilver(v,c.x,c.z);sfx('coins');wishEvent('ship',{n:q});
+  const c=tileC(t.i,t.j);earnTrade(v,c.x,c.z);sfx('coins');wishEvent('ship',{n:q});
 }
 

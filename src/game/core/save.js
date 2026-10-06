@@ -7,13 +7,15 @@ let noSave=false;const WIPE_KEY='deepvale-wipe';
 // wiping: drop the save, leave a marker that boot honours even if something saves on the way out, and roll a new valley
 function wipeSave(){noSave=true;try{localStorage.removeItem(SAVE_KEY);}catch(e){}store.set(WIPE_KEY,'1');store.set('deepvale-nextmap',String(1+Math.floor(Math.random()*999999)));location.replace(location.pathname+location.search);}
 function save(){if(noSave||store.get(WIPE_KEY))return;S.jobs=saveJobs();S.t=Date.now();S.tiles=Array.from(tiles);S.builds=Array.from(builds);S.fishers=fishersState.map(f=>({i:f.i,j:f.j,slot:f.slot,c:f.color}));store.set(SAVE_KEY,JSON.stringify(S));}
-let migrated='';
+let migrated='',silverMerged=-1;
 function load(){
   if(store.get(WIPE_KEY)){try{localStorage.removeItem(SAVE_KEY);localStorage.removeItem(WIPE_KEY);}catch(e){}return false;}
   const raw=store.get(SAVE_KEY);if(!raw)return false;
   try{const d=JSON.parse(raw);if(!d.tiles)return false;
     // 0.1 saves had one currency (silver from selling fish): it becomes scales
     if(d.scales===undefined){d.scales=d.coins||0;d.silver=10;delete d.coins;migrated='0.1';}
+    // before 0.13 there were two moneys: silver (trade, tale box, markets) joins the scales, one for one
+    if(d.silver!==undefined){silverMerged=Math.round(d.silver||0);d.scales=(d.scales||0)+silverMerged;d.income=[...(d.income||[]),...(d.sIncome||[])].sort((a,b)=>a[0]-b[0]);delete d.silver;delete d.sIncome;}
     const old=LEGACY_GRIDS.find(g=>d.tiles.length===g.w*g.h);
     if(!old&&d.tiles.length!==GW*GH)return false;
     const rawTiles=d.tiles,rawBuilds=d.builds,rawFishers=d.fishers||[];
@@ -47,11 +49,11 @@ function load(){
 }
 function offlineGain(ms){
   if(ms<60e3)return;const hrs=Math.min(ms,8*3600e3),m=hrs/60e3;
-  const g=Math.floor(incomeRate()*m*.6),sv=Math.floor(silverIncomeRate()*m*.6);
+  const g=Math.floor(incomeRate()*m*.6);
   const made={};for(const id of ['timber','reeds','clay']){const q=Math.floor(goodRate(id)*m*.6);if(q>0){S.goods[id]+=q;made[id]=q;}}
-  if(g<=0&&sv<=0&&!Object.keys(made).length)return;
-  S.scales+=g;S.earned+=g;S.silver+=sv;
-  $('awayV').textContent=[g>0?'+'+fmt(g)+' scales':'',sv>0?'+'+fmt(sv)+' silver':'',...Object.entries(made).map(([id,q])=>'+'+fmt(q)+' '+GOODS[id].name.toLowerCase())].filter(Boolean).join('  ·  ');
+  if(g<=0&&!Object.keys(made).length)return;
+  S.scales+=g;S.earned+=g;
+  $('awayV').textContent=[g>0?'+'+fmt(g)+' scales':'',...Object.entries(made).map(([id,q])=>'+'+fmt(q)+' '+GOODS[id].name.toLowerCase())].filter(Boolean).join('  ·  ');
   const mm=Math.round(m);$('awayD').textContent=`Your crews kept watch for ${mm>=120?Math.round(mm/60)+' hours':mm+' minutes'}, and the wagons kept rolling.`;
   $('away').hidden=false;setTimeout(()=>{$('away').hidden=true;},7000);
 }

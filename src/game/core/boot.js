@@ -70,7 +70,7 @@ function TOUR(){
     {title:`Welcome to ${nm}`,text:'Far below the mountain, a river once ran wide enough for giants. Here every fish is met on a barbless line, and let go. This short tour shows how the valley works.',next:'Show me'},
     {title:'Your first fisher',text:'They wait at the bank and reel in whatever bites, all on their own. You can <b>lend a hand</b>: when a fish is on the line, a ring appears beside it. Press <b>Space</b> or click it as the light crosses the mint arc. If the fish surges and the ring turns ember, let it run.',
       enter(){const f=fisher();if(f)lookAt(f.x,f.z,13);},target(){const f=fisher();return f?spotAt(f.x,f.z,38):null;},round:true},
-    {title:'Scales and silver',text:'Released fish shed <b>scales</b>, which pay for work on the river and the village. <b>Silver</b> comes from pilgrims, market stalls and trade, and pays for fishers and upgrades.',target:()=>document.querySelector('.grp.coins')},
+    {title:'Scales',text:'Released fish shed <b>scales</b>, the valley’s one money. Pilgrims, market stalls and trade pay in scales too. They pay for everything: clearing, digging, building and hiring.',target:()=>document.querySelector('.grp.coins')},
     {title:'Clear some land',text:'The valley is overgrown. Pick <b>Clear land</b> from the bar below, or press <b>1</b>.',target:()=>$('tool-clear'),next:false,wait:()=>tool==='clear'},
     {title:'Pick a patch of forest',text:'Click the glowing patch of forest beside the village, or any other one. Workers walk over with their axes.',next:false,
       enter(){clearK=pickClear();jobsAt=jobs.length;if(clearK>=0){const c=tileC(clearK%GW,(clearK/GW)|0);lookAt(c.x,c.z,12);}},
@@ -80,7 +80,7 @@ function TOUR(){
     {title:'Bring the river back',text:'The river used to be wider, and its old dry beds still show through the trees. <b>Dig water</b> to restore them. Bigger fish only come where wide water flows.',target:()=>$('tool-dig')},
     {title:'More hands on the bank',text:'Larger fish only bite when several fishers wait together. Build <b>huts</b> to house them, then <b>Hire fisher</b> and click a bank tile.',target:()=>unionRect($('tool-hire'),$('tool-hut'))},
     {title:'Everything else',text:'Woodcutters, reed beds, workshops, market stalls, statues and more are in <b>Build</b> (or press <b>B</b>).',target:()=>$('tool-build')},
-    {title:'The Tale House',text:'Pilgrims come down the Way to hear the valley’s tales here, and leave silver in the tale box. Every tale you learn from the fish brings more of them, and the house grows.',
+    {title:'The Tale House',text:'Pilgrims come down the Way to hear the valley’s tales here, and leave scales in the tale box. Every tale you learn from the fish brings more of them, and the house grows.',
       enter(){const k=builds.indexOf(B.TALEHALL);if(k>=0){const c=tileC(k%GW,(k/GW)|0);lookAt(c.x,c.z,12);}},target(){const k=builds.indexOf(B.TALEHALL);return k>=0?tileRect(k):null;}},
     {title:'What to do next',text:'Your next steps are tracked here: the next fish to meet, a wish from the village, and orders from along the river.',enter(){tweenTo({x:0,z:-2},innerWidth<700?24:32,1.6);},target:()=>$('goals')},
     {title:'Menus',text:'<b>Trade</b> takes you to your trading post, where wagons and barges are sent off (click the post itself too), the <b>Codex</b> keeps every fish and its tales, and <b>Settings</b> can replay this tour.',target:()=>document.querySelector('.topnav')},
@@ -99,7 +99,8 @@ $('enter').addEventListener('click',()=>{started=true;$('intro').classList.add('
   else if(migrated==='0.2'){log('The valley has grown. There is more forest to clear, and a trading post by the Pilgrim Way. Pilgrims buy at market stalls now.','gold');}
   else if(migrated)log('The valley has changed: fish are released now, and a village has grown by the Pilgrim Way.','gold');
   else log('Welcome back to the valley.');
-  if(taleHouseAdded)setTimeout(()=>log('The village has built a Tale House by the Way. Pilgrims come to hear the tales there now, and leave silver in the tale box. It grows as you learn more tales.','gold'),1500);
+  if(silverMerged>=0)setTimeout(()=>log(`The valley keeps one purse now: silver and scales are the same money.${silverMerged>0?` Your ${fmt(silverMerged)} silver became scales.`:''}`,'gold'),2500);
+  if(taleHouseAdded)setTimeout(()=>log('The village has built a Tale House by the Way. Pilgrims come to hear the tales there now, and leave scales in the tale box. It grows as you learn more tales.','gold'),1500);
 });
 
 const clock=new THREE.Clock();let saveT=0,uiT=0,crateSkip=0;

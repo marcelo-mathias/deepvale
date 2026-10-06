@@ -175,7 +175,7 @@ function hover(cx,cy){
         if(p)html+=`<div class="dim">${p.good==='craft'?`${p.rate.toFixed(1)} crafts / min`:`${p.rate.toFixed(1)} ${GOODS[p.good].name.toLowerCase()} / min`}</div>`;
         if(b===B.STATUE)html+=`<div class="dim">Nearby, ${STATUE_FX[S.meta[k]?.sp]?.txt||''}</div>`;
         else if(b===B.TALEHALL){const on=linkedOf(B.TALEHALL).some(h=>h.k===k),T=allTales(),nx=[6,12,18,24].find(n=>n>T);
-          html+=`<div class="dim">${T} tale${T===1?'':'s'} told · each pilgrim leaves ~${fmt(taleGift(k))} silver</div>`+(nx?`<div class="dim">Grows again at ${nx} tales</div>`:'')+(on?'':'<div class="bad">Join it to the Pilgrim Way by road so pilgrims can find it</div>');}
+          html+=`<div class="dim">${T} tale${T===1?'':'s'} told · each pilgrim leaves ~${fmt(taleGift(k))} scales</div>`+(nx?`<div class="dim">Grows again at ${nx} tales</div>`:'')+(on?'':'<div class="bad">Join it to the Pilgrim Way by road so pilgrims can find it</div>');}
         else if(b===B.MARKET)html+=`<div class="dim">Prices ×${marketMult(k).toFixed(2)} · charm ${charm[k].toFixed(1)}</div>`;
         else if(b===B.POST||b===B.JETTY){const v=trade.vehicles.find(v=>v.home===k);if(v)html+=`<div class="${v.state==='stuck'?'bad':'dim'}">${vehicleLine(v)}</div>`;}
         else if(!p)html+=`<div class="dim">${d.desc}</div>`;}

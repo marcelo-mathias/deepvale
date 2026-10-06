@@ -11,7 +11,7 @@ function renderDebug(){
   <div class="dg"><span>Clock</span>${[["Dawn",.01],["Midday",.35],["Golden",.55],["Dusk",.7],["Night",.82]].map(([n,v])=>`<button type="button" data-clock="${v}">${n}</button>`).join("")}</div>
   <div class="dg"><span>Time</span>${[1,2,4,8,16].map(n=>`<button type="button" data-ts="${n}" aria-pressed="${timeScale===n}">×${n}</button>`).join('')}</div>
   <div class="dg"><button type="button" data-a="frenzy" aria-pressed="${debugFlags.frenzy}">Fish frenzy</button><button type="button" data-a="hints" aria-pressed="${debugFlags.allHints}">Show all hints</button></div>
-  <div class="dg"><span>Give</span><button type="button" data-a="scales">+1k scales</button><button type="button" data-a="silver">+1k silver</button><button type="button" data-a="goods">+100 goods</button><button type="button" data-a="rich">+100k all</button></div>
+  <div class="dg"><span>Give</span><button type="button" data-a="scales">+1k scales</button><button type="button" data-a="goods">+100 goods</button><button type="button" data-a="rich">+100k all</button></div>
   <div class="dg"><span>Fish</span><select id="dbgSp">${spOpts}</select><button type="button" data-a="spawn">Spawn</button><button type="button" data-a="meet">Meet all ×12</button></div>
   <div class="dg"><span>Crates</span><button type="button" data-a="crate">Crate</button><button type="button" data-a="hermit">Keeper</button><button type="button" data-a="unlock">Unlock all</button><button type="button" data-a="slot">+1 keeper slot</button><button type="button" data-a="chest">Chest</button><button type="button" data-a="treasure">Treasure</button><button type="button" data-a="showcase">One of each</button></div>
   <div class="dg"><span>Weather</span>${['clear','rain','storm','fog','snow'].map(k=>`<button type="button" data-w="${k}" aria-pressed="${S.weather?.k===k}">${k}</button>`).join('')}</div>
@@ -35,9 +35,9 @@ function debugAct(a){
   const main=()=>comps.reduce((x,c)=>c.size>x.size?c:x,comps[0]);
   if(a==='frenzy'){debugFlags.frenzy=!debugFlags.frenzy;debugSpeed.spawn=debugFlags.frenzy?6:1;debugSpeed.reel=debugFlags.frenzy?4:1;}
   if(a==='hints'){debugFlags.allHints=!debugFlags.allHints;updateHintVis();}
-  if(a==='scales')S.scales+=1000;if(a==='silver')S.silver+=1000;
+  if(a==='scales')S.scales+=1000;
   if(a==='goods')for(const g of GOOD_IDS)S.goods[g]+=100;
-  if(a==='rich'){S.scales+=1e5;S.silver+=1e5;for(const g of GOOD_IDS)S.goods[g]+=1e5/10;}
+  if(a==='rich'){S.scales+=2e5;for(const g of GOOD_IDS)S.goods[g]+=1e5/10;}
   if(a==='spawn'){const sp=SP[$('dbgSp').value];const c=comps.filter(c=>c.maxD>=sp.needD).sort((x,y)=>y.size-x.size)[0]||main();if(c){const f=spawnFish(sp,c);if(sp.awe)startCine(f);}}
   if(a==='meet'){for(const sp of SPECIES)S.codex[sp.id]=Math.max(12,S.codex[sp.id]||0);S.statueSp=S.statueSp||'koi';renderCodex();}
   if(a==='chest'&&!dropChest())log('No room for a chest (two are already out, or no forest edge).','warn');
@@ -95,7 +95,7 @@ $('iconSeg').querySelectorAll('[data-icons]').forEach(b=>b.setAttribute('aria-pr
   setToolArt();
   $('upLine').insertAdjacentHTML('afterbegin',`<span class="ti">${icon('line')}</span>`);$('upBait').insertAdjacentHTML('afterbegin',`<span class="ti">${icon('bait')}</span>`);
   for(const [id,n] of [['btnTrade','trade'],['btnCodex','codex'],['btnMap','map'],['btnSettings','settings']])$(id).insertAdjacentHTML('afterbegin',icon(n));
-  $('coinSc').insertAdjacentHTML('afterbegin',icon('scales'));$('coinSv').insertAdjacentHTML('afterbegin',icon('silver'));
+  $('coinSc').insertAdjacentHTML('afterbegin',icon('scales'));
   $('emb').innerHTML=icon('fish','big');$('goalsIc').innerHTML=icon('wish');
   document.querySelectorAll('.tool').forEach(b=>{const k=b.querySelector('kbd');if(k)b.title=`${b.querySelector('.tn').textContent} (${k.textContent})`;});
   $('goals').querySelector('h3').addEventListener('click',()=>{$('goals').classList.toggle('collapsed');store.set('deepvale-goals',$('goals').classList.contains('collapsed')?'1':'');});

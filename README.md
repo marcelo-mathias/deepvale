@@ -28,7 +28,7 @@ In dev builds, press `` ` `` (or F9) for the debug panel: time ×1–16, fish fr
 index.html            HUD markup and page shell
 src/
   main.js             the list of game parts, in the order they run
-  game/core/          setup.js (imports, state, renderer, day clock), save.js (save, load, migration), boot.js (menus, tour, main loop)
+  game/core/          setup.js (imports, state, renderer, day clock, `PACING`: the valley's timers), save.js (save, load, migration), boot.js (menus, tour, main loop)
   game/world/         terrain.js (ground, water surface, trees, flow analysis), nature.js (seasons, weather, wildlife, giants)
   game/fish/          fish.js (fish, fishers, sparkles), hooking.js (bites, the fight, release tally, spawning)
   game/economy/       rules.js (costs, actions, production, health, pilgrims), trade-secrets.js, crates.js (keepers, blessings, wishes)

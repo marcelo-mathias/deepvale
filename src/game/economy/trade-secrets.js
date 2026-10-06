@@ -6,11 +6,13 @@ const trade=makeTrade({scene,props,village,tiles,builds,isLive:k=>isLiveK(k),S,
   capacity:(k,h)=>capacity(k,h),speed:k=>vSpeed(k)*debugSpeed.trade,price:(g,k)=>price(g,k),paveSpeed:k=>PAVES[S.meta[k]?.pave||'dirt'].speed,
   onDepart(v,n){if(!started)return;sfx('cart');S.shipments++;wishEvent('ship',{n});},
   onReturn(v,rep){
-    const total=rep.silver+rep.bonus;const p=v.mesh.position;
-    if(total>0){earnSilver(total,p.x,p.z);sfx('coins');}
+    const total=rep.earned+rep.bonus;const p=v.mesh.position;
+    if(total>0){earnTrade(total,p.x,p.z);sfx('coins');}
     const where=v.kind==='wagon'?'The wagon is back from up the Way':'The barge is back from downriver';
-    log(`${where}: ${rep.lines.map(l=>`${l.q} ${GOODS[l.g].name.toLowerCase()}`).join(', ')} sold for ${fmt(rep.silver)} silver.`,'gold');
-    for(const o of rep.done){log(`${o.regionName} got its ${GOODS[o.good].name.toLowerCase()}. +${fmt(o.reward)} silver, and a crate.`,'gold');queueCrate({source:o.regionName,kind:'mixed'});}
+    log(`${where}: ${rep.lines.map(l=>`${l.q} ${GOODS[l.g].name.toLowerCase()}`).join(', ')} sold for ${fmt(rep.earned)} scales.`,'gold');
+    // a contract always ends in a crate; ordinary orders bring one every PACING.orderCrateEvery orders
+    for(const o of rep.done){const crate=o.contract||((S.orderCrates=(S.orderCrates||0)+1)%PACING.orderCrateEvery===0);
+      log(`${o.regionName} got its ${GOODS[o.good].name.toLowerCase()}. +${fmt(o.reward)} scales${crate?', and a crate':''}.`,'gold');if(crate)queueCrate({source:o.regionName,kind:'mixed'});}
     if(S.shipments===1&&!rep.done.length)queueCrate({source:'your first shipment',kind:'mixed'});
     trade.topUpOrders();refreshUI();save();}});
 
@@ -85,7 +87,7 @@ function dropChest(){
   if(!cand.length)return false;const k=cand[Math.floor(Math.random()*cand.length)];
   const d={type:'chest',i:k%GW,j:(k/GW)|0,k,r:Math.random()};S.drops.push(d);secrets.push(d);secretAt[k]=d;updateHintVis();
   log('Something glints at the edge of the forest: an old chest, half sunk in the moss. Send a crow, or clear the tile.','gold');return true;}
-function dropTick(dt){S.dropT=(S.dropT||0)+dt;if(S.dropT<(S.dropNext||150))return;S.dropT=0;S.dropNext=200+Math.random()*160;dropChest();}
+function dropTick(dt){S.dropT=(S.dropT||0)+dt;if(S.dropT<(S.dropNext||PACING.firstChest))return;S.dropT=0;S.dropNext=rand(...PACING.chest);dropChest();}
 function updateHintVis(){
   hintVis.clear();const R=has('quill')?11:7;const tw=builds.indexOf(B.TOWER);
   const owl=S.owlUntil&&((S.clock?.day||1)+(S.clock?.t||0))<S.owlUntil;

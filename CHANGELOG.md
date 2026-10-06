@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.13.0 — one purse, and an unhurried valley
+
+**Silver and scales are one money now**
+- **Scales pay for everything.** Fish still shed them, and trade, market stalls and the tale box now pay in scales too. Hiring fishers, braided lines, offerings and sending a crow cost scales.
+- **The top bar shows one purse.** The income line is one number: scales a minute from everything.
+- **Crates:** treasure cards no longer offer silver, and an empty crate gives a heap of scales.
+  - Blessings and keepers that touched silver now point at scales.
+  - Sigil tags show each label once (a card that mentions both "scales" and "market" gets one Scales tag).
+- **Old saves:** your silver joins your scales one for one, and the log says how much when you return. Anything left in a save that still asks for silver is paid in scales.
+- A new valley starts with 30 scales (it was 20 scales and 10 silver).
+- The tour, the Tale House, the trading post and the trade ledger all speak of scales.
+
+**An unhurried pace**
+- **Every timer that sets the valley's rhythm lives in one place,** `PACING` in `src/game/core/setup.js`, for tuning:
+  - **Days:** a day is 40 minutes from dawn to dawn (it was 16), so a season is about 4½ hours.
+  - **Wishes:** after one comes true, the village takes 3–5 minutes to think of the next (it was 12 seconds).
+  - **Chests in the forest:** the first after 7 minutes, then one every 10–17 minutes (it was every 3–6).
+  - **Giants:** a visit every 15–25 minutes (it was every 7–12).
+- **Fewer, bigger crates:**
+  - Ordinary orders bring a crate every third time; contracts always bring one.
+  - Treasure cards hold 1.5× more.
+- **Gentler costs:** each new fisher and each new hut costs 22% more than the last (it was 30%), so a long-running village keeps growing instead of hitting a wall. For example, the 11th fisher costs 110 scales instead of 207.
+
 ## 0.12.2 — no more hitch when a crew finishes, and big fish tire on the line
 
 **Smoother work in the valley**

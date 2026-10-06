@@ -40,11 +40,11 @@ import { makeGiants, GIANTS } from './render/giants.js';
 function setSound(on){ setAudio(on); const b=document.getElementById('btnSound'); b.textContent = on ? 'Sound on' : 'Sound off'; b.setAttribute('aria-pressed',on); }
 
 /* ================= state ================= */
-// scales: shed by released fish, pay for river and building work. silver: pilgrims leave it at the Tale House and spend it at markets; trade brings more. It pays fishers and upgrades.
+// scales: the valley's one money. Released fish shed them; trade, market stalls and the tale box pay in them too. They pay for everything.
 // goods: timber, reeds, clay (raw) and carvings, lanterns (crafted). meta: per-tile extras {style, pave, sp}. counts: how many of each build (for costs).
-const S={scales:20,silver:10,tiles:null,builds:null,fishers:[],hires:0,clears:0,digs:0,huts:0,bridges:0,lineLv:0,baitLv:0,codex:{},hutVillage:{},earned:0,income:[],t:Date.now(),first:true,
+const S={scales:30,tiles:null,builds:null,fishers:[],hires:0,clears:0,digs:0,huts:0,bridges:0,lineLv:0,baitLv:0,codex:{},hutVillage:{},earned:0,income:[],t:Date.now(),first:true,
   goods:{timber:10,reeds:0,clay:0,carvings:0,lanterns:0},reserve:{...RESERVE},meta:{},counts:{},keepers:[],boons:{},unlocked:{},seed:0,found:[],deposits:[],
-  orders:[],ordersDone:0,shipments:0,wish:null,wishesDone:0,wishBase:null,tide:{n:0,t:0},sets:{},small:0,sIncome:[],hutStyle:'thatch',pave:'gravel',statueSp:null,crates:0,ship:{},drops:[],dropT:0,v:3};
+  orders:[],ordersDone:0,shipments:0,wish:null,wishesDone:0,wishBase:null,tide:{n:0,t:0},sets:{},small:0,hutStyle:'thatch',pave:'gravel',statueSp:null,crates:0,ship:{},drops:[],dropT:0,v:3};
 let booted=false,timeScale=1;const debugSpeed={reel:1,spawn:1,trade:1,prod:1},debugFlags={frenzy:false,allHints:false};
 const tiles=new Uint8Array(GW*GH);
 const builds=new Uint8Array(GW*GH);
@@ -130,8 +130,22 @@ const hemi=new THREE.HemisphereLight(new THREE.Color('#a6c8d6'),new THREE.Color(
 const giantLight=new THREE.PointLight(new THREE.Color('#ffc861'),0,10,1.4);giantLight.position.set(0,-50,0);scene.add(giantLight);
 const FOG0=new THREE.Color('#d9b995'),NIGHT_FOG=new THREE.Color('#2a3446');
 const DUSK_OF={sturgeon:.45,eel:.7,moon:1,warden:1};let dusk=0,giantDusk=0,duskLvl=0,duskT=0;
-/* ---- the day: dawn, morning, midday, golden hour, dusk, night. One day is 16 minutes of play ---- */
-const DAY_LEN=960;
+/* ---- the pace ----
+   Deepvale is meant to be left running while you do other things, so things come slowly and each one means more.
+   Every timer that sets the rhythm of the valley is here; the crews' own speed is PACE in game/village/village.js. */
+const PACING={
+  day:2400,            // seconds from dawn to dawn: 40 minutes (was 16). A season is 7 days, about 4½ hours
+  wishPause:[180,300], // seconds the village takes to think of its next wish (was 12)
+  firstChest:420,      // seconds before the first chest turns up in the forest (was 150)
+  chest:[600,1000],    // seconds between chests after that (was 200–360)
+  giant:[900,1500],    // seconds between visits from the giants of the high country (was 420–720)
+  orderCrateEvery:3,   // ordinary orders bring a crate every third time; contracts always do (was every order)
+  treasure:1.5,        // treasure cards hold this much more, since crates come less often
+  hireGrow:1.22,       // each fisher costs this much more than the last (was 1.3)
+  hutGrow:1.22,        // each hut costs this much more than the last (was 1.3)
+};
+/* ---- the day: dawn, morning, midday, golden hour, dusk, night. One day is PACING.day seconds of play ---- */
+const DAY_LEN=PACING.day;
 const PHASES=[[0,'Dawn'],[.08,'Morning'],[.3,'Midday'],[.5,'Golden hour'],[.68,'Dusk'],[.78,'Night'],[.97,'Dawn']];
 const SEASONS=['Spring','Summer','Autumn','Winter'];
 const phaseName=t=>{let n='Dawn';for(const [a,b] of PHASES)if(t>=a)n=b;return n;};
