@@ -27,7 +27,13 @@ In dev builds, press `` ` `` (or F9) for the debug panel: time ×1–16, fish fr
 ```
 index.html            HUD markup and page shell
 src/
-  main.js             scene, terrain, fish, fishers, economy, input, UI, save/load
+  main.js             the list of game parts, in the order they run
+  game/core/          setup.js (imports, state, renderer, day clock), save.js (save, load, migration), boot.js (menus, tour, main loop)
+  game/world/         terrain.js (ground, water surface, trees, flow analysis), nature.js (seasons, weather, wildlife, giants)
+  game/fish/          fish.js (fish, fishers, sparkles), hooking.js (bites, the fight, release tally, spawning)
+  game/economy/       rules.js (costs, actions, production, health, pilgrims), trade-secrets.js, crates.js (keepers, blessings, wishes)
+  game/village/       village.js (workers, corner and edge decor, building plots)
+  game/ui/            view.js (camera, post pipeline), input.js, hud.js (labels, rings, drawer, ledger), debug.js
   style.css           HUD styling
   core/utils.js       math, noise and localStorage helpers
   world/constants.js  valley grid, tile types, river course
@@ -48,7 +54,9 @@ scripts/              release helpers
 docs/DESIGN.md        game design notes, economy and roadmap
 ```
 
-`src/main.js` is still one large file carried over from the prototype. Splitting it into terrain, fish, fishers, economy and UI modules is the first item on the roadmap.
+The game code is split by topic under `src/game/`. The parts share one scope, as the single `main.js` used to: `vite.config.js` joins them back together in the order `src/main.js` lists, so a name defined in one part can be used from any other. Errors and breakpoints point at the part they come from. Editing a part reloads the page in dev.
+
+The production build is byte-for-byte the same as it was before the split. The next step, whenever it's useful, is to turn individual parts into real modules with their own imports and exports, one at a time.
 
 ## Controls
 

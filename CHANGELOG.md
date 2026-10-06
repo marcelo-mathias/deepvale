@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.8 — the code, split by topic
+
+- **One file split into parts:** `src/main.js` (about 250 KB) is now 15 parts under `src/game/`, grouped by topic: core, world, fish, economy, village and ui. Each part says at the top what it holds.
+  - **One shared scope:** the parts still run as one module. `vite.config.js` joins them in the order listed in `src/main.js`, so nothing about how the game runs has changed. The production build is byte-for-byte the same as before the split.
+  - **Easier debugging:** errors and breakpoints in the browser point at the part and line they come from.
+  - **Dev reloads:** editing a part reloads the page.
+- The project layout in the README is updated to match.
+
 ## 0.11.7 — keeper swaps you can read, square windows, a reel that heats up
 
 - **Choosing who makes room:** when every keeper's cottage is taken, the crate now shows the newcomer beside everyone who lives in the valley. Each keeper has their portrait, what they do and what it touches. Hover one (or tab to it) and the line underneath spells out the trade: who leaves with what, and who arrives with what. "Make room" swaps them, and you can still thank the newcomer and say no.

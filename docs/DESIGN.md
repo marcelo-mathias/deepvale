@@ -217,7 +217,8 @@ Unlock hooks are written into the map as hints only; nothing gates on them yet.
 
 ## Roadmap
 
-- [ ] Split `src/main.js` into terrain, fish, fishers, economy, input and UI modules
+- [x] Split `src/main.js` into world, fish, village, economy, UI and core parts (one shared scope, stitched in order by `vite.config.js`)
+- [ ] Turn the parts into real modules with explicit imports and exports, one at a time
 - [ ] Balance pass after a real idle session (spawn rate, fight length, costs)
 - [x] Giants are held at the surface and released instead of dissolving into sparkles
 - [ ] Day and night cycle, with the Moonscale Koi only surfacing at night
