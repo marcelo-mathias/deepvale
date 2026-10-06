@@ -20,6 +20,7 @@
 // game/ui/input.js
 // game/ui/hud.js
 // game/ui/letter.js
+// game/ui/tapestry.js
 // game/core/save.js
 // game/ui/debug.js
 // game/core/boot.js

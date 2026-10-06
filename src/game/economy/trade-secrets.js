@@ -12,7 +12,8 @@ const trade=makeTrade({scene,props,village,tiles,builds,isLive:k=>isLiveK(k),S,
     log(`${where}: ${rep.lines.map(l=>`${l.q} ${GOODS[l.g].name.toLowerCase()}`).join(', ')} sold for ${fmt(rep.earned)} scales.`,'gold');
     // a contract always ends in a crate; ordinary orders bring one every PACING.orderCrateEvery orders
     for(const o of rep.done){const crate=o.contract||((S.orderCrates=(S.orderCrates||0)+1)%PACING.orderCrateEvery===0);
-      log(`${o.regionName} got its ${GOODS[o.good].name.toLowerCase()}. +${fmt(o.reward)} scales${crate?', and a crate':''}.`,'gold');if(crate)queueCrate({source:o.regionName,kind:'mixed'});}
+      log(`${o.regionName} got its ${GOODS[o.good].name.toLowerCase()}. +${fmt(o.reward)} scales${crate?', and a crate':''}.`,'gold');if(crate)queueCrate({source:o.regionName,kind:'mixed'});
+      if(o.contract)gainThreads(1,`${o.regionName}’s contract`);}
     if(S.shipments===1&&!rep.done.length)queueCrate({source:'your first shipment',kind:'mixed'});
     trade.topUpOrders();refreshUI();save();}});
 
@@ -134,10 +135,10 @@ function revealAt(k){
     chest:()=>{S.drops=(S.drops||[]).filter(d=>d.k!==k);const left=BLUEPRINTS.filter(b=>!unlocked(b.id));
       if(left.length&&Math.random()<.7){const b=left[Math.floor(Math.random()*left.length)];S.unlocked[b.id]=true;renderDrawer();toast('An old chest',`Under the lid, wrapped in oilcloth: drawings for <b>${b.name}</b>. You can build them now.`);}
       else{toast('An old chest','Rope, oilcloth and something heavy inside.');queueCrate({source:'an old chest',kind:'mixed'});}},
-    temple:()=>{builds[k]=B.TEMPLE;hideLandmark(k);toast('The Drowned Temple','Steps worn by water that left long ago, and a bell that still rings when the wind is right. The village hears it, and so do the fish: they take the line <b>15% more often</b> everywhere.');queueCrate({source:'the Drowned Temple',kind:'mixed'});},
-    elder:()=>{builds[k]=B.ELDER;hideLandmark(k);toast('The Elder Cedar','The first tree of the valley. The woodcutters stand under it a long while without speaking. While it stands they cut <b>30% more</b>, everywhere.');},
-    tower:()=>{builds[k]=B.TOWER;hideLandmark(k);toast('The Lantern Tower','A keeper’s tower from the days of the barges. Someone lights it again. Its beam shows what hides in the forest <b>within 14 tiles</b>, and draws more pilgrims down the Way.');},
-    gate:()=>{builds[k]=B.GATE;hideLandmark(k);const v=Math.round(150*(1+S.found.length*.15));earn(v,c.x,c.z);toast('The Sunken Gate',`Two pillars and a lintel, carved with a stag, an owl and a whale, each bigger than the mountains behind them. The giants of the high country will wander past <b>twice as often</b> now. Moss scraped from it sheds <b>${fmt(v)} scales</b>.`);},
+    temple:()=>{builds[k]=B.TEMPLE;hideLandmark(k);gainThreads(1,'The Drowned Temple was found');toast('The Drowned Temple','Steps worn by water that left long ago, and a bell that still rings when the wind is right. The village hears it, and so do the fish: they take the line <b>15% more often</b> everywhere.');queueCrate({source:'the Drowned Temple',kind:'mixed'});},
+    elder:()=>{builds[k]=B.ELDER;hideLandmark(k);gainThreads(1,'The Elder Cedar was found');toast('The Elder Cedar','The first tree of the valley. The woodcutters stand under it a long while without speaking. While it stands they cut <b>30% more</b>, everywhere.');},
+    tower:()=>{builds[k]=B.TOWER;hideLandmark(k);gainThreads(1,'The Lantern Tower was found');toast('The Lantern Tower','A keeper’s tower from the days of the barges. Someone lights it again. Its beam shows what hides in the forest <b>within 14 tiles</b>, and draws more pilgrims down the Way.');},
+    gate:()=>{builds[k]=B.GATE;hideLandmark(k);gainThreads(1,'The Sunken Gate was found');const v=Math.round(150*(1+S.found.length*.15));earn(v,c.x,c.z);toast('The Sunken Gate',`Two pillars and a lintel, carved with a stag, an owl and a whale, each bigger than the mountains behind them. The giants of the high country will wander past <b>twice as often</b> now. Moss scraped from it sheds <b>${fmt(v)} scales</b>.`);},
     grove:()=>{toast('An old cedar grove','Tall straight trunks. The woodcutters take <b>20 timber</b> from it.');},
   };
   // the bigger landmarks clear a little ground around themselves

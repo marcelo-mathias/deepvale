@@ -29,7 +29,7 @@ booted=true;
 // work that was still going when the valley was closed gets finished while you were away
 let jobsDoneAway=0;if(loaded&&Array.isArray(S.jobs)){const js=S.jobs;S.jobs=[];for(const jb of js){if(inGrid(jb.i,jb.j)){applyJob({...jb,quiet:true});jobsDoneAway++;}}}
 if(loaded)offlineGain(Date.now()-S.t,jobsDoneAway);
-resize();renderCodex();refreshUI();updateMarks();renderKeepers();renderWish();
+initThreads();resize();renderCodex();refreshUI();refreshTapestryHUD();updateMarks();renderKeepers();renderWish();
 if(!S.wish)setTimeout(()=>{if(!S.wish)newWish();},loaded?4000:30000);
 $('reroll').addEventListener('click',wipeSave);
 

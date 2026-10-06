@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.13.3 — the tapestry at the Tale House
+
+**Threads**
+- **Every tale the village learns is now also a thread,** and so is every landmark found in the forest and every contract finished. Threads are the valley's lasting currency.
+- Tales still bring pilgrims as before. Threads are what you spend.
+- **A valley from before** starts with the threads it already earned: one for each tale known, landmark found and contract finished.
+
+**The tapestry**
+- **Opening it:** click **Tales** in the top bar, or click the Tale House and choose **Weave the tapestry**. A gold dot on Tales means you can afford a panel.
+- **The look:** a woven cloth hanging from a wooden rod, with a fringe at the foot. Unwoven panels are a chalk pattern drawn on the cloth; woven ones are sewn in gold running stitch. Weaving one stitches it in from left to right, a stitch at a time, with a chord.
+- **Three rows of four panels.** The first row is open from the start; each later row opens once two panels of the row above are woven. What is woven stays for good.
+
+| Row | Panel | Threads | What it does |
+| --- | --- | --- | --- |
+| 1 | The Long Tide | 1 | A good tide lasts 15 seconds longer |
+| 1 | The Old Plans | 1 | A blueprint you don't have yet, at once |
+| 1 | Deep Carts | 2 | Wagons and barges carry 8 more goods |
+| 1 | The Storyteller | 2 | 15% more pilgrims |
+| 2 | Another Cottage | 3 | Room for one more keeper |
+| 2 | Lofts in Every Hut | 3 | Every hut houses one more fisher |
+| 2 | Heavier Crates | 3 | Treasure cards hold a quarter more |
+| 2 | The Night Watch | 3 | While you're away, the valley keeps 75% of its pace (not 60%) |
+| 3 | A Fourth Card | 5 | Every crate offers one more card |
+| 3 | The Long Night | 4 | The valley keeps going for 12 hours while you're away (not 8) |
+| 3 | The Builders' Guild | 4 | One more builder |
+| 3 | The Warden's Thread | 6 | Every tale draws pilgrims twice as strongly |
+
+**The top bar**
+- **The Tales chip stays visible** (it opens the tapestry). On screens up to 1560px it shows a spool and the number.
+- **Gauge labels** (valley health, tide, builders, fishers) are hidden on screens up to 1600px; each gauge still explains itself on hover. The bar fits on one line from 1280px up.
+
+**Pilgrims**
+- **With no Tale House or market stall on the Pilgrim Way,** pilgrims still come down now and then to look at the village and go on their way (every 20–40 seconds, `wanderers` in `PACING`). They don't leave scales.
+
 ## 0.13.2 — a letter from the village
 
 **Coming back opens a letter**

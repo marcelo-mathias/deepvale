@@ -3,7 +3,7 @@
 // Part of the game's one shared scope: see src/main.js for the order. Names from other parts are in scope here.
 /* ================= workers: every big job is walked to and built by hand ================= */
 const busy=new Map();const jobs=[];const workers=[];
-const builderCount=()=>Math.min(14,2+hutCount());
+const builderCount=()=>Math.min(woven('builders')?15:14,2+hutCount()+(woven('builders')?1:0));
 function nbPending(i,j,kind){return [[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>{if(!inGrid(i+a,j+b))return false;const jb=busy.get(idx(i+a,j+b));return jb&&jb.tool===kind;});}
 function jobDur(jb){const t=jb.tool;if(t==='weir')return 18;if(t==='clear')return 5;if(t==='dig')return 7;if(t==='bridge')return 8;if(t==='hut')return 9;if(t==='upgrade')return 10+LVL(jb.k)*3;
   const d=DEFS[t.slice(2)];return 4+Math.min(10,((d?.cost?.scales)||10)/8);}
@@ -172,6 +172,7 @@ function slotsOf(k){S.meta[k]=S.meta[k]||{};return (S.meta[k].slots||={edges:{}}
 function renderPlot(){
   const k=plotK;if(k<0)return;if(!plottable(k)&&!busy.has(k)){closePlot();return;}
   const el=$('plot'),jb=busy.get(k),sl=S.meta[k]?.slots||{edges:{}},up=upgInfo(k);const canRot=![NONE,ROAD,BRIDGE,B.PIER,B.JETTY,B.WEIR,B.REED,B.FENCE].includes(builds[k]);let h=`<div class="ph"><b>${plotName(k)}</b>${canRot?'<button type="button" class="rot" data-a="rotate" title="Rotate (R)">↻</button>':''}${UPGRADABLE.has(builds[k])?`<span class="lv">Lv ${LVL(k)}</span>`:''}<button type="button" class="x" data-a="close">×</button></div>`;
+  if(builds[k]===B.TALEHALL&&!jb)h+=`<button type="button" class="pu ledger" data-a="tapestry"><span>Weave the tapestry · ${S.threads||0} thread${S.threads===1?'':'s'} to weave</span></button>`;
   if((builds[k]===B.POST||builds[k]===B.JETTY)&&!jb)h+=`<button type="button" class="pu ledger" data-a="ledger"><span>Open the trade ledger · send wagons and barges, fill orders</span></button>`;
   if(movable(k)&&!jb)h+=`<button type="button" class="pu" data-a="move"><span>Move it · pick a new spot (everything on the plot goes with it)</span></button>`;
   if(builds[k]===B.WEIR){h+=`<p class="dim">${DEFS.weir.desc}</p>`;if(!jb)h+=`<button type="button" class="pu" data-a="weir"><span>Take down the weir · valley health +15, more fish come up</span><span class="ic">${costHTML(WEIR_COST)}</span></button>`;}
@@ -196,6 +197,7 @@ const WEIR_COST={scales:150,timber:20};
 function plotAct(a){const k=plotK;if(a==='close'){closePlot();return;}
   if(a==='rotate'){rotateAt(k);return;}
   if(a==='ledger'){toggleTrade(true);return;}
+  if(a==='tapestry'){toggleTapestry(true);return;}
   if(a==='move'){const v=trade.vehicles.find(v=>v.home===k&&v.state!=='load');if(v){log('Wait until the '+(builds[k]===B.POST?'wagon':'barge')+' is home before moving it.','warn');sfx('no');return;}
     closePlot();setTool('relocate');relocK=k;updateMarks();log(`Where should the ${plotName(k).toLowerCase()} go? Click a spot. Esc or right-click to leave it where it is.`);return;}
   if(a==='weir'){if(!pay(WEIR_COST))return;queueJob({tool:'weir',i:k%GW,j:(k/GW)|0,cost:WEIR_COST});renderPlot();refreshUI();save();return;}

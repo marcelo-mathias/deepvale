@@ -16,9 +16,9 @@ function offlineMeets(ms,m){
   const left=Date.now()-ms,recent=(S.meets||[]).filter(([t,id])=>left-t<30*60e3&&S.codex[id]);
   const out={n:0,by:{},tales:[]};if(!recent.length)return out;
   const span=Math.max(5*60e3,left-recent[0][0]),rate=recent.length/(span/60e3);
-  out.n=Math.min(300,Math.floor(rate*m*.6));
+  out.n=Math.min(300,Math.floor(rate*m*awayPace()));
   for(let q=0;q<out.n;q++){const id=recent[Math.floor(Math.random()*recent.length)][1];out.by[id]=(out.by[id]||0)+1;}
-  for(const [id,c] of Object.entries(out.by)){const before=talesKnown(id);S.codex[id]=(S.codex[id]||0)+c;const after=talesKnown(id);if(after>before)out.tales.push({id,from:before,n:after});}
+  for(const [id,c] of Object.entries(out.by)){const before=talesKnown(id);S.codex[id]=(S.codex[id]||0)+c;const after=talesKnown(id);if(after>before){out.tales.push({id,from:before,n:after});gainThreads(after-before);}}
   return out;
 }
 // a small picture for a fish: the codex thumbnail

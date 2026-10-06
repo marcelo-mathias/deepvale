@@ -55,14 +55,14 @@ function updateFight(f,dt){
     log(`${first?'Met':'Released'} ${first?'a '+f.sp.name+' for the first time':'a '+f.sp.name}, and let it go. It shed ${fmt(tl.total)} scales.`,'gold');
     if(first){S.statueSp=S.statueSp||f.sp.id;if(booted)log(`You can carve a statue of the ${f.sp.name} now (Build → Decor).`);}
     wishEvent('meet',{sp:f.sp.id});
-    if(talesKnown(f.sp.id)>before){const n=talesKnown(f.sp.id);log(`A new tale of the ${f.sp.name} is told in the village (${n} of 3). Pilgrims will come to hear it.`,'gold');}
+    if(talesKnown(f.sp.id)>before){const n=talesKnown(f.sp.id);log(`A new tale of the ${f.sp.name} is told in the village (${n} of 3). Pilgrims will come to hear it.`,'gold');gainThreads(n-before,`a tale of the ${f.sp.name}`);}
     sfx(f.sp.awe?'land-big':'land');renderCodex();refreshUI();save();if(first)renderDrawer();
   }
 }
 
 /* ================= the release tally ================= */
 const tally=makeTally(document.getElementById('labels'),sfx);
-function tideWindow(){return (50+15*boon('tide'))*1000;}
+function tideWindow(){return (50+15*boon('tide')+(woven('tide')?15:0))*1000;}
 const TIDE_STEP=.05;
 function tideMult(){return Date.now()-S.tide.t<tideWindow()?1+TIDE_STEP*S.tide.n:1;}
 function releaseTally(f,cx,cz){

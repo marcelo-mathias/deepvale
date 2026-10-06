@@ -808,6 +808,72 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 #toast b{font-weight:500;color:var(--gold2)}
 
 /* while you were away */
+/* the tapestry at the Tale House (game/ui/tapestry.js): a woven cloth on a rod. Unwoven panels are a chalk
+   pattern drawn on the cloth; woven ones are sewn in gold running stitch. Weaving one stitches it in, a stitch at a time */
+.grp.lv{position:relative;cursor:pointer}
+.grp.lv:hover b{color:var(--accent)}
+.grp.lv .dot{position:absolute;top:2px;right:-6px;width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);animation:pipNext 1.6s ease-in-out infinite}
+.grp.lv.pulse{animation:talesPulse .9s ease-out}
+@keyframes talesPulse{30%{transform:scale(1.12);filter:drop-shadow(0 0 8px var(--gold))}}
+#tapestry{--gold-t:#e9c67a;--chalk:rgba(232,226,210,.42);position:absolute;inset:0;z-index:11;display:grid;place-items:center;overflow:auto;
+  background:radial-gradient(80% 70% at 50% 40%,rgba(6,10,9,.55),rgba(4,8,7,.88));animation:ltFade .4s ease both}
+#tapestry .tp-in{position:relative;width:min(900px,calc(100vw - 32px));padding:18px 0 24px;text-align:center}
+#tapestry .tp-in>.close{position:absolute;right:0;top:4px}
+#tapestry .tp-k{font-family:var(--body);font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
+#tapestry h3{margin:2px 0 6px;font-family:var(--serif);font-size:clamp(30px,4vw,44px);font-weight:400;color:#f5ecd9}
+#tapestry .tp-sub{max-width:560px;margin:0 auto;font-size:14px;line-height:1.5;color:var(--mist)}
+#tapestry .tp-spool{display:inline-flex;align-items:center;gap:8px;margin:12px 0 16px;padding:5px 14px 5px 8px;border:1px solid rgba(233,198,122,.35);background:rgba(233,198,122,.06)}
+#tapestry .tp-spool b{font-family:var(--mono);font-size:20px;color:var(--gold-t)}
+#tapestry .tp-spool span{font-size:12px;color:var(--txt-2)}
+/* a spool of gold thread: the tapestry's currency mark */
+.spool{display:inline-block;width:14px;height:16px;flex:none;background:linear-gradient(90deg,#8a6440 0 2px,transparent 2px calc(100% - 2px),#8a6440 calc(100% - 2px)),
+  repeating-linear-gradient(0deg,#e9c67a 0 1px,#b8903e 1px 2px);clip-path:polygon(0 0,100% 0,85% 20%,85% 80%,100% 100%,0 100%,15% 80%,15% 20%)}
+#tapestry .tp-hang{position:relative;margin:0 auto;animation:tpDrop .7s cubic-bezier(.2,.9,.3,1) .05s both}
+@keyframes tpDrop{from{transform:translateY(-30px);opacity:0}}
+#tapestry .tp-rod{position:relative;z-index:2;height:12px;margin:0 -18px;border-radius:6px;background:linear-gradient(180deg,#a47a4a,#5f4128);box-shadow:0 4px 8px rgba(0,0,0,.5)}
+#tapestry .tp-rod::before,#tapestry .tp-rod::after{content:'';position:absolute;top:-4px;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#d8b07a,#7a5432)}
+#tapestry .tp-rod::before{left:-8px} #tapestry .tp-rod::after{right:-8px}
+#tapestry .tp-cloth{position:relative;display:flex;flex-direction:column;gap:14px;margin-top:-4px;padding:24px 22px 20px;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px),repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px),
+    var(--dither) repeat-x 0 0/4px 96px,linear-gradient(180deg,#1d3a3a,#152a2c 60%,#10211f);
+  box-shadow:inset 0 0 0 6px rgba(0,0,0,.18),inset 0 0 0 8px rgba(233,198,122,.25),0 24px 50px rgba(0,0,0,.5)}
+#tapestry .tp-fringe{height:16px;margin:0 6px;background:repeating-linear-gradient(90deg,#c9a45e 0 2px,transparent 2px 6px);-webkit-mask:linear-gradient(180deg,#000,transparent);mask:linear-gradient(180deg,#000,transparent)}
+#tapestry .tp-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;position:relative;padding-top:20px}
+#tapestry .tp-rl{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:10px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--txt-3)}
+#tapestry .tp-rl::after{content:'';flex:1;height:0;border-top:1px dashed rgba(233,198,122,.22)}
+#tapestry .tp-rl em{font-style:normal;letter-spacing:.06em;text-transform:none;color:var(--txt-3);order:2}
+#tapestry .tp-row.shut .tp-rl span{color:var(--txt-3)}
+#tapestry .tp-p{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:178px;padding:14px 10px 12px;cursor:pointer;color:var(--txt);
+  background:rgba(0,0,0,.14);border:2px dashed var(--chalk);transition:border-color .3s,background .3s,transform .2s}
+#tapestry .tp-p .tp-m{display:grid;place-items:center;width:64px;height:64px;color:var(--chalk)}
+#tapestry .tp-p .tp-m .ic-svg{width:56px;height:56px;stroke-width:1.1}
+#tapestry .tp-p .tp-m .ic-svg *{stroke-dasharray:1.2 1.4}
+#tapestry .tp-p b{font-family:var(--serif);font-size:17px;font-weight:400;line-height:1.15;color:#efe6d2}
+#tapestry .tp-p .tp-l{font-size:12px;line-height:1.4;color:var(--mist-2)}
+#tapestry .tp-p .tp-c{margin-top:auto;display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;color:var(--gold-t)}
+#tapestry .tp-p.ready{border-color:rgba(233,198,122,.7);background:rgba(233,198,122,.06);animation:tpReady 2.4s ease-in-out infinite}
+@keyframes tpReady{50%{box-shadow:0 0 18px rgba(233,198,122,.25)}}
+#tapestry .tp-p.ready:hover{transform:translateY(-2px);background:rgba(233,198,122,.1)}
+#tapestry .tp-p.shut{opacity:.4;cursor:not-allowed}
+#tapestry .tp-p:not(.ready):not(.woven):not(.shut){cursor:default}
+#tapestry .tp-p:not(.ready):not(.woven):not(.shut) .tp-c{color:var(--txt-3)}
+/* woven: sewn in gold, the outline in running stitch */
+#tapestry .tp-p.woven{border:2px dashed var(--gold-t);background:radial-gradient(70% 60% at 50% 35%,rgba(233,198,122,.14),transparent 70%),rgba(0,0,0,.1);cursor:default}
+#tapestry .tp-p.woven .tp-m{color:var(--gold-t);filter:drop-shadow(0 1px 0 rgba(0,0,0,.7)) drop-shadow(0 0 6px rgba(233,198,122,.35))}
+#tapestry .tp-p.woven .tp-m .ic-svg{stroke-width:1.6}
+#tapestry .tp-p.woven .tp-m .ic-svg *{stroke-dasharray:2.4 .7}
+#tapestry .tp-p.woven .tp-l{color:var(--mist)}
+#tapestry .tp-p.woven .tp-c{letter-spacing:.14em;text-transform:uppercase;color:var(--gold-t)}
+/* weaving: the motif is sewn in from left to right, a stitch at a time, and the border fills after it */
+#tapestry .tp-p.stitching .tp-m{animation:tpSew 1.1s steps(12) both}
+#tapestry .tp-p.stitching{animation:tpDone .5s ease-out 1.05s both}
+@keyframes tpSew{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+@keyframes tpDone{40%{transform:scale(1.04);box-shadow:0 0 30px rgba(233,198,122,.45)}}
+#tapestry .tp-earn{margin:16px auto 0;max-width:620px;font-size:12.5px;color:var(--txt-3)}
+#tapestry .tp-earn b{font-family:var(--mono);color:var(--gold-t)}
+@media (max-width:760px){#tapestry .tp-row{grid-template-columns:repeat(2,1fr)}}
+@media (prefers-reduced-motion:reduce){#tapestry,#tapestry .tp-hang,#tapestry .tp-p.ready,#tapestry .tp-p.stitching,#tapestry .tp-p.stitching .tp-m{animation:none}}
+
 /* the letter from the village (game/ui/letter.js): cream paper with a dithered grain and a torn foot,
    a red wax seal with the village's initial, lines that write themselves in, then the totals count up */
 #letter{--ink:#2f2418;--ink-2:#6b5a44;--paper:#efe4cb;position:absolute;inset:0;z-index:11;display:grid;place-items:center;
@@ -991,10 +1057,13 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 @keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.45)}100%{transform:scale(1)}}
 
 /* ---------- 8. Responsive ---------- */
-@media (max-width:1560px){ .lv{display:none} }
+/* the Tales chip opens the tapestry, so it stays: tighter on smaller screens, hidden only when the bar is very narrow */
+.lv .spool{display:none}
+@media (max-width:1560px){ .lv span{display:none} .lv .spool{display:inline-block} .lv b{font-size:17px} .pill.meters{column-gap:10px} }
+@media (max-width:900px){ .lv{display:none} }
 @media (max-width:1440px){ .tool,.up{padding:6px 7px 12px;column-gap:6px} .tn{font-size:15px} .toolbar .sep{max-width:28px} }
 @media (max-width:1180px){ .tool .tc.small,.up .tl{display:none} .tool .ti .ic-svg,.up .ti .ic-svg{width:15px;height:15px} .tn{font-size:14px} }
-@media (max-width:1420px){
+@media (max-width:1600px){
   .st-sub,.bar-row .bl{display:none}
   .bar-row{min-width:84px;grid-template-columns:16px 1fr auto}
 }

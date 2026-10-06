@@ -33,7 +33,7 @@ src/
   game/fish/          fish.js (fish, fishers, sparkles), hooking.js (bites, the fight, release tally, spawning)
   game/economy/       rules.js (costs, actions, production, health, pilgrims), trade-secrets.js, crates.js (keepers, blessings, wishes)
   game/village/       village.js (workers, corner and edge decor, building plots)
-  game/ui/            view.js (camera, post pipeline), input.js, hud.js (labels, rings, drawer, ledger), letter.js (the letter from the village when you come back), debug.js
+  game/ui/            view.js (camera, post pipeline), input.js, hud.js (labels, rings, drawer, ledger), letter.js (the letter from the village when you come back), tapestry.js (threads and the tapestry at the Tale House), debug.js
   style.css           HUD styling
   core/utils.js       math, noise and localStorage helpers
   world/constants.js  valley grid, tile types, river course

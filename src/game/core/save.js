@@ -50,11 +50,11 @@ function load(){
 // while you were away (up to 8 hours): the clock turned, crews and producers kept working at 60% of their pace,
 // and the village met fish it already knew. It all goes into a letter (game/ui/letter.js).
 function offlineGain(ms,jobs=0){
-  const capped=Math.min(Math.max(0,ms),8*3600e3),cal0=calendar(),day0=S.clock?.day||1;
+  const capped=Math.min(Math.max(0,ms),awayCap()),cal0=calendar(),day0=S.clock?.day||1;
   if(S.clock&&capped>0){S.clock.t+=capped/1000/DAY_LEN;S.clock.day+=Math.floor(S.clock.t);S.clock.t%=1;}
   if(ms<60e3)return;const m=capped/60e3,left=Date.now()-ms;
-  const g=Math.floor(incomeRate(left)*m*.6);
-  const made={};for(const id of ['timber','reeds','clay']){const q=Math.floor(goodRate(id)*m*.6);if(q>0){S.goods[id]+=q;made[id]=q;}}
+  const g=Math.floor(incomeRate(left)*m*awayPace());
+  const made={};for(const id of ['timber','reeds','clay']){const q=Math.floor(goodRate(id)*m*awayPace());if(q>0){S.goods[id]+=q;made[id]=q;}}
   const met=offlineMeets(ms,m);
   if(g<=0&&!Object.keys(made).length&&!met.n&&!jobs)return;
   S.scales+=g;S.earned+=g;if(met.n)renderCodex();

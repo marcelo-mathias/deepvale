@@ -143,6 +143,7 @@ const PACING={
   treasure:1.5,        // treasure cards hold this much more, since crates come less often
   hireGrow:1.22,       // each fisher costs this much more than the last (was 1.3)
   hutGrow:1.22,        // each hut costs this much more than the last (was 1.3)
+  wanderers:[20,40],   // seconds between pilgrims who only come to look, when no Tale House or market stall is on the Way
 };
 /* ---- the day: dawn, morning, midday, golden hour, dusk, night. One day is PACING.day seconds of play ---- */
 const DAY_LEN=PACING.day;

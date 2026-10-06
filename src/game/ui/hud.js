@@ -170,6 +170,7 @@ function refreshUI(){
   const busy=trade.vehicles.filter(v=>v.state!=='load'&&v.state!=='stuck').length;$('tradeN').textContent=`${busy}/${trade.vehicles.length}`;{const hub=tradeHub()>=0,b=$('btnTrade');b.classList.toggle('locked',!hub);b.title=hub?'Open the ledger at the trading post (T)':'Trade is run from a trading post. Build one first';}
   if(!$('trade').hidden)renderTrade();
   if(!$('drawer').hidden)updateDrawerCosts();
+  refreshTapestryHUD();
 }
 function barRow(ic,label,val,frac,col){return `<span class="bi" style="color:${col}">${icon(ic)}</span><span class="bl">${label}</span><span class="bv">${val}</span><span class="bt"><i style="width:${(clamp(frac,0,1)*100).toFixed(0)}%;background:${col}"></i></span>`;}
 // the one next step that stands between the player and an order

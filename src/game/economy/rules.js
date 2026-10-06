@@ -15,7 +15,7 @@ const lineMult=()=>(1+.3*S.lineLv)*(1+.15*boon('hands')),baitMult=()=>(1+.25*S.b
 const hutCount=()=>{let n=0;for(let k=0;k<GW*GH;k++)if(builds[k]===HUT)n++;return n;};
 const LVL=k=>S.meta[k]?.lvl||1;
 const HUT_BONUS=[0,2,5];
-const housing=()=>{let n=0;for(let k=0;k<GW*GH;k++)if(builds[k]===HUT)n+=HOUSING+HUT_BONUS[LVL(k)-1];return n;};
+const housing=()=>{let n=0;for(let k=0;k<GW*GH;k++)if(builds[k]===HUT)n+=HOUSING+HUT_BONUS[LVL(k)-1]+(woven('lofts')?1:0);return n;};
 const bAt=(i,j)=>inGrid(i,j)?builds[idx(i,j)]:NONE;
 const nbLink=(i,j)=>[[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>{const t=bAt(i+a,j+b);return t===ROAD||t===BRIDGE;})||(j===0&&i===WAY_I);
 // a fisher can stand on cleared land at the water's edge (if nothing is built there), on a bridge or on a pier
@@ -295,7 +295,7 @@ function price(g,kind){let p=GOODS[g].price;
   if(g==='lanterns'&&has('ysolde'))p*=2;
   if(kind==='barge')p*=1.25*(has('ferry')?1.3:1)*(activeSets.harbor?1.25:1);
   return p;}
-const capacity=(kind,home)=>Math.round(((kind==='wagon'?16:30)+8*boon('pockets'))*(kind==='wagon'&&has('carter')?1.5:1)*(home!==undefined?[1,1.5,2][LVL(home)-1]:1));
+const capacity=(kind,home)=>Math.round(((kind==='wagon'?16:30)+8*boon('pockets')+(woven('wagons')?8:0))*(kind==='wagon'&&has('carter')?1.5:1)*(home!==undefined?[1,1.5,2][LVL(home)-1]:1));
 const vSpeed=kind=>(1+.15*boon('wheels'))*(kind==='wagon'&&has('carter')?1.25:1);
 
 /* ================= villages & pilgrims ================= */
@@ -332,13 +332,16 @@ const talesKnown=id=>{const n=S.codex[id]||0;return TALE_AT.filter(t=>n>=t).leng
 const allTales=()=>SPECIES.reduce((s,sp)=>s+talesKnown(sp.id),0);
 function avgCharm(){if(!villages.length){const lh=linkedHuts();if(!lh.length)return 0;return lh.reduce((s,h)=>s+charm[h.k],0)/lh.length;}return villages.reduce((s,v)=>s+villageCharm(v),0)/villages.length;}
 // pilgrims come to hear the tales at the Tale House, and buy at market stalls
-function pilgrimMult(){return (1+.15*allTales()*(has('pell')?2:1))*(1+avgCharm()/25)*(1+.2*boon('hosts'))*(activeSets.garden?1.15:1)*(builds.includes(B.TOWER)?1.1:1);}
+function pilgrimMult(){return (woven('pilgrims')?1.15:1)*(1+.15*allTales()*(has('pell')?2:1)*(woven('warden')?2:1))*(1+avgCharm()/25)*(1+.2*boon('hosts'))*(activeSets.garden?1.15:1)*(builds.includes(B.TOWER)?1.1:1);}
 let pilgrimT=4;
 function pilgrimTick(dt){
   pilgrimT-=dt;if(pilgrimT>0)return;
   const th=linkedOf(B.TALEHALL),mk=linkedOf(B.MARKET);const n=th.length*2+mk.length;
-  pilgrimT=n?rand(9,16)/Math.sqrt(n)/pilgrimMult():5;
-  if(!started||!n)return;
+  // with nowhere to leave scales (no Tale House or market stall on the Way), pilgrims still come down now and then
+  // to look at the village, and go on their way: the valley shouldn't feel empty
+  if(!n){pilgrimT=rand(...PACING.wanderers);const hs=linkedHuts();if(started&&hs.length)village.spawnPilgrim(hs,null);return;}
+  pilgrimT=rand(9,16)/Math.sqrt(n)/pilgrimMult();
+  if(!started)return;
   const toMarket=mk.length&&(Math.random()<.55||!th.length);
   village.spawnPilgrim(toMarket?mk.map(m=>({...m,market:true})):th.map(m=>({...m,tales:true})),pilgrimArrive);
 }

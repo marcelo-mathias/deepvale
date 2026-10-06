@@ -2,7 +2,7 @@
 // Keepers, blessings and crates, village wishes, named sets.
 // Part of the game's one shared scope: see src/main.js for the order. Names from other parts are in scope here.
 /* ================= keepers, boons, crates ================= */
-const keeperSlots=()=>2+builds.reduce((s,b)=>s+(b===B.STONES?1:0),0);
+const keeperSlots=()=>2+builds.reduce((s,b)=>s+(b===B.STONES?1:0),0)+(woven('cottage')?1:0);
 const crateQ=[];let crateOpen=null;
 // tackle: braided lines and offerings used to be bought on the toolbar; now they come in crates, a level at a time.
 // The levels live where they always did (S.lineLv, S.baitLv), so a save keeps what it bought.
@@ -16,7 +16,7 @@ function crateCards(kind){
     return [{type:'boon',id:b.id,name:b.name,desc:b.desc},{type:'keeper',id:k.id,name:k.name,desc:k.desc,glyph:k.glyph},{type:'blueprint',id:p.id,name:p.name,desc:bpDesc(p)},
       {type:'tackle',id:t,name:TACKLE[t].name,desc:TACKLE[t].d},coinCard()];}
   if(kind==='treasure')return Object.keys(COINS).sort(()=>Math.random()-.5).slice(0,3).map(id=>coinCard(id));
-  const n=has('quill')?4:3;const out=[];const used=new Set();
+  const n=3+(has('quill')?1:0)+(woven('fourth')?1:0);const out=[];const used=new Set();
   const pools={
     keeper:()=>KEEPERS.filter(k=>!S.keepers.includes(k.id)&&!used.has('k'+k.id)).map(k=>({type:'keeper',id:k.id,name:k.name,desc:k.desc,glyph:k.glyph})),
     boon:()=>BOONS.filter(b=>boon(b.id)<b.max&&!used.has('b'+b.id)).map(b=>({type:'boon',id:b.id,name:b.name,desc:b.desc+(boon(b.id)?` (you have ${boon(b.id)})`:'')})),
@@ -38,7 +38,7 @@ function crateCards(kind){
 const COINS={scales:{n:'A shoal’s worth of scales',a:c=>Math.round(120*(1+c*.25))},
   timber:{n:'A raft of timber',a:c=>20+6*c},reeds:{n:'A bundle of reeds',a:c=>20+6*c},clay:{n:'A cart of clay',a:c=>16+5*c},
   lanterns:{n:'A box of lanterns',a:c=>4+c},carvings:{n:'A chest of carvings',a:c=>4+c}};
-function coinCard(id){if(id==='silver')id='scales';const ids=Object.keys(COINS);id=id||ids[Math.floor(Math.random()*ids.length)];const amt=Math.round(COINS[id].a(S.crates)*PACING.treasure);
+function coinCard(id){if(id==='silver')id='scales';const ids=Object.keys(COINS);id=id||ids[Math.floor(Math.random()*ids.length)];const amt=Math.round(COINS[id].a(S.crates)*PACING.treasure*(woven('treasure')?1.25:1));
   return {type:'coin',id,name:COINS[id].n,amt,desc:`+${fmt(amt)} ${label(id)}.`};}
 // what a card shows besides its name: the change it makes, what it touches, and a live line about your valley
 const BOON_UI={

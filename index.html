@@ -23,7 +23,7 @@
         <div class="st-h"><button type="button" class="st-n" id="valleyTitle" title="Rename your valley">Deepvale</button><span class="st-sub" id="stSub">A valley on the Pilgrim Way</span></div>
       </div>
       <div class="grp coins"><span class="coin sc" id="coinSc"><b id="scales">0</b><em>scales</em><span class="rt" id="rate"></span></span></div>
-      <div class="grp lv" title="Tales learned from the fish you've met"><span id="emb"></span><span>Tales</span><b id="talesN">0</b></div>
+      <div class="grp lv" role="button" tabindex="0" title="Tales learned from the fish you've met · click to open the tapestry"><span id="emb"></span><i class="spool"></i><span>Tales</span><b id="talesN">0</b><i class="dot" id="talesDot" hidden></i></div>
       </div>
       <div class="pill meters bars"><div class="bar-row" id="health"></div><div class="bar-row" id="tide"></div><div class="bar-row" id="builders"></div><div class="bar-row" id="fishersM"></div></div>
       <nav class="topnav" aria-label="Menus">
@@ -92,6 +92,14 @@
     <div class="region"></div>
   </aside>
 
+  <div id="tapestry" hidden role="dialog" aria-labelledby="tpTitle"><div class="tp-in">
+    <button class="nav close" id="tpClose" type="button">Close</button>
+    <div class="tp-head"><div class="tp-k">The Tale House</div><h3 id="tpTitle">The tapestry</h3>
+      <p class="tp-sub">Every tale the village learns is a thread. Weave threads into the cloth: what is woven stays with the valley for good.</p>
+      <div class="tp-spool"><i class="spool"></i><b id="tpThreads">0</b><span>threads to weave</span></div></div>
+    <div class="tp-hang"><div class="tp-rod"></div><div class="tp-cloth" id="tpCloth"></div><div class="tp-fringe"></div></div>
+    <p class="tp-earn">Threads come from new tales, landmarks found in the forest, and finished contracts. <span class="dim"><b id="tpEver">0</b> spun so far.</span></p>
+  </div></div>
   <div id="letter" hidden role="dialog" aria-labelledby="ltFrom"><div class="lt-wrap">
     <div class="lt-seal" aria-hidden="true"><span id="ltSeal">D</span></div>
     <div class="lt-paper"><div class="lt-when" id="ltWhen"></div><h3 id="ltFrom">A letter from the village</h3>
