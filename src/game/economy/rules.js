@@ -103,30 +103,30 @@ function act(tool,i,j,quiet=false){
   if(tool==='relocate'){relocate(i,j);setTool('look');}
   else if(tool==='scout'){if(!spend(r.c,'silver'))return false;sendCrow(k);sfx('pluck');log('A crow lifts off from the village and heads for the trees.');}
   else if(tool==='hire'){if(!spend(r.c,cur))return false;makeFisher(i,j,freeSlot(i,j),S.hires+1);S.hires++;log(`A new fisher joins the bank. You have ${fishersState.length} of ${housing()} housed.`);sfx('pluck');wishEvent('hire');}
-  else if(tool==='hut'){if(!pay(r.cost))return false;S.meta[k]={...(S.meta[k]||{}),style:S.hutStyle};buildsChanged();sfx('build');}
+  else if(tool==='hut'){if(!pay(r.cost))return false;S.meta[k]={...(S.meta[k]||{}),style:S.hutStyle};buildsChanged(false,k);sfx('build');}
   else if(tool.startsWith('b:')){if(!pay(r.cost))return false;applyJob({tool,i,j,sp:S.statueSp,style:S.hutStyle,quiet});}
-  else if(tool==='road'){if(r.lift){builds[k]=NONE;delete S.meta[k];buildsChanged();sfx('dig');}
+  else if(tool==='road'){if(r.lift){builds[k]=NONE;delete S.meta[k];buildsChanged(false,k);sfx('dig');}
     else{if(!spend(r.c,cur))return false;if(r.wild){tiles[k]=LAND;S.clears++;forestYield(k);fellLater.push(k);}builds[k]=ROAD;
-      buildsChanged(r.wild);sfx('dig');if(r.wild){fellTrees(fellLater.pop());revealAt(k);}}}
-  else if(tool==='pave'){if(!pay(r.cost))return false;S.meta[k]={...(S.meta[k]||{}),pave:S.pave};buildsChanged();sfx('dig');}
+      buildsChanged(r.wild,k);sfx('dig');if(r.wild){fellTrees(fellLater.pop());revealAt(k);}}}
+  else if(tool==='pave'){if(!pay(r.cost))return false;S.meta[k]={...(S.meta[k]||{}),pave:S.pave};buildsChanged(false,k);sfx('dig');}
   else if(tool==='remove'){const d=DEF_BY_CODE[b0(k)];for(const [g,v] of Object.entries(r.refund)){if(g==='scales')S.scales+=v;else S.goods[g]=(S.goods[g]||0)+v;}
     if(builds[k]===HUT)S.huts=Math.max(0,S.huts-1);else if(builds[k]===BRIDGE)S.bridges=Math.max(0,S.bridges-1);else if(d)S.counts[d.id]=Math.max(0,(S.counts[d.id]||1)-1);
-    builds[k]=NONE;delete S.meta[k];if(plotK===k)closePlot();buildsChanged();sfx('dig');}
+    builds[k]=NONE;delete S.meta[k];if(plotK===k)closePlot();buildsChanged(false,k);sfx('dig');}
   refreshUI();if(!quiet)save();return true;
 }
 // what finishing a job does to the valley
 function applyJob(jb){
   const {tool,i,j}=jb,k=idx(i,j),c=tileC(i,j);
-  if(tool==='clear'){tiles[k]=LAND;S.clears++;forestYield(k);worldChanged();fellTrees(k);sfx('clear');wishEvent('clear');revealAt(k);return;}
-  if(tool==='dig'){tiles[k]=WATER;S.digs++;worldChanged();digSplash(k);sfx('dig');if(oldCh[k]&&!jb.quiet&&!S.restoredOnce){S.restoredOnce=true;log('Water finds its old bed again. The valley remembers.','gold');}return;}
+  if(tool==='clear'){tiles[k]=LAND;S.clears++;forestYield(k);worldChanged(k);fellTrees(k);sfx('clear');wishEvent('clear');revealAt(k);return;}
+  if(tool==='dig'){tiles[k]=WATER;S.digs++;worldChanged(k);digSplash(k);sfx('dig');if(oldCh[k]&&!jb.quiet&&!S.restoredOnce){S.restoredOnce=true;log('Water finds its old bed again. The valley remembers.','gold');}return;}
   if(tool==='weir'){for(let q=0;q<GW*GH;q++)if(builds[q]===B.WEIR){builds[q]=NONE;digSplash(q);}S.weirGone=true;buildsChanged();sfx('set');
     toast('The old weir is down','The river runs free from the west edge again. Fish come up it more often, and the valley can heal.');$('toast').querySelector('.k').textContent='The valley heals';closePlot();refreshUI();return;}
-  if(tool==='bridge'){builds[k]=BRIDGE;S.bridges++;buildsChanged();sfx('build');if(!jb.quiet)log('A bridge spans the water. Fishers can stand on it and reach the middle of the river.');}
-  else if(tool==='hut'){builds[k]=HUT;S.huts++;S.meta[k]={style:jb.style||'thatch'};buildsChanged();sfx('build');
+  if(tool==='bridge'){builds[k]=BRIDGE;S.bridges++;buildsChanged(false,k);sfx('build');if(!jb.quiet)log('A bridge spans the water. Fishers can stand on it and reach the middle of the river.');}
+  else if(tool==='hut'){builds[k]=HUT;S.huts++;S.meta[k]={style:jb.style||'thatch'};buildsChanged(false,k);sfx('build');
     if(!jb.quiet)log(`A family settles in. Room for ${HOUSING} more fishers.`);wishEvent('build',{id:'hut'});}
-  else if(tool==='upgrade'){S.meta[k]={...(S.meta[k]||{}),lvl:LVL(k)+1};buildsChanged();sfx('set');if(!jb.quiet)log(`${plotName(k)} is finished.`,'gold');if(plotK===k)renderPlot();}
+  else if(tool==='upgrade'){S.meta[k]={...(S.meta[k]||{}),lvl:LVL(k)+1};buildsChanged(false,k);sfx('set');if(!jb.quiet)log(`${plotName(k)} is finished.`,'gold');if(plotK===k)renderPlot();}
   else if(tool.startsWith('b:')){const id=tool.slice(2),d=DEFS[id];lastK=k;builds[k]=d.code;S.counts[id]=(S.counts[id]||0)+1;if(d.code===B.STATUE)S.meta[k]={sp:jb.sp||'koi'};
-    buildsChanged();sfx('build');if(!jb.quiet)log(buildLog(id));wishEvent('build',{id});}
+    buildsChanged(false,k);sfx('build');if(!jb.quiet)log(buildLog(id));wishEvent('build',{id});}
   for(let n=0;n<8;n++)sparkle(c.x+rand(-.35,.35),.3,c.z+rand(-.35,.35),'#ffe9bf');
   refreshUI();
 }
@@ -176,10 +176,53 @@ function updateCrows(dt,time){
     else{c.a+=dt*1.6;x=c.x1+Math.cos(c.a)*.8;z=c.z1+Math.sin(c.a)*.8;y=1.8;c.g.rotation.y=-c.a;}
     c.g.position.set(x,y,z);const fl=Math.sin(time*10+c.k)*.6;c.g.userData.l.rotation.z=fl;c.g.userData.r.rotation.z=-fl;
     if(c.t>9){scene.remove(c.g);crows.splice(crows.indexOf(c),1);const s=secretAt[c.k];
-      if(s&&!S.found.includes(c.k)){if(['bones','stones','shrine'].includes(s.type)){tiles[c.k]=LAND;worldChanged();}if(s.type==='grove')S.goods.timber+=20;revealAt(c.k);refreshUI();}}}
+      if(s&&!S.found.includes(c.k)){if(['bones','stones','shrine'].includes(s.type)){tiles[c.k]=LAND;worldChanged(c.k);}if(s.type==='grove')S.goods.timber+=20;revealAt(c.k);refreshUI();}}}
 }
-function worldChanged(){wildlife.clear();wildT=0;roads.sync();buildTerrain(true);updateTrees();analyzeWater();fishersState.forEach(placeFisher);updateMarks();computeVillages();computeEconomy();village.sync();trade.sync();updateHintVis();updateLilies();}
-function buildsChanged(){roads.sync();buildTerrain(true);if(arguments[0])updateTrees();computeVillages();computeEconomy();village.sync();trade.sync();fishersState.forEach(placeFisher);updateMarks();}
+/* ---- the valley changed: bring every system up to date ----
+   With a tile index k (a single tile was cleared, dug, built on or removed) only the work near it is redone: the terrain
+   around the tile, the trees on it, and the road and building meshes only when something stands close enough to be
+   touched. Without k everything is rebuilt, as on load or from the debug panel. */
+const PERF_LOG=import.meta.env.DEV||/[?&](debug|perf)\b/.test(location.search);
+function perfTimer(){let t=performance.now();const t0=t,T={};
+  return {lap(n){const now=performance.now();T[n]=(T[n]||0)+now-t;t=now;},
+    done(what){const ms=performance.now()-t0;if(PERF_LOG&&ms>4)console.log(`[perf] ${what} ${ms.toFixed(1)}ms`,Object.fromEntries(Object.entries(T).map(([n,v])=>[n,+v.toFixed(1)])));}};}
+const nearAny=(i,j,r,test)=>{for(let b=-r;b<=r;b++)for(let a=-r;a<=r;a++){const ni=i+a,nj=j+b;if(inGrid(ni,nj)&&test(idx(ni,nj)))return true;}return false;};
+// do the road meshes sit on terrain that just moved?
+const roadsNear=(i,j)=>nearAny(i,j,2,q=>builds[q]===ROAD||builds[q]===BRIDGE);
+// do any buildings, bridges, lamps or edges stand on (or turn toward) what just changed?
+function villageNear(i,j,liveBefore){
+  if(nearAny(i,j,2,q=>builds[q]!==NONE))return true;
+  for(const key of Object.keys(S.corners||{})){const [ci,cj]=key.split(',').map(Number);if(Math.abs(ci-i-.5)<=3&&Math.abs(cj-j-.5)<=3)return true;}
+  for(const key of Object.keys(S.edges||{})){const [ei,ej]=key.slice(1).split(',').map(Number);if(Math.abs(ei-i)<=3&&Math.abs(ej-j)<=3)return true;}
+  // a jetty faces the flowing water beside it, and digging can change which water flows
+  if(liveBefore)for(let q=0;q<GW*GH;q++){if(builds[q]!==B.JETTY)continue;const qi=q%GW,qj=(q/GW)|0;
+    for(const [a,b] of [[1,0],[-1,0],[0,1],[0,-1]]){const ni=qi+a,nj=qj+b;if(inGrid(ni,nj)&&liveBefore[idx(ni,nj)]!==FLOW.live[idx(ni,nj)])return true;}}
+  return false;
+}
+function worldChanged(k){
+  const pt=perfTimer(),at=k!==undefined&&k>=0,i=at?k%GW:0,j=at?(k/GW)|0:0;
+  wildlife.clear();wildT=0;
+  if(!at||roadsNear(i,j))roads.sync();pt.lap('roads');
+  if(at)buildTerrainAt(i,j);else buildTerrain(true);pt.lap('terrain');
+  updateTrees(at?tileBox(i,j):null);pt.lap('trees');
+  const liveBefore=at?FLOW.live.slice():null;
+  analyzeWater();pt.lap('water');
+  fishersState.forEach(placeFisher);updateMarks();computeVillages();computeEconomy();pt.lap('economy');
+  if(!at||villageNear(i,j,liveBefore))village.sync();pt.lap('village');
+  trade.sync();updateHintVis();updateLilies();pt.lap('rest');
+  pt.done(at?'world change (one tile)':'world change (full)');
+}
+// trees: the tile went from forest to land as well, so its trees go. k: the one tile that changed, if it was one
+function buildsChanged(trees,k){
+  const pt=perfTimer(),at=k!==undefined&&k>=0,i=at?k%GW:0,j=at?(k/GW)|0:0;
+  roads.sync();pt.lap('roads');
+  if(at)buildTerrainAt(i,j);else buildTerrain(true);pt.lap('terrain');
+  if(trees)updateTrees(at?tileBox(i,j):null);pt.lap('trees');
+  computeVillages();computeEconomy();pt.lap('economy');
+  village.sync();pt.lap('village');
+  trade.sync();fishersState.forEach(placeFisher);updateMarks();pt.lap('rest');
+  pt.done(at?'build change (one tile)':'build change (full)');
+}
 
 /* ================= auras, charm, production ================= */
 const charm=new Float32Array(GW*GH);

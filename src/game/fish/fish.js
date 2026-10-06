@@ -102,6 +102,9 @@ function pickTarget(f){
   f.tgt=randomTileIn(comp,f.sp.needD);
 }
 function angDiff(a,b){let d=a-b;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;return d;}
+// a fish on the line tires as it is reeled in: near the end it can barely turn away from the crew,
+// so a big one's last surge pulls the lines instead of swinging round and snapping them (1 when hooked, .25 when nearly in)
+const fightTire=f=>1-.75*clamp(f.progress||0,0,1);
 function updateFish(f,dt){
   const sp=f.sp;f.age+=dt;
   if(f.emerge<1){f.emerge=Math.min(1,f.emerge+dt/9);}
@@ -123,7 +126,7 @@ function updateFish(f,dt){
       const maxTurn=.55/Math.sqrt(sp.len)+.12;
       const tr=clamp(steer,-1,1)*maxTurn;f.turn=lerp(f.turn,tr,1-Math.exp(-dt*2));
       want*=1-Math.min(.6,Math.abs(steer)*.25);
-    }else{f.turn=Math.sin(f.age*2.3)*.25;if(f.surge>0&&f.hookers.length){let cx=0,cz=0;f.hookers.forEach(fs=>{cx+=fs.x;cz+=fs.z;});cx/=f.hookers.length;cz/=f.hookers.length;f.h+=angDiff(Math.atan2(f.x-cx,f.z-cz),f.h)*dt*.8;}}
+    }else{const tire=fightTire(f);f.turn=Math.sin(f.age*2.3)*.25*(.5+.5*tire);if(f.surge>0&&f.hookers.length){let cx=0,cz=0;f.hookers.forEach(fs=>{cx+=fs.x;cz+=fs.z;});cx/=f.hookers.length;cz/=f.hookers.length;f.h+=angDiff(Math.atan2(f.x-cx,f.z-cz),f.h)*dt*.8*tire;}}
     f.speed=lerp(f.speed,want,1-Math.exp(-dt*.8));
     f.h+=f.turn*dt;
     const nx=f.x+Math.sin(f.h)*f.speed*dt,nz=f.z+Math.cos(f.h)*f.speed*dt;

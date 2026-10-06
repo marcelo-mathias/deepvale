@@ -104,6 +104,38 @@ function buildTerrain(fineOnly){
     const k=(j*NX+i)*3;colorAt(x,z,tPos[k+1],nrm[k+1],tmpC);tCol[k]=tmpC.r;tCol[k+1]=tmpC.g;tCol[k+2]=tmpC.b;}
   tGeo.attributes.color.needsUpdate=true;
   tGeo.computeBoundingSphere();
+  for(const a of ['position','normal','color'])tGeo.attributes[a].clearUpdateRanges?.(); // a full upload, not a leftover patch
+}
+/* One tile changed: rebuild only the terrain around it. A vertex's height blends the four nearest tile centres, so a
+   tile reaches half a tile past its own edges; colours also read the tile's neighbours (road links), so we take a full
+   tile of margin. Normals reach one vertex further. Only the rows touched are sent to the GPU. */
+function axisSpan(A,lo,hi){let a=-1,b=-1;for(let n=0;n<A.length;n++){if(a<0&&A[n]>=lo)a=n;if(A[n]<=hi)b=n;}return [a,b];}
+function tileBox(i,j){const x0=i-HX,z0=j-HZ;
+  // tiles on the valley's rim also shape the slope just outside it
+  return [x0-1.5-(i<=1?3:0),x0+2.5+(i>=GW-2?3:0),z0-1.5-(j<=1?3:0),z0+2.5+(j>=GH-2?3:0)];}
+function terrainNormals(a,b,c,d){ // vertex columns a..b, rows c..d; the same sums three.js computeVertexNormals makes
+  const P=tPos,nr=tGeo.attributes.normal.array;
+  for(let j=c;j<=d;j++)for(let i=a;i<=b;i++){const k=(j*NX+i)*3;nr[k]=nr[k+1]=nr[k+2]=0;}
+  const add=(v,x,y,z)=>{const vi=v%NX,vj=(v/NX)|0;if(vi<a||vi>b||vj<c||vj>d)return;const k=v*3;nr[k]+=x;nr[k+1]+=y;nr[k+2]+=z;};
+  const tri=(A,Bv,Cv)=>{const a3=A*3,b3=Bv*3,c3=Cv*3;
+    const cbx=P[c3]-P[b3],cby=P[c3+1]-P[b3+1],cbz=P[c3+2]-P[b3+2],abx=P[a3]-P[b3],aby=P[a3+1]-P[b3+1],abz=P[a3+2]-P[b3+2];
+    const x=cby*abz-cbz*aby,y=cbz*abx-cbx*abz,z=cbx*aby-cby*abx;add(A,x,y,z);add(Bv,x,y,z);add(Cv,x,y,z);};
+  for(let cj=Math.max(0,c-1);cj<=Math.min(NZ-2,d);cj++)for(let ci=Math.max(0,a-1);ci<=Math.min(NX-2,b);ci++){
+    const A=cj*NX+ci,Bv=A+1,Cv=A+NX,Dv=Cv+1;
+    if((ci+cj)%2){tri(A,Cv,Bv);tri(Bv,Cv,Dv);}else{tri(A,Cv,Dv);tri(A,Dv,Bv);}}
+  for(let j=c;j<=d;j++)for(let i=a;i<=b;i++){const k=(j*NX+i)*3,l=Math.hypot(nr[k],nr[k+1],nr[k+2])||1;nr[k]/=l;nr[k+1]/=l;nr[k+2]/=l;}
+}
+function dirtyRows(attr,r0,r1){const s=r0*NX*attr.itemSize,n=(r1-r0+1)*NX*attr.itemSize;
+  if(attr.addUpdateRange)attr.addUpdateRange(s,n);else attr.updateRange={offset:s,count:n};attr.needsUpdate=true;}
+function buildTerrainAt(i,j){
+  const [x0,x1,z0,z1]=tileBox(i,j),[ia,ib]=axisSpan(XS,x0,x1),[ja,jb]=axisSpan(ZS,z0,z1);
+  if(ia<0||ja<0||ib<ia||jb<ja){buildTerrain(true);return;}
+  for(let r=ja;r<=jb;r++)for(let c=ia;c<=ib;c++){const k=(r*NX+c)*3;tPos[k+1]=heightAt(XS[c],ZS[r]);}
+  const a=Math.max(0,ia-1),b=Math.min(NX-1,ib+1),c=Math.max(0,ja-1),d=Math.min(NZ-1,jb+1);
+  terrainNormals(a,b,c,d);
+  const nrm=tGeo.attributes.normal.array;
+  for(let r=c;r<=d;r++)for(let q=a;q<=b;q++){const k=(r*NX+q)*3;colorAt(XS[q],ZS[r],tPos[k+1],nrm[k+1],tmpC);tCol[k]=tmpC.r;tCol[k+1]=tmpC.g;tCol[k+2]=tmpC.b;}
+  for(const at of ['position','normal','color'])dirtyRows(tGeo.attributes[at],c,d);
 }
 /* current, as a texture the water and riverbed shaders read: rg = direction, b = speed, a = 1 flowing / 0 still / .5 land */
 const FLOW=makeFlow();
@@ -250,8 +282,8 @@ function scatterOuter(){scatterFoothills();let tries=0;
     addTree(x,z,rand(1.1,2.1)*(1-h/30),-1);}
 }
 const m4=new THREE.Matrix4(),q4=new THREE.Quaternion(),s4=new THREE.Vector3(),p4=new THREE.Vector3(),yAxis=new THREE.Vector3(0,1,0);
-function updateTrees(){
-  trees.forEach((t,k)=>{const show=(t.tile<0||tiles[t.tile]===WILD)&&!t.gone;
+function updateTrees(box){ // box: [x0,x1,z0,z1] to touch only the trees inside it
+  trees.forEach((t,k)=>{if(box&&(t.x<box[0]||t.x>box[1]||t.z<box[2]||t.z>box[3]))return;const show=(t.tile<0||tiles[t.tile]===WILD)&&!t.gone;
     p4.set(t.x,heightAt(t.x,t.z)-.03,t.z);q4.setFromAxisAngle(yAxis,t.r);treeScale(t,show?t.s:0);
     m4.compose(p4,q4,s4);foliage.setMatrixAt(k,m4);trunks.setMatrixAt(k,m4);foliage.setColorAt(k,t.col);});
   foliage.count=trunks.count=trees.length;

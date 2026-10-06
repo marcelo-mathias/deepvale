@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.12.2 — no more hitch when a crew finishes, and big fish tire on the line
+
+**Smoother work in the valley**
+- **No more freeze when a dig or clearing finishes:** the game used to rebuild the whole valley for one changed tile. Now it only redoes what is near that tile.
+  - **Terrain:** only the ground around the tile is rebuilt, and only those rows go to the graphics card.
+  - **Trees:** only the trees on and around the tile are touched.
+  - **River current:** the solver starts from the last answer and stops once it settles, about 7× faster per dig, with the same result.
+  - **Roads and buildings:** their meshes are rebuilt only when something stands within two tiles, or a jetty's water changed.
+- **Building, painting roads, paving and removing** also rebuild just the ground around the tile now.
+- **Timings in dev builds:** dev builds (and `?debug` or `?perf`) log any valley update over 4 ms to the console as `[perf]`, with a breakdown by step.
+
+**Fishing**
+- **Fish tire as you reel them in:** a hooked fish turns more and more slowly as the catch fills. Near the end it turns at a quarter of its first speed, so a big fish's last surge can't swing it right round and snap every line.
+
 ## 0.12.1 — the valley's theme, one click at a time
 
 - **A tune you play by working:** every click that sends a crew to clear land or dig plays the next note of a 32-note theme. Click 32 times and you've heard the whole thing.
