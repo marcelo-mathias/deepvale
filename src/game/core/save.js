@@ -47,15 +47,18 @@ function load(){
     }else{tiles.set(rawTiles);if(rawBuilds&&rawBuilds.length===GW*GH)builds.set(rawBuilds);else initBuilds();S.fishers=rawFishers;}
     return true;}catch(e){console.error(e);return false;}
 }
-function offlineGain(ms){
-  if(ms<60e3)return;const hrs=Math.min(ms,8*3600e3),m=hrs/60e3;
-  const g=Math.floor(incomeRate()*m*.6);
+// while you were away (up to 8 hours): the clock turned, crews and producers kept working at 60% of their pace,
+// and the village met fish it already knew. It all goes into a letter (game/ui/letter.js).
+function offlineGain(ms,jobs=0){
+  const capped=Math.min(Math.max(0,ms),8*3600e3),cal0=calendar(),day0=S.clock?.day||1;
+  if(S.clock&&capped>0){S.clock.t+=capped/1000/DAY_LEN;S.clock.day+=Math.floor(S.clock.t);S.clock.t%=1;}
+  if(ms<60e3)return;const m=capped/60e3,left=Date.now()-ms;
+  const g=Math.floor(incomeRate(left)*m*.6);
   const made={};for(const id of ['timber','reeds','clay']){const q=Math.floor(goodRate(id)*m*.6);if(q>0){S.goods[id]+=q;made[id]=q;}}
-  if(g<=0&&!Object.keys(made).length)return;
-  S.scales+=g;S.earned+=g;
-  $('awayV').textContent=[g>0?'+'+fmt(g)+' scales':'',...Object.entries(made).map(([id,q])=>'+'+fmt(q)+' '+GOODS[id].name.toLowerCase())].filter(Boolean).join('  ·  ');
-  const mm=Math.round(m);$('awayD').textContent=`Your crews kept watch for ${mm>=120?Math.round(mm/60)+' hours':mm+' minutes'}, and the wagons kept rolling.`;
-  $('away').hidden=false;setTimeout(()=>{$('away').hidden=true;},7000);
+  const met=offlineMeets(ms,m);
+  if(g<=0&&!Object.keys(made).length&&!met.n&&!jobs)return;
+  S.scales+=g;S.earned+=g;if(met.n)renderCodex();
+  writeLetter({ms,g,made,met,jobs,cal0,cal1:calendar(),days:(S.clock?.day||1)-day0});
 }
 let hiddenAt=0;
 document.addEventListener('visibilitychange',()=>{if(document.hidden){hiddenAt=Date.now();save();}else if(hiddenAt){offlineGain(Date.now()-hiddenAt);hiddenAt=0;refreshUI();}});

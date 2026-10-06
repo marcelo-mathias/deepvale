@@ -50,6 +50,7 @@ function updateFight(f,dt){
   if(f.progress>=1){
     f.state='held';f.out=0;f.relH=Math.atan2(f.x-cx,f.z-cz);f.hookers.forEach(fs=>{fs.state='idle';fs.fish=null;});
     const before=talesKnown(f.sp.id);const first=!S.codex[f.sp.id];S.codex[f.sp.id]=(S.codex[f.sp.id]||0)+1;
+    (S.meets||=[]).push([Date.now(),f.sp.id]);if(S.meets.length>240)S.meets.splice(0,S.meets.length-240); // for the letter: what was met lately
     const tl=releaseTally(f,cx,cz);earn(tl.total,f.x,f.z,false);
     log(`${first?'Met':'Released'} ${first?'a '+f.sp.name+' for the first time':'a '+f.sp.name}, and let it go. It shed ${fmt(tl.total)} scales.`,'gold');
     if(first){S.statueSp=S.statueSp||f.sp.id;if(booted)log(`You can carve a statue of the ${f.sp.name} now (Build → Decor).`);}

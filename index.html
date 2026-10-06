@@ -92,7 +92,11 @@
     <div class="region"></div>
   </aside>
 
-  <div id="away" hidden><div class="k">While you were away</div><div class="v" id="awayV">+0</div><div class="d" id="awayD"></div></div>
+  <div id="letter" hidden role="dialog" aria-labelledby="ltFrom"><div class="lt-wrap">
+    <div class="lt-seal" aria-hidden="true"><span id="ltSeal">D</span></div>
+    <div class="lt-paper"><div class="lt-when" id="ltWhen"></div><h3 id="ltFrom">A letter from the village</h3>
+      <ol class="lt-lines" id="ltLines"></ol><div class="lt-sum" id="ltSum"></div><div class="lt-sign" id="ltSign"></div>
+      <button type="button" class="lt-go" id="ltGo">Back to the valley</button></div></div></div>
 
   <aside id="settings" hidden aria-label="Settings">
     <button class="nav close" id="settingsClose" type="button">Close</button>

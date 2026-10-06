@@ -27,8 +27,8 @@ migrateDeco();
 computeEconomy();roads.sync();updateLilies();
 booted=true;
 // work that was still going when the valley was closed gets finished while you were away
-if(loaded&&Array.isArray(S.jobs)){const js=S.jobs;S.jobs=[];for(const jb of js){if(inGrid(jb.i,jb.j))applyJob({...jb,quiet:true});}}
-if(loaded){const away=Math.min(8*3600e3,Date.now()-S.t)/1000;if(away>0&&S.clock){S.clock.t+=away/DAY_LEN;S.clock.day+=Math.floor(S.clock.t);S.clock.t%=1;}offlineGain(Date.now()-S.t);}
+let jobsDoneAway=0;if(loaded&&Array.isArray(S.jobs)){const js=S.jobs;S.jobs=[];for(const jb of js){if(inGrid(jb.i,jb.j)){applyJob({...jb,quiet:true});jobsDoneAway++;}}}
+if(loaded)offlineGain(Date.now()-S.t,jobsDoneAway);
 resize();renderCodex();refreshUI();updateMarks();renderKeepers();renderWish();
 if(!S.wish)setTimeout(()=>{if(!S.wish)newWish();},loaded?4000:30000);
 $('reroll').addEventListener('click',wipeSave);
@@ -91,7 +91,7 @@ $('tourBtn').addEventListener('click',()=>{toggleSettings(false);if(!started){S.
 const menu=makeMenu($('intro'));$('dv').classList.add('menu');
 setValleyName(S.valleyName||'',true);
 if(loaded)$('enter').querySelector('span').textContent=`Return to ${S.valleyName||'the valley'}`;
-$('enter').addEventListener('click',()=>{started=true;$('intro').classList.add('gone');$('dv').classList.remove('menu');toggleSettings(false);setSound(true);
+$('enter').addEventListener('click',()=>{started=true;if(pendingLetter)setTimeout(showLetter,2200);$('intro').classList.add('gone');$('dv').classList.remove('menu');toggleSettings(false);setSound(true);
   tweenTo({x:0,y:0,z:-2},innerWidth<700?24:32,5.5);
   // a new valley starts with the guided tour; the old opening notes stay for anyone who skips it
   if(!loaded||S.first||S.tourPending){S.first=false;S.tourPending=false;setTimeout(()=>{if(!tour.active)tour.start(TOUR());},5600);}

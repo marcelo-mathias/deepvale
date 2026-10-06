@@ -3,7 +3,7 @@
 // Part of the game's one shared scope: see src/main.js for the order. Names from other parts are in scope here.
 // The imports below are resolved from src/main.js, so their paths are relative to src/, not to this folder.
 import { version as VERSION } from '../package.json';
-import { emblem, EMBLEMS } from './ui/emblems.js';
+import { emblem, emblemMini, EMBLEMS } from './ui/emblems.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clamp, lerp, smooth, rand, hash2, fbm, ridged, fmt, store } from './core/utils.js';

@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.13.2 — a letter from the village
+
+**Coming back opens a letter**
+- **The away notice is a letter now:** cream paper with a dithered grain, a torn foot and a red wax seal stamped with your village's initial. It slides up, the seal presses down, and the lines write themselves in one by one, each with a small picture. Then the totals count up and the sign-off appears.
+- **What it tells:**
+  - The days that went by, or a new season arriving.
+  - The jobs your crews finished.
+  - The fish met at the banks, with their pictures.
+  - New tales now told in the village.
+  - What the woodcutters, reed beds and clay pits brought in.
+  - Pilgrims at the Tale House.
+- **It's signed by one of your keepers** ("Wren of the Reeds, for everyone in Reedmoor"), or by everyone in the village if you have none.
+- **When it opens:** coming back to the page opens it straight away. Opening the game opens it once you step into the valley, never over the title screen.
+- **Closing it:** click once to show it all at once, then "Back to the valley" (or Enter or Esc).
+
+**Fish met while you were away**
+- The village keeps meeting fish while you're gone, as often as in the half hour before you left, at the same 60% pace as the scales.
+- They count in the codex, so tales can grow while you're away.
+- **First meetings are for you to see:** only kinds you have already met are met while you're away.
+
+**Fixed: scales while you were away**
+- Scales earned while away used to be measured from the 15 minutes before you *came back*. After any absence longer than that, this came out as nothing. They're now measured from the 15 minutes before you *left*.
+
+**Debug:** the Crates row has an **Away 2 h** button that previews the letter as if you'd left just now.
+
 ## 0.13.1 — tackle in crates, one list of requests, a quieter top bar
 
 **Tackle cards**

@@ -13,7 +13,7 @@ function renderDebug(){
   <div class="dg"><button type="button" data-a="frenzy" aria-pressed="${debugFlags.frenzy}">Fish frenzy</button><button type="button" data-a="hints" aria-pressed="${debugFlags.allHints}">Show all hints</button></div>
   <div class="dg"><span>Give</span><button type="button" data-a="scales">+1k scales</button><button type="button" data-a="goods">+100 goods</button><button type="button" data-a="rich">+100k all</button></div>
   <div class="dg"><span>Fish</span><select id="dbgSp">${spOpts}</select><button type="button" data-a="spawn">Spawn</button><button type="button" data-a="meet">Meet all ×12</button></div>
-  <div class="dg"><span>Crates</span><button type="button" data-a="crate">Crate</button><button type="button" data-a="hermit">Keeper</button><button type="button" data-a="unlock">Unlock all</button><button type="button" data-a="slot">+1 keeper slot</button><button type="button" data-a="chest">Chest</button><button type="button" data-a="treasure">Treasure</button><button type="button" data-a="showcase">One of each</button></div>
+  <div class="dg"><span>Crates</span><button type="button" data-a="crate">Crate</button><button type="button" data-a="hermit">Keeper</button><button type="button" data-a="unlock">Unlock all</button><button type="button" data-a="slot">+1 keeper slot</button><button type="button" data-a="chest">Chest</button><button type="button" data-a="treasure">Treasure</button><button type="button" data-a="showcase">One of each</button><button type="button" data-a="away">Away 2 h</button></div>
   <div class="dg"><span>Weather</span>${['clear','rain','storm','fog','snow'].map(k=>`<button type="button" data-w="${k}" aria-pressed="${S.weather?.k===k}">${k}</button>`).join('')}</div>
   <div class="dg"><span>Season</span>${['Spring','Summer','Autumn','Winter'].map((k,n)=>`<button type="button" data-se="${n}">${k}</button>`).join('')}</div>
   <div class="dg"><span>Giant</span>${Object.keys(GIANTS).map(k=>`<button type="button" data-g="${k}" title="${GIANTS[k].name}">${k}</button>`).join('')}</div>
@@ -43,6 +43,8 @@ function debugAct(a){
   if(a==='chest'&&!dropChest())log('No room for a chest (two are already out, or no forest edge).','warn');
   if(a==='crate')queueCrate({source:'the debug fairy',kind:'mixed'});
   if(a==='treasure')queueCrate({source:'the debug fairy',kind:'treasure'});
+  // preview the letter: pretend you left right now and came back two hours later (history slides back to match)
+  if(a==='away'){const H=2*3600e3;S.income.forEach(e=>{e[0]-=H;});(S.meets||[]).forEach(e=>{e[0]-=H;});offlineGain(H);}
   if(a==='showcase')queueCrate({source:'the debug fairy',kind:'showcase'});
   if(a==='hermit')queueCrate({source:'the debug fairy',kind:'keeper'});
   if(a==='unlock')for(const b of BLUEPRINTS)S.unlocked[b.id]=true;

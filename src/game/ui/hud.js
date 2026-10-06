@@ -126,8 +126,9 @@ function reelPress(){const f=reel.fish;if(!f)return;const q=reel.press();if(!q)r
   else if(q==='slack'){for(const fs of f.hookers)fs.strain=(fs.strain||0)+.28;sfx('no');}
   else{const b=reel.takeBroken();sfx(b>=3?'combo-break':'no',b);}}
 document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('.reel'))reelPress();});
-function incomeRate(){const now=Date.now();S.income=S.income.filter(([t])=>now-t<15*60e3);if(!S.income.length)return 0;
-  const span=Math.max(120e3,now-S.income[0][0]);return S.income.reduce((s,[,v])=>s+v,0)/(span/60e3);}
+// scales a minute over the 15 minutes before `at` (now, or the moment you left, for what was earned while away)
+function incomeRate(at){const now=at??Date.now(),inc=S.income.filter(([t])=>now-t<15*60e3&&t<=now);if(at===undefined)S.income=inc;if(!inc.length)return 0;
+  const span=Math.max(120e3,now-inc[0][0]);return inc.reduce((s,[,v])=>s+v,0)/(span/60e3);}
 function nextGoalTitle(){const sp=SPECIES.find(s=>!S.codex[s.id]);return !sp?'The whole river':sp.crew<=2?'Meet the '+sp.name:'Something larger';}
 function nextGoal(){
   const sp=SPECIES.find(s=>!S.codex[s.id]);if(!sp)return 'Every fish of the valley has been met. Keep listening: there are tales still untold.';
