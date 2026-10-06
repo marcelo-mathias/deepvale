@@ -22,7 +22,7 @@ import { portrait } from './ui/portraits.js';
 import { SPECIES, SP } from './data/species.js';
 import { LORE, TALE_AT, VILLAGE_NAMES } from './data/lore.js';
 import { NOISE_GLSL, RIM_FRAG, BEND_VERT, BEND_DECL } from './render/shaders.js';
-import { setSound as setAudio, sfx, isSoundOn, setView as setAudioView, playTheme, worldSound, setWeatherSound, reelTension } from './audio/audio.js';
+import { setSound as setAudio, sfx, isSoundOn, setView as setAudioView, playTheme, themeNote, worldSound, setWeatherSound, reelTension } from './audio/audio.js';
 import { makeFlow, solveFlow } from './world/flow.js';
 import { makeWisps } from './render/wisps.js';
 import { makeVillage } from './render/village.js';

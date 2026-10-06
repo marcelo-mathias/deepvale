@@ -99,7 +99,7 @@ function act(tool,i,j,quiet=false){
   const k=idx(i,j),cur=COST[tool];
   if(r.cancel){cancelJob(k);refreshUI();return true;}
   const job=JOB_TOOLS(tool)&&!r.restyle;
-  if(job){const c=r.cost||(r.c?{[cur]:r.c}:{});if(!pay(c))return false;queueJob({tool,i,j,sp:S.statueSp,style:S.hutStyle,cost:c,quiet});sfx('pluck');refreshUI();if(!quiet)save();return true;}
+  if(job){const c=r.cost||(r.c?{[cur]:r.c}:{});if(!pay(c))return false;queueJob({tool,i,j,sp:S.statueSp,style:S.hutStyle,cost:c,quiet});if(tool==='clear'||tool==='dig')themeNote(tool);else sfx('pluck');refreshUI();if(!quiet)save();return true;}
   if(tool==='relocate'){relocate(i,j);setTool('look');}
   else if(tool==='scout'){if(!spend(r.c,'silver'))return false;sendCrow(k);sfx('pluck');log('A crow lifts off from the village and heads for the trees.');}
   else if(tool==='hire'){if(!spend(r.c,cur))return false;makeFisher(i,j,freeSlot(i,j),S.hires+1);S.hires++;log(`A new fisher joins the bank. You have ${fishersState.length} of ${housing()} housed.`);sfx('pluck');wishEvent('hire');}

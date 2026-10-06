@@ -328,6 +328,59 @@ export function sfx(kind, arg){
   }
 }
 
+/* ---------- the valley's theme, one note per click ----------
+   Each click that sets a crew to clear land or dig plays the next note of a 32-note tune (AABA, 8 notes a
+   section). Every note is the same length and the tune stays on the D major pentatonic, mostly in steps,
+   so it sounds right however fast or unevenly you click. Clearing plays it on the kalimba; digging plays
+   the same notes as water drops. Ten quiet seconds and it starts again from the top.
+   The end of each section rings a small chime; the last note blooms into a chord. */
+const VALLEY_THEME = [
+  69, 71, 74, 71, 69, 66, 64, 62, // A  : up to the high D and gently home
+  66, 69, 71, 74, 71, 69, 64, 62, // A' : the same idea from a step lower
+  74, 76, 78, 76, 74, 71, 74, 69, // B  : the bridge climbs higher and stops on A, wanting to go home
+  69, 71, 74, 71, 69, 66, 64, 62, // A  : the first phrase again, and home
+];
+const THEME_RESET = 10; // seconds of quiet before the tune starts over
+const PENTA_PC = [2, 4, 6, 9, 11]; // D E F# A B as pitch classes
+const below2 = (m) => { let x = m, k = 0; while (k < 2){ x--; if (PENTA_PC.includes(((x % 12) + 12) % 12)) k++; } return x; };
+let themePos = 0, themeLast = -99, themeLoops = 0;
+// digging: a round water drop whose pitch lifts as it lands, like a bubble closing
+function drop(f, t, g = .05, pan = 0){
+  const p = AC.createStereoPanner(); p.pan.value = pan; out(p, .5);
+  const o = AC.createOscillator(), gn = AC.createGain(); o.type = 'sine';
+  o.frequency.setValueAtTime(f * .93, t); o.frequency.exponentialRampToValueAtTime(f, t + .045);
+  gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(g, t + .008); gn.gain.exponentialRampToValueAtTime(.0001, t + 1.3);
+  o.connect(gn).connect(p); o.start(t); o.stop(t + 1.35);
+  const o2 = AC.createOscillator(), g2 = AC.createGain(); o2.type = 'sine'; o2.frequency.value = f * 2;
+  g2.gain.setValueAtTime(0, t); g2.gain.linearRampToValueAtTime(g * .22, t + .006); g2.gain.exponentialRampToValueAtTime(.0001, t + .4);
+  o2.connect(g2).connect(p); o2.start(t); o2.stop(t + .45);
+  bubbleAt(p, t, f * 2.2, .03, g * .12, 0);
+}
+export function themeNote(tool){
+  if (!AC || !soundOn || AC.state !== 'running') return;
+  const t = AC.currentTime + .01;
+  if (t - themeLast > THEME_RESET) themePos = 0;
+  themeLast = t;
+  const n = themePos, m = VALLEY_THEME[n], pan = R(-.12, .12);
+  const play = tool === 'dig' ? (mm, tt, g) => drop(m2f(mm), tt, g * 1.1, pan) : (mm, tt, g) => kalimba(m2f(mm), tt, g, pan);
+  // so the hundredth time through still feels fresh, every other pass adds something on top
+  const v = themeLoops % 4;
+  play(m, t, .05);
+  if (v === 1) play(m - 12, t, .022); // a soft octave below
+  if (v === 2) bell(m2f(m + 12), t + .01, .007, 1.4, pan); // a glassy octave above
+  if (v === 3 && n % 2 === 0) play(below2(m), t, .02); // a quiet harmony two scale steps under every other note
+  // the end of a section: a little chime
+  if (n % 8 === 7 && n !== 31){ bell(m2f(m + 12), t + .12, .014, 2.2, R(-.3, .3)); if (n !== 23) kalimba(m2f(50), t, .035); }
+  // the last note: a chord blooms and some bright bells fall
+  if (n === 31){
+    kalimba(m2f(50), t, .045); kalimba(m2f(57), t + .04, .03);
+    [74, 78, 81, 86].forEach((mm, i) => bell(m2f(mm), t + .15 + i * .11, .016, 3, R(-.5, .5)));
+    swell(t, .05, 4);
+  }
+  themePos = (n + 1) % VALLEY_THEME.length;
+  if (themePos === 0) themeLoops++;
+}
+
 /* ---------- themes: a ~10 second tune for each giant as it surfaces ---------- */
 const m2f = m => 440 * Math.pow(2, (m - 69) / 12);
 function voice(type, f, t, dur, g, { attack = .05, release = .6, cutoff = 2000, vib = 0, pan = 0, wetAmt = .5, detune = 0 } = {}){

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.12.1 — the valley's theme, one click at a time
+
+- **A tune you play by working:** every click that sends a crew to clear land or dig plays the next note of a 32-note theme. Click 32 times and you've heard the whole thing.
+  - **Two instruments:** clearing plays it on the kalimba, and digging plays the same notes as water drops.
+  - **Any pace sounds right:** every note is the same length and the tune stays on the valley's pentatonic scale, so fast or uneven clicking still sounds musical.
+  - **Starting over:** after ten seconds without a click, the tune goes back to the first note.
+  - **Phrase rewards:** the tune comes in four 8-note phrases (AABA). The end of each phrase rings a small chime, and the last note blooms into a chord with falling bells.
+  - **Variations:** each pass through the tune adds something different on top (an octave below, a glassy bell above, a quiet harmony) so it doesn't wear thin.
+- Other jobs (huts, bridges, buildings) still give the usual wooden knock.
+- The melody lives in `VALLEY_THEME` in `src/audio/audio.js` as note numbers, and `THEME_RESET` sets the quiet time before it restarts.
+
 ## 0.12.0 — trade at the post, buildings that move, villages you name, an unhurried pace
 
 **Trade is run from the trading post**
