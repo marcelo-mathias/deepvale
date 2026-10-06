@@ -257,7 +257,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .lbl .sub{font-size:11px;color:var(--mist);text-shadow:0 1px 2px #000}
 .lbl .pb{width:90px;height:4px;margin:4px auto 0;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.2)}
 .lbl .pb i{display:block;height:100%;background:var(--gold)}
-.vlbl{position:absolute;transform:translate(-50%,-100%);font-family:var(--display);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#f3e6c8;text-shadow:0 1px 3px #000,0 0 10px rgba(0,0,0,.6);white-space:nowrap}
+.vlbl:hover{background:rgba(8,13,12,.45)}
+.vlbl.edit{background:rgba(8,13,12,.75)}
+.vlbl input{font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;background:transparent;border:0;border-bottom:1px solid rgba(243,230,200,.6);outline:none;text-align:center;width:16ch;padding:0}
+.vlbl{pointer-events:auto;cursor:text;padding:2px 6px;border-radius:3px;transition:background .2s;position:absolute;transform:translate(-50%,-100%);font-family:var(--display);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#f3e6c8;text-shadow:0 1px 3px #000,0 0 10px rgba(0,0,0,.6);white-space:nowrap}
 
 /* numbers that pop off tiles, and build previews */
 .pop{position:absolute;transform:translate(-50%,-50%);font-family:var(--mono);font-size:16px;font-weight:700;color:var(--gold);text-shadow:0 1px 3px #000;animation:pop 2.6s ease-out forwards}
@@ -930,3 +933,35 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   .bar,#banner,#intro{transition-duration:.01s}
   #log li,.intro-in > *,.mtitle,.mtitle .cb,.glint{animation:none!important}
 }
+
+/* the top-bar Trade button before there is a trading post */
+.nav.locked{opacity:.55}
+.nav.nudge{animation:navNudge .4s ease-in-out}
+@keyframes navNudge{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+#plot .pu.ledger{border-color:var(--gold2,#e2c48e)}
+
+/* the manifest: what goes on each wagon and barge before you say Go */
+#trade .man{margin:8px 0 12px;padding:10px 10px 8px;border:1px solid var(--line);background:rgba(255,255,255,.025)}
+#trade .man.bad{border-color:rgba(233,138,95,.4)}
+#trade .man.away{padding:8px 10px}
+#trade .mh{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px}
+#trade .mh .cap{flex:1;height:4px;background:rgba(255,255,255,.08)}
+#trade .mh .cap i{display:block;height:100%;background:var(--gold)}
+#trade .mr{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:8px;padding:3px 0;font-size:12.5px;color:var(--txt-2)}
+#trade .mr.on{color:var(--txt)}
+#trade .mg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#trade .mg .sw{margin-right:6px}
+#trade .need{font-style:normal;font-size:10.5px;color:var(--gold);margin-left:4px}
+#trade .mq{display:inline-flex;align-items:center;gap:2px;font-family:var(--mono);font-size:11px}
+#trade .mq button{min-width:22px;height:20px;padding:0 3px;font:inherit;color:var(--txt-2);cursor:pointer;background:none;border:1px solid var(--line);border-radius:2px}
+#trade .mq button:hover{color:var(--txt);border-color:var(--edge)}
+#trade .mq input{width:42px;height:20px;box-sizing:border-box;padding:0 4px;font:inherit;text-align:center;color:var(--txt);background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:2px;-moz-appearance:textfield}
+#trade .mq input::-webkit-inner-spin-button{display:none}
+#trade .ms{font-family:var(--mono);font-size:11px;min-width:48px;text-align:right}
+#trade .mf{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+#trade .mf .dim{flex:1;text-align:right}
+#trade .go{padding:5px 16px;font-family:var(--serif);font-size:15px;color:var(--accent-ink,#0b1311);background:var(--gold);border:0;border-radius:3px;cursor:pointer}
+#trade .go:disabled{opacity:.35;cursor:default}
+#trade .go:not(:disabled):hover{filter:brightness(1.1)}
+#trade li.contract{padding:8px;margin:4px 0;border:1px solid rgba(226,196,142,.25);background:rgba(226,196,142,.04)}
+#trade .ct{display:inline-block;padding:1px 5px;font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#0b1311;background:var(--gold)}

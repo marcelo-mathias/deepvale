@@ -65,6 +65,7 @@ function canDo(tool,i,j){
   if(tool==='hire'){if(!standable(i,j))return {ok:false,why:b===HUT?'That is a home':t===WILD?'Clear this land first':t===WATER?'Fishers need solid ground, a pier or a bridge':b!==NONE&&b!==ROAD?'Something is built here':'Must stand at the water’s edge'};
     if(fishersState.length>=housing())return {ok:false,why:`Every hut is full (${HOUSING} fishers each). Build another hut`};
     if(freeSlot(i,j)<0)return {ok:false,why:'Three fishers per tile'};return {ok:true,c:cost.hire()};}
+  if(tool==='relocate'){const why=relocRule(i,j);return why?{ok:false,why}:{ok:true,c:0};}
   if(tool==='move'){if(!standable(i,j))return {ok:false,why:'Needs cleared land at the water’s edge, a pier or a bridge'};if(freeSlot(i,j)<0)return {ok:false,why:'Tile is full'};return {ok:true,c:0};}
   if(tool==='hut'){const st=S.hutStyle;
     if(b===HUT){const cur=S.meta[k]?.style||'thatch';if(cur===st)return {ok:false,why:`Already a ${STYLES[st].name.toLowerCase()} hut. Pick another style in Build`};return {ok:true,restyle:true,cost:{timber:3}};}
@@ -99,7 +100,8 @@ function act(tool,i,j,quiet=false){
   if(r.cancel){cancelJob(k);refreshUI();return true;}
   const job=JOB_TOOLS(tool)&&!r.restyle;
   if(job){const c=r.cost||(r.c?{[cur]:r.c}:{});if(!pay(c))return false;queueJob({tool,i,j,sp:S.statueSp,style:S.hutStyle,cost:c,quiet});sfx('pluck');refreshUI();if(!quiet)save();return true;}
-  if(tool==='scout'){if(!spend(r.c,'silver'))return false;sendCrow(k);sfx('pluck');log('A crow lifts off from the village and heads for the trees.');}
+  if(tool==='relocate'){relocate(i,j);setTool('look');}
+  else if(tool==='scout'){if(!spend(r.c,'silver'))return false;sendCrow(k);sfx('pluck');log('A crow lifts off from the village and heads for the trees.');}
   else if(tool==='hire'){if(!spend(r.c,cur))return false;makeFisher(i,j,freeSlot(i,j),S.hires+1);S.hires++;log(`A new fisher joins the bank. You have ${fishersState.length} of ${housing()} housed.`);sfx('pluck');wishEvent('hire');}
   else if(tool==='hut'){if(!pay(r.cost))return false;S.meta[k]={...(S.meta[k]||{}),style:S.hutStyle};buildsChanged();sfx('build');}
   else if(tool.startsWith('b:')){if(!pay(r.cost))return false;applyJob({tool,i,j,sp:S.statueSp,style:S.hutStyle,quiet});}

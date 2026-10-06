@@ -83,7 +83,7 @@ function TOUR(){
     {title:'The Tale House',text:'Pilgrims come down the Way to hear the valley’s tales here, and leave silver in the tale box. Every tale you learn from the fish brings more of them, and the house grows.',
       enter(){const k=builds.indexOf(B.TALEHALL);if(k>=0){const c=tileC(k%GW,(k/GW)|0);lookAt(c.x,c.z,12);}},target(){const k=builds.indexOf(B.TALEHALL);return k>=0?tileRect(k):null;}},
     {title:'What to do next',text:'Your next steps are tracked here: the next fish to meet, a wish from the village, and orders from along the river.',enter(){tweenTo({x:0,z:-2},innerWidth<700?24:32,1.6);},target:()=>$('goals')},
-    {title:'Menus',text:'<b>Trade</b> sends goods away by wagon and barge, the <b>Codex</b> keeps every fish and its tales, and <b>Settings</b> can replay this tour.',target:()=>document.querySelector('.topnav')},
+    {title:'Menus',text:'<b>Trade</b> takes you to your trading post, where wagons and barges are sent off (click the post itself too), the <b>Codex</b> keeps every fish and its tales, and <b>Settings</b> can replay this tour.',target:()=>document.querySelector('.topnav')},
     {title:'The valley is yours',text:'Clear, dig, build, and wait by the water. Something vast is waiting further down the river.'},
   ];
 }
@@ -137,4 +137,4 @@ function frame(){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-if (import.meta.env.DEV) window.__dv={wxSnap:()=>{for(let n=0;n<120;n++)weatherTick(.1,U.time.value);},save,wildFx:()=>{wildT=0;},seasonFx:()=>{seasonCT=0;seasonTick(0);},THREE,seasonW,SEASON_U,foliage,makeFishMesh,U,groundAt,camera,giants,wildlife,giantGift,S,fishes,fishersState,spawnFish,SP,comps:()=>comps,view,tweenTo,startCine,tiles,builds,FLOW,act,worldChanged,buildsChanged,refreshUI,pickFish,toScreen,setTool,hookCheck,trade,secrets:()=>secrets,queueCrate,debugAct,canDo,villages:()=>villages,producers:()=>producers,activeSets:()=>activeSets,setTimeScale:n=>{timeScale=n;},hintVis,newWish,linkedOf,tally,sfx,simStep,jobs,workers,openPlot,snapAt:(p,k)=>snapAt(p,k),actDeco:(t,s)=>actDeco(t,s),corners:()=>S.corners,edges:()=>S.edges};
+if (import.meta.env.DEV) window.__dv={openPlot,computeVillages,villages:()=>villages,wxSnap:()=>{for(let n=0;n<120;n++)weatherTick(.1,U.time.value);},save,wildFx:()=>{wildT=0;},seasonFx:()=>{seasonCT=0;seasonTick(0);},THREE,seasonW,SEASON_U,foliage,makeFishMesh,U,groundAt,camera,giants,wildlife,giantGift,S,fishes,fishersState,spawnFish,SP,comps:()=>comps,view,tweenTo,startCine,tiles,builds,FLOW,act,worldChanged,buildsChanged,refreshUI,pickFish,toScreen,setTool,hookCheck,trade,secrets:()=>secrets,queueCrate,debugAct,canDo,villages:()=>villages,producers:()=>producers,activeSets:()=>activeSets,setTimeScale:n=>{timeScale=n;},hintVis,newWish,linkedOf,tally,sfx,simStep,jobs,workers,openPlot,snapAt:(p,k)=>snapAt(p,k),actDeco:(t,s)=>actDeco(t,s),corners:()=>S.corners,edges:()=>S.edges};

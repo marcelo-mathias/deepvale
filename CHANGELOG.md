@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.12.0 — trade at the post, buildings that move, villages you name, an unhurried pace
+
+**Trade is run from the trading post**
+- **Opening the ledger:** click your trading post (or a jetty) and choose **Open the trade ledger**. The Trade button in the top bar now flies you to the post first. With no post or jetty built, it is greyed out and tells you to build one.
+- **Nothing leaves on its own:** wagons and barges wait at home. Each one has a manifest, and you choose what goes on board:
+  - **±1 / ±10** buttons, or type an amount. The manifest never asks for more than you have in stock, or more than the vehicle can carry.
+  - **Load what orders want** fills it from the open orders on that route.
+  - **Clear** empties it.
+  - **Go** sends it off.
+- **The manifest is remembered,** so the same run can go again when the wagon is back. The load sitting on the wagon at the post shows what's on its manifest.
+- **What each good is wanted for:** next to every good, the ledger shows how much this route's orders still want.
+- The old Send/Hold switches are gone (you choose the load now). **Keep back** still sets how much the markets leave alone.
+- **Contracts:** big standing orders filled over many trips, for example "Birchmere Heights wants 200 timber, for a new mill and its waterwheel".
+  - The first wagon contract opens after two ordinary orders are done, and the first barge contract after four. Each route has one contract at a time.
+  - Each finished contract asks for more next time: up to 1,000 of a raw good, or 200 lanterns or carvings.
+  - They pay well, with a crate, and show in their own section of the ledger and in the tracked goals.
+- The tracked goals now hint "Load the timber at the trading post and press Go" when that's the missing step.
+
+**Moving buildings**
+- Click a building and choose **Move it**, then pick a new spot. Valid spots are marked, just as when building. Esc or right-click leaves it where it is.
+- Everything on the plot goes with it: level, hut style, yard, rotation, a statue's fish and base, a workshop's work in progress, and which village a hut belongs to.
+- Huts, workshops, statues and every other building can move. Roads, bridges, decor, the weir and what was found in the forest stay put.
+- A trading post or jetty can't move while its wagon or barge is out.
+
+**Naming villages**
+- Click a village's name over its huts to rename it. Enter keeps the new name, Esc keeps the old one, and two villages can't share a name.
+
+**An unhurried pace**
+- The crews walk at 60% of their old speed and take a little over twice as long over each job, with a slower stride and slower, steadier tool swings.
+- The pace is set in one place (`PACE` at the top of the worker code in `src/game/village/village.js`) if you want to tune it.
+
 ## 0.11.8 — the code, split by topic
 
 - **One file split into parts:** `src/main.js` (about 250 KB) is now 15 parts under `src/game/`, grouped by topic: core, world, fish, economy, village and ui. Each part says at the top what it holds.

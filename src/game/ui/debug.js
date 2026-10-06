@@ -56,7 +56,7 @@ function debugAct(a){
   if(a==='find'){for(const s of secrets)if(!S.found.includes(s.k)){tiles[s.k]=LAND;revealAt(s.k);}worldChanged();}
   if(a==='fishers'){let n=0;for(let j=0;j<GH&&n<6;j++)for(let i=0;i<GW&&n<6;i++){if(standable(i,j)&&freeSlot(i,j)>=0&&builds[idx(i,j)]!==BRIDGE){while(n<6&&freeSlot(i,j)>=0){makeFisher(i,j,freeSlot(i,j),S.hires+n);n++;}}}
     for(let q=0;q<2;q++){for(let k=0;k<GW*GH;k++){if(tiles[k]===LAND&&builds[k]===NONE&&!fishersState.some(f=>idx(f.i,f.j)===k)){builds[k]=HUT;S.meta[k]={style:S.hutStyle};break;}}}buildsChanged();}
-  if(a==='ship')for(const v of trade.vehicles)if(v.state==='load'){v.t=999;S.goods.timber+=capacity(v.kind);}
+  if(a==='ship')for(const v of trade.vehicles)if(v.state==='load'){S.goods.timber+=capacity(v.kind,v.home);if(!trade.planned(v))trade.setPlan(v,'timber',capacity(v.kind,v.home));trade.sendNow(v);}
   if(a==='back')for(const v of trade.vehicles)if(v.state==='away')v.t=0;
   if(a==='wish'&&S.wish){S.wish.have=S.wish.n-1;wishEvent(S.wish.kind,{sp:S.wish.sp,id:S.wish.id,n:S.wish.n});}
   if(a==='tide'){S.tide.n=10;S.tide.t=Date.now();}

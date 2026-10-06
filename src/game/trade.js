@@ -1,9 +1,14 @@
 // Trade: every trading post keeps a wagon that rolls up the Pilgrim Way, every jetty keeps a barge that rides the
 // current east. They carry goods out of the valley and come back with silver. Orders from along the river pay extra.
+// Nothing leaves on its own: at the post you choose what goes on board (the manifest), check it against the orders,
+// and say Go. The manifest is remembered, so the same run can be sent again.
 import { GW, GH, WATER, WATER_Y, HX, idx, tileC, inGrid, riverZ } from '../world/constants.js';
 import { B, GOODS, GOOD_IDS, ORDER_REGIONS } from '../data/builds.js';
 
 const N4 = [[1,0],[-1,0],[0,1],[0,-1]];
+// what a contract's goods are for, in the words of the place that asks
+const CONTRACT_WHY = { timber: 'for a new mill and its waterwheel', reeds: 'to thatch every roof before winter', clay: 'for a kiln and a new quay',
+  lanterns: 'to light the long road for the festival', carvings: 'for the shrine they are raising' };
 
 export function makeTrade(ctx){
   const { scene, props, village, tiles, builds, isLive, S } = ctx;
@@ -66,18 +71,26 @@ export function makeTrade(ctx){
     v.mesh.position.set(x, y, z); if (h !== undefined) v.mesh.rotation.y = h;
   }
   const load = v => GOOD_IDS.reduce((s, g) => s + (v.cargo[g] || 0), 0);
-  // goods held back from trade entirely (the Send toggle in the trade panel)
-  const held = g => S.ship && S.ship[g] === false;
-  function available(){ const o = {}; for (const g of GOOD_IDS) o[g] = held(g) ? 0 : Math.max(0, Math.floor((S.goods[g] || 0) - (S.reserve[g] ?? 0))); return o; }
+  function available(){ const o = {}; for (const g of GOOD_IDS) o[g] = Math.max(0, Math.floor(S.goods[g] || 0)); return o; }
+  /* ---------- the manifest: what the player has put on board, per vehicle (kept in the save by its post) ---------- */
+  const plan = v => ((S.plans ||= {})[v.home] ||= {});
+  const planned = v => GOOD_IDS.reduce((s, g) => s + (plan(v)[g] || 0), 0);
+  // set how much of a good goes: never more than is in stock, never past what the vehicle carries
+  function setPlan(v, g, q){ const p = plan(v), cap = ctx.capacity(v.kind, v.home), others = planned(v) - (p[g] || 0);
+    q = Math.max(0, Math.min(Math.floor(q), Math.floor(S.goods[g] || 0), cap - others)); if (q) p[g] = q; else delete p[g]; showPlanned(v); return q; }
+  // load what this route's orders are still waiting for, as far as stock and room allow
+  function planForOrders(v){ const w = wanted(v.kind === 'wagon' ? 'north' : 'east'); S.plans[v.home] = {};
+    for (const g of [...GOOD_IDS].sort((a, b) => (w[b] ? 1 : 0) - (w[a] ? 1 : 0))) if (w[g]) setPlan(v, g, w[g]); showPlanned(v); }
+  function clearPlan(v){ S.plans[v.home] = {}; showPlanned(v); }
+  // goods that ran out since the manifest was written come off it
+  function trimPlan(v){ const p = plan(v); for (const g of Object.keys(p)) if (p[g] > Math.floor(S.goods[g] || 0)){ const q = Math.floor(S.goods[g] || 0); if (q > 0) p[g] = q; else delete p[g]; } }
+  function showPlanned(v){ if (v.state !== 'load') return; const p = plan(v); v.cargo = {}; for (const g of GOOD_IDS) if (p[g]) v.cargo[g] = p[g]; showCargo(v); v.cargo = {}; }
   // what open orders on a route still need, per good
   function wanted(route){ const w = {}; for (const o of S.orders || []) if (o.route === route && o.got < o.qty) w[o.good] = (w[o.good] || 0) + o.qty - o.got; return w; }
+  // Go: what is on the manifest (and still in stock) is loaded and leaves
   function fill(v){
-    const cap = ctx.capacity(v.kind, v.home); const av = available(); v.cargo = {}; let n = 0;
-    const take = (g, q) => { q = Math.min(q, av[g], cap - n); if (q <= 0) return; v.cargo[g] = (v.cargo[g] || 0) + q; S.goods[g] -= q; av[g] -= q; n += q; };
-    // first what the orders on this route are waiting for, then the rest, most valuable first
-    const w = wanted(v.kind === 'wagon' ? 'north' : 'east');
-    for (const g of GOOD_IDS) if (w[g]) take(g, w[g]);
-    for (const g of [...GOOD_IDS].sort((a, b) => GOODS[b].price - GOODS[a].price)) take(g, cap);
+    trimPlan(v); const cap = ctx.capacity(v.kind, v.home), p = plan(v); v.cargo = {}; let n = 0;
+    for (const g of GOOD_IDS){ const q = Math.min(p[g] || 0, Math.floor(S.goods[g] || 0), cap - n); if (q <= 0) continue; v.cargo[g] = q; S.goods[g] -= q; n += q; }
     return n;
   }
   function showCargo(v){
@@ -99,10 +112,8 @@ export function makeTrade(ctx){
     for (const v of vehicles){
       if (v.state === 'stuck'){ continue; }
       if (v.state === 'load'){
-        v.t += dt;
-        const av = available(), ready = GOOD_IDS.reduce((s, g) => s + av[g], 0), cap = ctx.capacity(v.kind, v.home);
-        v.ready = ready;
-        if (ready >= cap || (v.t > (v.kind === 'wagon' ? 30 : 45) && ready >= 3)){ if (depart(v)) v.t = 0; }
+        // waits at the post until the player says Go; the load on show follows the manifest
+        v.t += dt; if (v.t > .5){ v.t = 0; trimPlan(v); v.ready = planned(v); showPlanned(v); }
         if (v.kind === 'barge') v.mesh.position.y = WATER_Y - .03 + Math.sin(t * 1.3 + v.home) * .006;
         continue;
       }
@@ -112,7 +123,7 @@ export function makeTrade(ctx){
       if (!b){
         if (v.state === 'out'){ v.state = 'away'; v.t = (v.kind === 'wagon' ? 18 : 26) / ctx.speed(v.kind); v.mesh.visible = false; }
         else { // home again
-          const report = sell(v); v.cargo = {}; props.setCargo(v.mesh, []); v.state = 'load'; v.t = 0; placeAtHome(v); ctx.onReturn(v, report); }
+          const report = sell(v); v.cargo = {}; props.setCargo(v.mesh, []); v.state = 'load'; v.t = 0; placeAtHome(v); showPlanned(v); ctx.onReturn(v, report); }
         continue;
       }
       let sp = (v.kind === 'wagon' ? .62 : (v.state === 'out' ? .75 : .5)) * ctx.speed(v.kind);
@@ -135,11 +146,11 @@ export function makeTrade(ctx){
     const done = [];
     for (const o of S.orders){ if (o.route !== route || o.got >= o.qty) continue; const q = v.cargo[o.good] || 0; if (!q) continue;
       o.got = Math.min(o.qty, o.got + q); if (o.got >= o.qty) done.push(o); }
-    let bonus = 0; for (const o of done){ bonus += o.reward; S.ordersDone = (S.ordersDone || 0) + 1; }
+    let bonus = 0; for (const o of done){ bonus += o.reward; if (o.contract) S.contractsDone = (S.contractsDone || 0) + 1; else S.ordersDone = (S.ordersDone || 0) + 1; }
     S.orders = S.orders.filter(o => o.got < o.qty);
     return { silver: Math.round(silver), bonus, lines, done, route };
   }
-  function newOrder(route){
+  function newOrder(route, contract){
     const regions = ORDER_REGIONS.filter(r => !route || r.route === route);
     let reg, good;
     for (let tries = 0; tries < 20; tries++){
@@ -149,15 +160,26 @@ export function makeTrade(ctx){
       if (!S.orders.some(o => o.region === reg.id || o.good === good)) break;
     }
     const lvl = S.ordersDone || 0, raw = GOODS[good].raw;
+    // a contract is a big standing order, filled over many trips: "a thousand timber for the new mill"
+    if (contract){ const c = S.contractsDone || 0;
+      const qty = raw ? Math.min(1000, 200 + c * 100) : Math.min(200, 40 + c * 20);
+      const reward = Math.round(qty * GOODS[good].price * 1.5 / 50) * 50;
+      return { id: Math.random().toString(36).slice(2, 8), region: reg.id, regionName: reg.name, route: reg.route, good, qty, got: 0, reward, contract: true,
+        why: CONTRACT_WHY[good] || 'for the season ahead' }; }
     const qty = Math.round((raw ? 18 : 6) * (1 + lvl * .22) / (raw ? 2 : 1)) * (raw ? 2 : 1);
     const reward = Math.round(qty * GOODS[good].price * (1.6 + lvl * .05) / 5) * 5;
     return { id: Math.random().toString(36).slice(2, 8), region: reg.id, regionName: reg.name, route: reg.route, good, qty, got: 0, reward };
   }
   function topUpOrders(){
     S.orders ||= [];
-    while (S.orders.filter(o => o.route === 'north').length < 2) S.orders.push(newOrder('north'));
-    while (S.orders.filter(o => o.route === 'east').length < 1) S.orders.push(newOrder('east'));
+    const small = r => S.orders.filter(o => o.route === r && !o.contract).length, big = r => S.orders.some(o => o.route === r && o.contract);
+    while (small('north') < 2) S.orders.push(newOrder('north'));
+    while (small('east') < 1) S.orders.push(newOrder('east'));
+    // contracts open up once a couple of ordinary orders are done: one per route at a time
+    if ((S.ordersDone || 0) >= 2 && !big('north')) S.orders.push(newOrder('north', true));
+    if ((S.ordersDone || 0) >= 4 && !big('east')) S.orders.push(newOrder('east', true));
   }
   const sendNow = v => v.state === 'load' && depart(v) && ((v.t = 0), true);
-  return { sync, update, vehicles, topUpOrders, available, wanted, load, sendNow, canBarge: k => !!bargeRoute(k), hasWagonRoute: k => !!wagonRoute(k) };
+  return { sync, update, vehicles, topUpOrders, available, wanted, load, sendNow, canBarge: k => !!bargeRoute(k), hasWagonRoute: k => !!wagonRoute(k),
+    plan, planned, setPlan, planForOrders, clearPlan };
 }

@@ -50,6 +50,9 @@ function goHome(w){if(w.state==='home')return;const h=w.home>=0&&builds[w.home]=
   const hc=tileC(w.home%GW,(w.home/GW)|0);
   w.path=[{x:w.x,z:w.z},...(tp?pathPts(tp.slice(1,-1)):[]),{x:hc.x,z:hc.z+.2}];w.seg=0;w.u=0;w.state='back';w.job=null;}
 function workerY(x,z){return village.walkY(x,z)-.01;}
+// the pace of the crews: unhurried on purpose. Walking speed (tiles a second), how fast work gets done
+// (1 = the old pace), and the rhythm of footsteps and tool swings. Change these to speed the valley up or down.
+const PACE={walk:.48,work:.65*.45,step:6,swing:2.6};
 function workTick(dt,t){
   while(workers.length<builderCount())makeWorker();
   // hand out work: two hands per job at most, oldest job first
@@ -60,14 +63,14 @@ function workTick(dt,t){
   for(const w of workers){
     if(w.state==='walk'||w.state==='back'){const a=w.path[w.seg],b=w.path[w.seg+1];
       if(!b){if(w.state==='back'){w.state='home';w.g.visible=false;}else w.state='work';continue;}
-      const L=Math.hypot(b.x-a.x,b.z-a.z)||1e-3;w.u+=dt*.8/L;if(w.u>=1){w.u=0;w.seg++;continue;}
-      w.x=lerp(a.x,b.x,w.u);w.z=lerp(a.z,b.z,w.u);w.g.position.set(w.x,workerY(w.x,w.z)+Math.abs(Math.sin(t*9+w.ph))*.012,w.z);w.g.rotation.set(0,Math.atan2(b.x-a.x,b.z-a.z),0);w.arm.rotation.x=Math.sin(t*9+w.ph)*.4;continue;}
+      const L=Math.hypot(b.x-a.x,b.z-a.z)||1e-3;w.u+=dt*PACE.walk/L;if(w.u>=1){w.u=0;w.seg++;continue;}
+      w.x=lerp(a.x,b.x,w.u);w.z=lerp(a.z,b.z,w.u);w.g.position.set(w.x,workerY(w.x,w.z)+Math.abs(Math.sin(t*PACE.step+w.ph))*.012,w.z);w.g.rotation.set(0,Math.atan2(b.x-a.x,b.z-a.z),0);w.arm.rotation.x=Math.sin(t*PACE.step+w.ph)*.4;continue;}
     if(w.state==='work'&&w.job){const jb=w.job,c=tileC(jb.i,jb.j);w.g.rotation.y=Math.atan2(c.x-w.x,c.z-w.z);
-      const sw=(t*4+w.ph)%1;w.arm.rotation.x=sw<.3?-1.6+sw/.3*2.2:.6-(sw-.3)/.7*2.2;w.g.position.y=workerY(w.x,w.z)+(sw<.3?.01:0);
+      const sw=(t*PACE.swing+w.ph)%1;w.arm.rotation.x=sw<.3?-1.6+sw/.3*2.2:.6-(sw-.3)/.7*2.2;w.g.position.y=workerY(w.x,w.z)+(sw<.3?.01:0);
       // the tool lands: now and then you hear it
       if((w.lastSw??0)<.3&&sw>=.3){const snd=jb.tool==='clear'?['chop',.5]:jb.tool==='dig'?['dig',.35]:['hammer',.4];if(Math.random()<snd[1])soundAt(snd[0],w.x,w.z);}
       w.lastSw=sw;
-      jb.prog+=dt/jb.dur*.65;
+      jb.prog+=dt/jb.dur*PACE.work;
       if(Math.random()<dt*3){const e=jb.tool==='clear'?['#7fae4a','#b98552']:jb.tool==='dig'?['#8a6a48','#dff8ee']:['#ffe9bf','#c9a36a'];sparkle(lerp(w.x,c.x,.5)+rand(-.15,.15),.2,lerp(w.z,c.z,.5)+rand(-.15,.15),e[Math.random()<.5?0:1]);}
       if(Math.random()<dt*1.2)wisps.emit(c.x+rand(-.3,.3),.06,c.z+rand(-.3,.3),'smoke',jb.tool==='dig'?[.5,.42,.32]:[.72,.66,.56]);}
   }
@@ -150,12 +153,27 @@ const YARDS_OF={[B.TALEHALL]:['bench','tree','planter'],[HUT]:['garden','woodpil
 const yardsFor=k=>YARDS_OF[builds[k]]||[];
 const edgeAllowed=(k,side)=>{if(builds[k]!==ROAD)return true;const [,a,b]=SIDES.find(s=>s[0]===side);const i=k%GW+a,j=((k/GW)|0)+b;if(!inGrid(i,j))return true;const nb=builds[idx(i,j)];return !(nb===ROAD||nb===BRIDGE||LINKERS.has(nb));};
 let plotK=-1;
+// moving a building: everything on the plot (level, style, yard, rotation, a statue's fish) goes with it
+let relocK=-1;
+const movable=k=>{const b=builds[k];if(b===HUT)return true;const d=DEF_BY_CODE[b];if(!d||d.cat==='found'||b===B.WEIR)return false;return !['fence','flowers'].includes(d.id);};
+function relocRule(i,j){const from=relocK;if(from<0||!movable(from))return 'Nothing to move';const k=idx(i,j);if(k===from)return 'It is already here';
+  const b=builds[from];if(b===HUT){if(tiles[k]!==LAND)return tiles[k]===WILD?'Clear this land first':'Huts need dry land';if(builds[k]!==NONE)return 'Something is already built here';if(fishersOn(i,j).length)return 'Move the fishers off first';return null;}
+  // the same rules as building it fresh, as if the old spot were already empty
+  builds[from]=NONE;const why=placeRule(DEF_BY_CODE[b].id,i,j);builds[from]=b;return why;}
+function relocate(i,j){const from=relocK,k=idx(i,j),b=builds[from],nm=plotName(from);
+  builds[k]=b;builds[from]=NONE;
+  if(S.meta[from]){S.meta[k]=S.meta[from];delete S.meta[from];}
+  if(S.hutVillage&&S.hutVillage[from]!==undefined){S.hutVillage[k]=S.hutVillage[from];delete S.hutVillage[from];}
+  if(shopProg.has(from)){shopProg.set(k,shopProg.get(from));shopProg.delete(from);}
+  relocK=-1;buildsChanged();const c=tileC(i,j);for(let n=0;n<10;n++)sparkle(c.x+rand(-.4,.4),.2,c.z+rand(-.4,.4),'#ffe9bf');sfx('build');log(`The ${nm.toLowerCase()} has a new spot.`);}
 function openPlot(k){plotK=k;$('plot').hidden=false;renderPlot();sfx('pick');}
 function closePlot(){plotK=-1;$('plot').hidden=true;}
 function slotsOf(k){S.meta[k]=S.meta[k]||{};return (S.meta[k].slots||={edges:{}});}
 function renderPlot(){
   const k=plotK;if(k<0)return;if(!plottable(k)&&!busy.has(k)){closePlot();return;}
   const el=$('plot'),jb=busy.get(k),sl=S.meta[k]?.slots||{edges:{}},up=upgInfo(k);const canRot=![NONE,ROAD,BRIDGE,B.PIER,B.JETTY,B.WEIR,B.REED,B.FENCE].includes(builds[k]);let h=`<div class="ph"><b>${plotName(k)}</b>${canRot?'<button type="button" class="rot" data-a="rotate" title="Rotate (R)">↻</button>':''}${UPGRADABLE.has(builds[k])?`<span class="lv">Lv ${LVL(k)}</span>`:''}<button type="button" class="x" data-a="close">×</button></div>`;
+  if((builds[k]===B.POST||builds[k]===B.JETTY)&&!jb)h+=`<button type="button" class="pu ledger" data-a="ledger"><span>Open the trade ledger · send wagons and barges, fill orders</span></button>`;
+  if(movable(k)&&!jb)h+=`<button type="button" class="pu" data-a="move"><span>Move it · pick a new spot (everything on the plot goes with it)</span></button>`;
   if(builds[k]===B.WEIR){h+=`<p class="dim">${DEFS.weir.desc}</p>`;if(!jb)h+=`<button type="button" class="pu" data-a="weir"><span>Take down the weir · valley health +15, more fish come up</span><span class="ic">${costHTML(WEIR_COST)}</span></button>`;}
   if(jb)h+=`<div class="pj">${jb.tool==='upgrade'?'Upgrading':'Workers at it'} · ${Math.floor(jb.prog*100)}%<div class="ob"><i style="width:${(jb.prog*100).toFixed(0)}%"></i></div><button type="button" class="chip" data-a="cancel">Call it off (full refund)</button></div>`;
   if(!jb&&up)h+=up.locked?`<div class="pu locked"><span>Next: ${up.txt}</span><span class="dim">${up.locked}</span></div>`:`<button type="button" class="pu" data-a="upgrade"><span>Upgrade · ${up.txt}</span><span class="ic">${costHTML(up.cost)}</span></button>`;
@@ -177,6 +195,9 @@ function renderPlot(){
 const WEIR_COST={scales:150,timber:20};
 function plotAct(a){const k=plotK;if(a==='close'){closePlot();return;}
   if(a==='rotate'){rotateAt(k);return;}
+  if(a==='ledger'){toggleTrade(true);return;}
+  if(a==='move'){const v=trade.vehicles.find(v=>v.home===k&&v.state!=='load');if(v){log('Wait until the '+(builds[k]===B.POST?'wagon':'barge')+' is home before moving it.','warn');sfx('no');return;}
+    closePlot();setTool('relocate');relocK=k;updateMarks();log(`Where should the ${plotName(k).toLowerCase()} go? Click a spot. Esc or right-click to leave it where it is.`);return;}
   if(a==='weir'){if(!pay(WEIR_COST))return;queueJob({tool:'weir',i:k%GW,j:(k/GW)|0,cost:WEIR_COST});renderPlot();refreshUI();save();return;}
   if(a==='cancel'){cancelJob(k);renderPlot();refreshUI();return;}
   if(a==='upgrade'){const up=upgInfo(k);if(!up||up.locked||!pay(up.cost))return;S.upgrades=(S.upgrades||0)+1;queueJob({tool:'upgrade',i:k%GW,j:(k/GW)|0,cost:up.cost});sfx('pluck');renderPlot();refreshUI();save();return;}

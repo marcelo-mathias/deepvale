@@ -22,11 +22,23 @@ function updateLabels(){
   for(const [f,el] of labelPool)if(!want.has(f)){el.remove();labelPool.delete(f);}
   updateTileBars();
   // village names float over their huts
-  for(const v of villages){let el=villageLbl.get(v.name);if(!el){el=document.createElement('div');el.className='vlbl';el.textContent=v.name;labelsEl.appendChild(el);villageLbl.set(v.name,el);}
+  for(const v of villages){let el=villageLbl.get(v.name);if(!el){el=document.createElement('div');el.className='vlbl';el.textContent=v.name;el.title='Click to rename';el.addEventListener('click',()=>renameVillage(el,v.name));labelsEl.appendChild(el);villageLbl.set(v.name,el);}
     const p=toScreen(v.cx,.9,v.cz);el.style.left=p.x+'px';el.style.top=p.y+'px';}
   for(const [n,el] of villageLbl)if(!villages.some(v=>v.name===n)){el.remove();villageLbl.delete(n);}
 }
 const villageLbl=new Map();
+// click a village's name to rename it: every hut that belongs to it takes the new name
+function renameVillage(el,old){if(el.querySelector('input'))return;
+  const inp=document.createElement('input');inp.type='text';inp.value=old;inp.maxLength=24;inp.setAttribute('aria-label','Village name');inp.spellcheck=false;
+  el.textContent='';el.appendChild(inp);el.classList.add('edit');inp.focus();inp.select();
+  let done=false;const finish=ok=>{if(done)return;done=true;const nw=inp.value.replace(/\s+/g,' ').trim();el.classList.remove('edit');
+    if(ok&&nw&&nw!==old){if(villages.some(v=>v.name.toLowerCase()===nw.toLowerCase()&&v.name!==old)){el.textContent=old;log(`There is already a village called ${nw}.`,'warn');sfx('no');return;}
+      for(const k of Object.keys(S.hutVillage))if(S.hutVillage[k]===old)S.hutVillage[k]=nw;
+      villageLbl.delete(old);el.remove();computeVillages();log(`${old} is called ${nw} now.`,'gold');sfx('set');save();refreshUI();}
+    else el.textContent=old;};
+  inp.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter')finish(true);if(e.key==='Escape')finish(false);});
+  inp.addEventListener('keyup',e=>e.stopPropagation());
+  inp.addEventListener('blur',()=>finish(true));}
 /* ---- work on the map: queued tiles are marked on the ground, and each patch of work gets one small ring ---- */
 // The ground mark: a dithered wash over every tile in the queue, with a soft stroke round the edge of each patch.
 // Cream: waiting for hands. Mint: being worked (the wash thickens as the work goes on). Ember: nobody can get there.
@@ -151,7 +163,7 @@ function refreshUI(){
   $('cLine').textContent=fmt(cost.line());$('cBait').textContent=fmt(cost.bait());$('lvLine').textContent='Lv '+S.lineLv;$('lvBait').textContent='Lv '+S.baitLv;
   $('upLine').disabled=S.silver<cost.line();$('upBait').disabled=S.silver<cost.bait();
   {const met=SPECIES.filter(s=>S.codex[s.id]).length;$('codexCount').textContent=`${met}/${SPECIES.length}`;$('btnCodex').title=`Codex · ${met} of ${SPECIES.length} fish met`;$('codexDot').hidden=met<=(S.codexSeen||0);}
-  const busy=trade.vehicles.filter(v=>v.state!=='load'&&v.state!=='stuck').length;$('tradeN').textContent=`${busy}/${trade.vehicles.length}`;
+  const busy=trade.vehicles.filter(v=>v.state!=='load'&&v.state!=='stuck').length;$('tradeN').textContent=`${busy}/${trade.vehicles.length}`;{const hub=tradeHub()>=0,b=$('btnTrade');b.classList.toggle('locked',!hub);b.title=hub?'Open the ledger at the trading post (T)':'Trade is run from a trading post. Build one first';}
   if(!$('trade').hidden)renderTrade();
   if(!$('drawer').hidden)updateDrawerCosts();
 }
@@ -164,9 +176,9 @@ function orderHint(o){const g=o.good,nm=GOODS[g].name.toLowerCase();
     if((S.goods[g]||0)<1&&!canMake(g))return `The workshop needs ${recipeTxt(g)} for each one.`;}
   else{const code={timber:B.WOOD,reeds:B.REED,clay:B.CLAY}[g];
     if(!builds.includes(code)&&(S.goods[g]||0)<o.qty-o.got)return {timber:'A woodcutter at the forest’s edge makes timber.',reeds:'Reed beds grow reeds. Build one on still water (a pond or a dead-end channel).',clay:'A clay pit on the riverbank digs clay.'}[g];}
-  if(S.ship?.[g]===false)return `Sending ${nm} is switched off in Trade.`;
+  {const v=trade.vehicles.find(v=>v.kind===(o.route==='north'?'wagon':'barge'));if(v&&v.state==='load'&&(S.goods[g]||0)>=1&&!trade.plan(v)[g])return `Load the ${nm} at the ${o.route==='north'?'trading post':'jetty'} and press Go.`;}
   return '';}
-function renderOrdersGoal(){const os=(S.orders||[]).slice(0,2);const h=os.map(o=>{const hint=orderHint(o);return `<div class="gl"><span class="gi">${icon('order')}</span><div class="gt"><b>${o.regionName}</b><span>Send ${o.qty} ${GOODS[o.good].name.toLowerCase()} by ${o.route==='north'?'wagon':'barge'}</span>${hint?`<span class="still">${hint}</span>`:''}</div><span class="gn">${o.got}/${o.qty}</span></div>`;}).join('');if($('goalOrders').innerHTML!==h)$('goalOrders').innerHTML=h;}
+function renderOrdersGoal(){const os=[...(S.orders||[]).filter(o=>!o.contract).slice(0,2),...(S.orders||[]).filter(o=>o.contract).slice(0,1)];const h=os.map(o=>{const hint=orderHint(o);return `<div class="gl"><span class="gi">${icon('order')}</span><div class="gt"><b>${o.regionName}</b><span>${o.contract?'Contract: ':''}Send ${fmt(o.qty)} ${GOODS[o.good].name.toLowerCase()} by ${o.route==='north'?'wagon':'barge'}</span>${hint?`<span class="still">${hint}</span>`:''}</div><span class="gn">${fmt(o.got)}/${fmt(o.qty)}</span></div>`;}).join('');if($('goalOrders').innerHTML!==h)$('goalOrders').innerHTML=h;}
 function silverIncomeRate(){const now=Date.now();S.sIncome=S.sIncome.filter(([t])=>now-t<15*60e3);if(!S.sIncome.length)return 0;
   const span=Math.max(180e3,now-S.sIncome[0][0]);return S.sIncome.reduce((s,[,v])=>s+v,0)/(span/60e3);}
 
@@ -210,19 +222,55 @@ let drawerItemsCache=[];
 function updateDrawerCosts(){$('drawerItems').querySelectorAll('.item').forEach(b=>{const x=drawerItemsCache[+b.dataset.n];if(x?.cost){const c=x.tool.startsWith('b:')?buildCost(x.tool.slice(2)):x.cost;const h=costHTML(c);const ic=b.querySelector('.ic');if(ic.innerHTML!==h)ic.innerHTML=h;}});}
 
 /* ---- the trade ledger ---- */
-function toggleTrade(){const d=$('trade');d.hidden=!d.hidden;if(!d.hidden){$('drawer').hidden=true;renderTrade();}}
+// trade is run from a trading post (or a jetty, for barges): the ledger opens there, and the top-bar button
+// takes you to the post first. With neither built, there is nobody to send.
+function tradeHub(){let j=-1;for(let k=0;k<GW*GH;k++){if(builds[k]===B.POST)return k;if(j<0&&builds[k]===B.JETTY)j=k;}return j;}
+function toggleTrade(fromPost){const d=$('trade');
+  if(d.hidden){const k=tradeHub();
+    if(k<0){log('Trade is run from a trading post. Build one by a road (Build → Work & trade), then click it to send wagons.','warn');sfx('no');
+      const b=$('btnTrade');b.classList.remove('nudge');void b.offsetWidth;b.classList.add('nudge');return;}
+    if(fromPost!==true){const c=tileC(k%GW,(k/GW)|0);tweenTo({x:c.x,y:0,z:c.z},Math.min(view.z,34),1.1);}}
+  d.hidden=!d.hidden;if(!d.hidden){$('drawer').hidden=true;closePlot();renderTrade();}}
+// the ledger redraws only when something in it changed, never in the middle of a press, and its controls
+// are wired once on the panel (so a redraw can't swallow a click)
+let lastTradeHTML='',tradeHold=false;
+{const body=$('tradeBody'),veh=n=>trade.vehicles[+n],after=()=>{lastTradeHTML='';renderTrade();save();};
+  body.addEventListener('pointerdown',()=>{tradeHold=true;});addEventListener('pointerup',()=>{if(tradeHold)setTimeout(()=>{tradeHold=false;},0);});
+  body.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.disabled)return;
+    if(b.dataset.m!==undefined&&b.dataset.q!==undefined){const v=veh(b.dataset.m);if(v){trade.setPlan(v,b.dataset.g,+b.dataset.q);sfx('tick',2);}tradeHold=false;after();return;}
+    if(b.dataset.fill!==undefined){const v=veh(b.dataset.fill);if(v){trade.planForOrders(v);sfx('pluck');}tradeHold=false;after();return;}
+    if(b.dataset.clear!==undefined){const v=veh(b.dataset.clear);if(v)trade.clearPlan(v);tradeHold=false;after();return;}
+    if(b.dataset.go!==undefined){const v=veh(b.dataset.go);tradeHold=false;if(v&&trade.sendNow(v))refreshUI();after();return;}
+    if(b.closest('.rs')){const g=b.dataset.g;S.reserve[g]=clamp(S.reserve[g]+ +b.dataset.d,0,200);tradeHold=false;after();}});
+  body.addEventListener('keydown',e=>{if(e.target.tagName!=='INPUT')return;e.stopPropagation();if(e.key==='Enter')e.target.blur();});
+  body.addEventListener('keyup',e=>{if(e.target.tagName==='INPUT')e.stopPropagation();});
+  body.addEventListener('change',e=>{const inp=e.target;if(inp.tagName!=='INPUT'||inp.dataset.m===undefined)return;const v=veh(inp.dataset.m);if(v)trade.setPlan(v,inp.dataset.g,+inp.value||0);inp.blur();after();});}
 function renderTrade(){
+  if(tradeHub()<0){$('trade').hidden=true;return;}
+  const body=$('tradeBody');if(tradeHold||(body.contains(document.activeElement)&&document.activeElement.tagName==='INPUT'))return; // don't redraw under a press or someone typing
   const g=GOOD_IDS.map(id=>`<tr><td><i class="sw" style="background:${GOODS[id].col}"></i>${GOODS[id].name}</td><td class="n">${fmt(S.goods[id]||0)}</td><td class="n dim">${goodRate(id)?'+'+goodRate(id).toFixed(1)+'/min':''}</td>
-    <td class="n dim">${price(id,'wagon').toFixed(0)} · ${price(id,'barge').toFixed(0)}</td><td class="rs">${GOODS[id].raw?`<button type="button" data-g="${id}" data-d="-2">−</button><span>${S.reserve[id]}</span><button type="button" data-g="${id}" data-d="2">+</button>`:''}</td>
-    <td><button type="button" class="snd" data-s="${id}" aria-pressed="${S.ship[id]!==false}">${S.ship[id]!==false?'Send':'Hold'}</button></td></tr>`).join('');
-  const vs=trade.vehicles.length?trade.vehicles.map((v,n)=>`<li class="${v.state==='stuck'?'bad':''}">${vehicleLine(v)}${v.state==='load'&&(v.ready||0)>0?` <button type="button" class="chip snow" data-v="${n}">Send now</button>`:''}</li>`).join(''):'<li class="dim">No trading posts or jetties yet. Build them from Build → Work & trade.</li>';
-  const os=(S.orders||[]).map(o=>`<li><div><b>${o.regionName}</b> wants <b>${o.qty} ${GOODS[o.good].name.toLowerCase()}</b> <span class="dim">by ${o.route==='north'?'wagon':'barge'}</span></div><div class="ob"><i style="width:${(o.got/o.qty*100).toFixed(0)}%"></i></div><div class="dim">${o.got}/${o.qty} · pays +${fmt(o.reward)} silver and a crate</div></li>`).join('');
-  $('tradeBody').innerHTML=`<table><thead><tr><th>Goods</th><th class="n">Stock</th><th class="n">Made</th><th class="n">Wagon · barge</th><th>Keep back</th><th></th></tr></thead><tbody>${g}</tbody></table>
-    <p class="dim small">Wagons and barges load what open orders on their route are waiting for first, then the most valuable goods. They take only what is above the keep-back amount, and nothing that is on Hold. Workshops can use the kept-back goods.</p>
-    <h4>Wagons &amp; barges</h4><ul class="vs">${vs}</ul><h4>Orders from along the river</h4><ul class="os">${os}</ul>`;
-  $('tradeBody').querySelectorAll('[data-s]').forEach(b=>b.addEventListener('click',()=>{const g=b.dataset.s;S.ship[g]=S.ship[g]===false;renderTrade();renderOrdersGoal();save();}));
-  $('tradeBody').querySelectorAll('[data-v]').forEach(b=>b.addEventListener('click',()=>{const v=trade.vehicles[+b.dataset.v];if(v&&trade.sendNow(v)){sfx('pluck');refreshUI();}renderTrade();}));
-  $('tradeBody').querySelectorAll('.rs button').forEach(b=>b.addEventListener('click',()=>{const g=b.dataset.g;S.reserve[g]=clamp(S.reserve[g]+ +b.dataset.d,0,200);renderTrade();save();}));
+    <td class="n dim">${price(id,'wagon').toFixed(0)} · ${price(id,'barge').toFixed(0)}</td><td class="rs" title="Markets won’t sell below this">${GOODS[id].raw?`<button type="button" data-g="${id}" data-d="-2">−</button><span>${S.reserve[id]}</span><button type="button" data-g="${id}" data-d="2">+</button>`:''}</td></tr>`).join('');
+  // one manifest per wagon and barge: what goes on board, checked against the orders on its route
+  const man=trade.vehicles.map((v,n)=>{const nm=v.kind==='wagon'?'Wagon':'Barge',route=v.kind==='wagon'?'north':'east',cap=capacity(v.kind,v.home);
+    if(v.state!=='load')return `<div class="man away"><div class="mh"><b>${nm}</b><span class="dim">${vehicleLine(v)}</span></div></div>`;
+    const p=trade.plan(v),on=trade.planned(v),w=trade.wanted(route);
+    const rows=GOOD_IDS.filter(id=>(S.goods[id]||0)>=1||p[id]).map(id=>{const q=p[id]||0,need=w[id]||0;
+      return `<div class="mr${q?' on':''}"><span class="mg"><i class="sw" style="background:${GOODS[id].col}"></i>${GOODS[id].name}${need?` <em class="need" title="Orders on this route still want ${need}">wanted ${fmt(need)}</em>`:''}</span>
+        <span class="mq"><button type="button" data-m="${n}" data-g="${id}" data-q="${q-10}" aria-label="10 fewer">−10</button><button type="button" data-m="${n}" data-g="${id}" data-q="${q-1}" aria-label="One fewer">−</button>
+        <input type="number" min="0" inputmode="numeric" value="${q}" data-m="${n}" data-g="${id}" aria-label="${GOODS[id].name} on board">
+        <button type="button" data-m="${n}" data-g="${id}" data-q="${q+1}" aria-label="One more">+</button><button type="button" data-m="${n}" data-g="${id}" data-q="${q+10}" aria-label="10 more">+10</button></span>
+        <span class="ms dim">of ${fmt(Math.floor(S.goods[id]||0))}</span></div>`;}).join('')||'<div class="dim small">Nothing in stock to send yet.</div>';
+    const value=GOOD_IDS.reduce((s,id)=>s+(p[id]||0)*price(id,v.kind),0);
+    return `<div class="man${v.state==='stuck'?' bad':''}"><div class="mh"><b>${nm}</b><span class="cap"><i style="width:${(on/cap*100).toFixed(0)}%"></i></span><span class="dim">${on} / ${cap} on board</span></div>
+      ${v.state==='stuck'?`<div class="small" style="color:var(--ember)">${vehicleLine(v)}</div>`:''}${rows}
+      <div class="mf"><button type="button" class="chip" data-fill="${n}">Load what orders want</button><button type="button" class="chip" data-clear="${n}"${on?'':' disabled'}>Clear</button>
+      <span class="dim small">${on?`worth ~${fmt(value)} silver`:''}</span><button type="button" class="go" data-go="${n}"${on&&v.state!=='stuck'?'':' disabled'}>Go ›</button></div></div>`;}).join('')||'<p class="dim">No trading posts or jetties yet. Build them from Build → Work &amp; trade.</p>';
+  const ord=o=>`<li class="${o.contract?'contract':''}"><div>${o.contract?'<span class="ct">Contract</span> ':''}<b>${o.regionName}</b> wants <b>${fmt(o.qty)} ${GOODS[o.good].name.toLowerCase()}</b> <span class="dim">by ${o.route==='north'?'wagon':'barge'}${o.contract?`, ${o.why}`:''}</span></div><div class="ob"><i style="width:${(o.got/o.qty*100).toFixed(0)}%"></i></div><div class="dim">${fmt(o.got)}/${fmt(o.qty)} · pays +${fmt(o.reward)} silver and a crate${o.contract?' · filled over many trips':''}</div></li>`;
+  const os=(S.orders||[]).filter(o=>!o.contract).map(ord).join(''),cs=(S.orders||[]).filter(o=>o.contract).map(ord).join('');
+  const html=`<h4>Orders from along the river</h4><ul class="os">${os}</ul>${cs?`<h4>Contracts</h4><ul class="os">${cs}</ul>`:''}
+    <h4>Load and send</h4><p class="dim small">Nothing leaves until you say Go. Put on board what the orders need (or anything else to sell), then send it off. The load is remembered for next time.</p>${man}
+    <h4>Your goods</h4><table><thead><tr><th>Goods</th><th class="n">Stock</th><th class="n">Made</th><th class="n">Wagon · barge</th><th title="Markets won’t sell below this">Keep back</th></tr></thead><tbody>${g}</tbody></table>`;
+  if(html!==lastTradeHTML){lastTradeHTML=html;body.innerHTML=html;}
 }
 $('upLine').title='Crews bring fish in 30% faster per level';$('upBait').title='Rice and song left at the water: fish arrive and take the line 25% more often per level';
 $('upLine').addEventListener('click',()=>{if(spend(cost.line(),'silver')){S.lineLv++;log(`Braided lines, level ${S.lineLv}. Crews bring fish in faster.`);refreshUI();save();}});
@@ -231,7 +279,7 @@ function toggleCodex(){const c=$('codex');c.hidden=!c.hidden;if(!c.hidden){rende
 $('btnCodex').addEventListener('click',toggleCodex);$('codexClose').addEventListener('click',toggleCodex);
 const regionMap=initMap($('map'));
 $('btnMap').addEventListener('click',()=>regionMap.toggle());
-$('btnTrade').addEventListener('click',toggleTrade);$('tradeClose').addEventListener('click',toggleTrade);$('mapClose').addEventListener('click',()=>regionMap.toggle());
+$('btnTrade').addEventListener('click',()=>toggleTrade());$('tradeClose').addEventListener('click',()=>toggleTrade());$('mapClose').addEventListener('click',()=>regionMap.toggle());
 $('btnIn').addEventListener('click',()=>{view.z=clamp(view.z/1.3,ZMIN,ZMAX);cancelAuto();});
 $('btnOut').addEventListener('click',()=>{view.z=clamp(view.z*1.3,ZMIN,ZMAX);cancelAuto();});
 function setPix(p){PIX=p;resize();store.set('deepvale-pix',String(PIX));$('pixSeg').querySelectorAll('[data-pix]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.pix===PIX)));}

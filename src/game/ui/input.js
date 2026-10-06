@@ -134,7 +134,7 @@ function previewFor(tl,i,j){
 }
 function vehicleLine(v){const nm=v.kind==='wagon'?'Wagon':'Barge';
   if(v.state==='stuck')return v.kind==='wagon'?`${nm}: no road to the Pilgrim Way`:`${nm}: no flowing water out to the east edge`;
-  if(v.state==='load')return `${nm} loading · ${fmt(Math.min(v.ready||0,capacity(v.kind)))} / ${capacity(v.kind)} ready`;
+  if(v.state==='load')return `${nm} at home · ${trade.planned(v)} / ${capacity(v.kind,v.home)} on board, waiting for Go`;
   if(v.state==='out')return `${nm} on its way out · ${trade.load(v)} goods`;
   if(v.state==='away')return `${nm} away ${v.kind==='wagon'?'up the Way':'downriver'} · back in ${Math.ceil(v.t)}s`;
   return `${nm} coming home`;}
@@ -159,7 +159,7 @@ function hover(cx,cy){
     else if(useTool!=='look'){const r=canDo(useTool,i,j),cur=COST[useTool]||'scales';
       const cobj=r.cost||r.refund||(r.c?{[cur]:r.c}:null);
       hoverLoop.material.color.set(r.ok&&(!cobj||r.refund||afford(cobj))?(useTool==='remove'?'#e9a07a':'#ffe6b0'):'#e98a5f');
-      const names={clear:'Clear land',dig:r.restore?'Restore the old channel':'Dig a new channel',hire:'Hire fisher',move:'Move fisher here',hut:r.restyle?`Restyle as ${STYLES[S.hutStyle].name.toLowerCase()}`:`Build a ${STYLES[S.hutStyle].name.toLowerCase()} hut`,road:r.lift?'Lift this road':'Lay road',bridge:'Build a bridge',pave:`Pave with ${PAVES[S.pave].name.toLowerCase()}`,remove:'Remove',scout:'Send a crow'};
+      const names={clear:'Clear land',dig:r.restore?'Restore the old channel':'Dig a new channel',hire:'Hire fisher',move:'Move fisher here',hut:r.restyle?`Restyle as ${STYLES[S.hutStyle].name.toLowerCase()}`:`Build a ${STYLES[S.hutStyle].name.toLowerCase()} hut`,road:r.lift?'Lift this road':'Lay road',bridge:'Build a bridge',pave:`Pave with ${PAVES[S.pave].name.toLowerCase()}`,remove:'Remove',scout:'Send a crow',relocate:relocK>=0?`Move the ${plotName(relocK).toLowerCase()} here`:'Move'};
       const nm=useTool.startsWith('b:')?(useTool==='b:statue'?`Statue of the ${SP[S.statueSp]?.name||'…'}`:DEFS[useTool.slice(2)].name):names[useTool];
       html=`<div>${nm}${r.ok&&cobj&&Object.keys(cobj).length?` · ${r.refund?'<span class="dim">gives back</span> ':''}${costHTML(cobj)}`:''}</div>`+(r.ok?'':`<div class="bad">${r.why}</div>`);
       if(useTool==='dig'&&r.ok)html+=`<div class="dim">Water only lives if the current runs through it</div>`;
@@ -210,7 +210,7 @@ function click(cx,cy){
   if(tool.startsWith('c:')||tool.startsWith('e:')){actDeco(tool,snapAt(p,tool[0]));hover(cx,cy);return;}
   act(tool,i,j);hover(cx,cy);
 }
-function setTool(t){tool=t;decoMark.visible=false;selected=null;selRing.visible=false;setPreview([]);tip.style.display='none';
+function setTool(t){if(t!=='relocate')relocK=-1;tool=t;decoMark.visible=false;selected=null;selRing.visible=false;setPreview([]);tip.style.display='none';
   document.querySelectorAll('.tool').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===t||(b.dataset.tool==='build'&&(t.startsWith('b:')||t==='pave'||t==='scout')))));
   document.querySelectorAll('#drawer .item').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===t)));updateMarks();}
 document.querySelectorAll('.tool').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.tool==='build'){toggleDrawer();return;}setTool(b.dataset.tool);}));
