@@ -155,6 +155,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .coin.sv{color:#d3dde3}
 .coin .ic-svg{align-self:center}
 .coin em{font-style:normal;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-3)}
+.coin .rt{font-family:var(--mono);font-size:10px;color:var(--jade);opacity:.8;margin-left:-1px}
+.coin .rt:empty{display:none}
 #scales,#silver{font-family:var(--mono);font-size:19px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:inherit;margin:0}
 
 /* tales counter */
@@ -218,6 +220,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .goals .gt span b{font-family:inherit;font-size:12px;color:var(--gold2)}
 .goals .still{margin-top:2px;font-size:11px;color:var(--moss)}
 .goals .gn{font-family:var(--mono);font-size:11.5px;color:var(--gold2);white-space:nowrap}
+/* Requests: the village wish and the orders, one list (renderRequests in ui/hud.js) */
+.goals .gsub{margin:6px 0 0;padding-top:6px;border-top:1px solid var(--edge);font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--txt-3)}
+.goals .req .pays{margin-top:2px;font-family:var(--mono);font-size:10.5px;color:var(--gold2);opacity:.85}
+.goals .req.wish .gi{color:var(--accent)}
+.goals .req .ct{margin-left:4px;padding:0 4px;font-family:var(--body);font-size:9px;font-style:normal;font-weight:700;letter-spacing:.12em;text-transform:uppercase;vertical-align:2px;color:#1d140a;background:var(--gold2)}
+#trade li.wish{padding:8px;margin:4px 0;border:1px solid rgba(134,220,188,.25);background:rgba(134,220,188,.04)}
 
 /* ---------- 4. Toolbar ----------
    The bottom bar mirrors the top one: a dark fade from the edge, and tools styled as menu items.
@@ -650,6 +658,34 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 @keyframes embFloat{50%{transform:translateY(-4px) rotate(-2deg)}}
 @keyframes embPop{40%{transform:scale(1.08) rotate(6deg)}}
 @keyframes spinIn{0%{transform:rotateY(90deg) scale(.6);opacity:0}100%{transform:none;opacity:1}}
+/* tackle: a canvas hang tag on a twine loop through a brass eyelet; a float bobs on the water while its line draws in */
+#crate .shape-tag{padding-top:30px}
+#crate .shape-tag .cf{padding-bottom:6px;background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px),repeating-linear-gradient(90deg,rgba(0,0,0,.12) 0 1px,transparent 1px 3px),
+  radial-gradient(80% 45% at 50% 30%,color-mix(in srgb,var(--cc) 16%,transparent),transparent 70%),linear-gradient(180deg,#3b2a22,#211813)}
+#crate .shape-tag .ceye{position:absolute;z-index:5;left:50%;top:40px;width:16px;height:16px;margin-left:-8px;border-radius:50%;box-sizing:border-box;
+  background:radial-gradient(circle,#0c0806 45%,transparent 47%),radial-gradient(circle at 35% 30%,#f6dfa6,#a57b3c 70%);box-shadow:0 2px 3px rgba(0,0,0,.5)}
+#crate .shape-tag .ctwine{position:absolute;z-index:6;left:50%;top:-2px;width:40px;height:52px;margin-left:-20px;overflow:visible;pointer-events:none}
+#crate .shape-tag .ctwine path{fill:none;stroke:#d8c39a;stroke-width:2.2;stroke-dasharray:3 1.5;filter:drop-shadow(0 1px 0 rgba(0,0,0,.5))}
+#crate .shape-tag .ctag{top:66px;left:50%;transform:translateX(-50%)}
+#crate .shape-tag .cfloat{display:block;width:calc(100% - 28px);margin:56px 14px 0;height:96px;overflow:visible}
+#crate .shape-tag .cfloat .ln{fill:none;stroke:#eadbc6;stroke-width:1.2;stroke-dasharray:150;stroke-dashoffset:150;animation:draw 1.4s ease-out calc(var(--deal,0) * .16s + 1s) forwards}
+#crate .shape-tag .cfloat .wv{fill:none;stroke:rgba(150,212,226,.55);stroke-width:1.6}
+#crate .shape-tag .cfloat .wv.w2{stroke:rgba(150,212,226,.25)}
+#crate .shape-tag .cfloat .wv.cover{stroke:rgba(150,212,226,.8);stroke-width:2}
+#crate .shape-tag .cfloat .bob{transform-box:fill-box;transform-origin:50% 100%;animation:floatBob 2.8s ease-in-out infinite}
+#crate .shape-tag .cfloat .top{fill:var(--cc)} #crate .shape-tag .cfloat .bot{fill:#f3ead8} #crate .shape-tag .cfloat .band,#crate .shape-tag .cfloat .ant{stroke:#2a1a14;stroke-width:2;fill:none}
+#crate .shape-tag .cfloat .rip{fill:none;stroke:rgba(200,236,242,.6);stroke-width:1.2;transform-box:fill-box;transform-origin:center;animation:ripple 2.8s ease-out infinite}
+#crate .shape-tag .cfloat .r2{animation-delay:1.4s}
+@keyframes floatBob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(4px) rotate(3deg)}}
+@keyframes ripple{0%{transform:scale(.35);opacity:.9}100%{transform:scale(1.35);opacity:0}}
+#crate .card:hover .shape-tag .cfloat .bob{animation:floatTug .5s cubic-bezier(.3,1.6,.5,1) 2,floatBob 2.8s ease-in-out 1s infinite}
+@keyframes floatTug{40%{transform:translateY(9px) rotate(-6deg)}}
+#crate .shape-tag .chead{padding-top:6px;background:none;border-bottom:0;text-align:center;overflow:visible}
+#crate .shape-tag .chead::after,#crate .shape-tag .chead::before{display:none}
+#crate .shape-tag .chain{justify-content:center}
+#crate .shape-tag .cbody{text-align:center} #crate .shape-tag .cv{justify-content:center}
+#crate .shape-tag .cfoot{justify-content:center}
+@media (prefers-reduced-motion:reduce){#crate .shape-tag .cfloat .bob,#crate .shape-tag .cfloat .rip{animation:none}#crate .shape-tag .cfloat .ln{animation:none;stroke-dashoffset:0}}
 @media (prefers-reduced-motion:reduce){#crate .shape-tablet .cmedal,#crate .shape-arch .cf::after,#crate .shape-banner .cgem::after{animation:none}#crate .shape-sheet .cdraw .ln{animation:none;stroke-dashoffset:0}}
 @keyframes breathe{50%{box-shadow:0 18px 40px rgba(0,0,0,.45),0 0 18px color-mix(in srgb,var(--cc) 18%,transparent)}}
 

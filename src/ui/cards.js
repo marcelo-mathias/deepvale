@@ -7,16 +7,17 @@
 import { icon } from './icons.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
-export const CARD_COL = { boon: '#86dcbc', keeper: '#e2c48e', blueprint: '#9cc3ee', silver: '#d3dde3', coin: '#d3dde3' };
-const TAG = { boon: 'Blessing', keeper: 'Keeper', blueprint: 'Blueprint', silver: 'Silver', coin: 'Treasure' };
+export const CARD_COL = { boon: '#86dcbc', keeper: '#e2c48e', blueprint: '#9cc3ee', tackle: '#f2a07c', silver: '#d3dde3', coin: '#d3dde3' };
+const TAG = { boon: 'Blessing', keeper: 'Keeper', blueprint: 'Blueprint', tackle: 'Tackle', silver: 'Treasure', coin: 'Treasure' };
 
 // Each kind of card has its own silhouette and surface:
 //   blessing  · an arched chapel window with a stained-glass head
 //   keeper    · a hanging banner with a pointed foot; the portrait breaks out over the top
 //   blueprint · a sheet pinned to the board: clipped corners, a torn foot, cyanotype grid, a building that draws itself
 //   treasure  · a tablet with the currency's painted medallion set into a ribbed coin edge above it
+//   tackle    · a canvas hang tag on a twine loop through a brass eyelet; a float bobs on the water while its line draws in
 // The face (.cf) is clipped to the shape, and a stroke traced over the same outline fades in from the foot.
-const SHAPE = { boon: 'arch', keeper: 'banner', blueprint: 'sheet', coin: 'tablet', silver: 'tablet' };
+const SHAPE = { boon: 'arch', keeper: 'banner', blueprint: 'sheet', tackle: 'tag', coin: 'tablet', silver: 'tablet' };
 let gid = 0;
 // The painted swirl over the stained glass used to be a live feTurbulence filter, which the browser re-ran every
 // time the card repainted (every frame while it moved). As an image it's rasterised once and cached.
@@ -39,6 +40,14 @@ const glass = () => { const cx = 125, cy = 150, n = 8, cols = ['#1f6b58', '#2c8a
 const DRAW = `<svg class="cdraw" viewBox="0 0 214 110" aria-hidden="true"><circle class="cons" cx="107" cy="58" r="48"/><path class="cons" d="M10 58H204M107 6V110"/>
   <path class="ln" d="M57 58L107 22L157 58M65 52V98H149V52M97 98V74H117V98M75 64H89V78H75Z"/><path class="cons" d="M57 106H157M57 102V110M157 102V110"/></svg>`;
 
+// tackle: a float on the water, its line coming in from the rod, ripples spreading as it bobs
+const FLOAT = `<svg class="cfloat" viewBox="0 0 214 110" aria-hidden="true">
+  <ellipse class="rip r1" cx="120" cy="80" rx="36" ry="6"/><ellipse class="rip r2" cx="120" cy="80" rx="36" ry="6"/>
+  <path class="wv" d="M0 80Q18 74 36 80T72 80T108 80T144 80T180 80T216 80"/><path class="wv w2" d="M10 96Q26 91 42 96T74 96T106 96T138 96T170 96T202 96"/>
+  <path class="ln" d="M2 2C40 4 94 14 120 30"/>
+  <g class="bob"><path class="ant" d="M120 30V48"/><path class="top" d="M99 68a21 21 0 0 1 42 0Z"/><path class="bot" d="M99 68h42a21 22 0 0 1-42 0Z"/><path class="band" d="M99 68h42"/></g>
+  <path class="wv cover" d="M92 83Q106 78 120 83T148 83"/></svg>`;
+
 // info: { value:{from,to}|text, chain:[[icon,label],…], foot:{pips:[have,max]|null, text}, emblem }
 export function cardHTML(cd, info = {}, portraitSrc){
   const v = info.value, shape = SHAPE[cd.type] || 'tablet';
@@ -51,8 +60,9 @@ export function cardHTML(cd, info = {}, portraitSrc){
   // things that stand proud of the face sit outside it, so the clip doesn't cut them
   const proud = shape === 'banner' && portraitSrc ? `<img class="cport" src="${portraitSrc}" alt="">`
     : shape === 'tablet' && info.emblem ? `<i class="cribs"></i><div class="cmedal">${info.emblem}</div>`
-    : shape === 'sheet' ? '<i class="cpin"></i>' : '';
-  const inner = shape === 'arch' ? glass() : shape === 'banner' ? '<i class="cband"></i><i class="cgem"></i>' : shape === 'sheet' ? DRAW : '';
+    : shape === 'sheet' ? '<i class="cpin"></i>'
+    : shape === 'tag' ? '<svg class="ctwine" viewBox="0 0 40 52" aria-hidden="true"><path d="M20 50C4 34 5 8 20 2C35 8 36 34 20 50"/></svg><i class="ceye"></i>' : '';
+  const inner = shape === 'arch' ? glass() : shape === 'banner' ? '<i class="cband"></i><i class="cgem"></i>' : shape === 'sheet' ? DRAW : shape === 'tag' ? FLOAT : '';
   return `<div class="cin shape-${shape}">
     <span class="ctag">${TAG[cd.type] || 'Gift'}</span>${proud}
     <div class="cf">${inner}
@@ -74,6 +84,7 @@ export function cardHTML(cd, info = {}, portraitSrc){
 function outline(shape, w, h){
   if (shape === 'arch'){ const r = w / 2; return `M0 ${h}V${r}A${r} ${r} 0 0 1 ${w} ${r}V${h}Z`; }
   if (shape === 'banner') return `M0 0H${w}V${h - 44}L${w / 2} ${h}L0 ${h - 44}Z`;
+  if (shape === 'tag'){ const c = 34, r = 10; return `M${c} 0H${w - c}L${w} ${c}V${h - r}A${r} ${r} 0 0 1 ${w - r} ${h}H${r}A${r} ${r} 0 0 1 0 ${h - r}V${c}Z`; }
   if (shape === 'sheet'){ const n = 12, t = 14; let d = `M${t} 0H${w - t}L${w} ${t}V${h - 8}`;
     for (let k = 1; k <= n; k++) d += `L${(w - k * w / n).toFixed(1)} ${k % 2 ? h : h - 8}`; return d + `V${t}Z`; }
   const r = 14; return `M${r} 0H${w - r}A${r} ${r} 0 0 1 ${w} ${r}V${h - r}A${r} ${r} 0 0 1 ${w - r} ${h}H${r}A${r} ${r} 0 0 1 0 ${h - r}V${r}A${r} ${r} 0 0 1 ${r} 0Z`;

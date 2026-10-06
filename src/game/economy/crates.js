@@ -4,20 +4,28 @@
 /* ================= keepers, boons, crates ================= */
 const keeperSlots=()=>2+builds.reduce((s,b)=>s+(b===B.STONES?1:0),0);
 const crateQ=[];let crateOpen=null;
+// tackle: braided lines and offerings used to be bought on the toolbar; now they come in crates, a level at a time.
+// The levels live where they always did (S.lineLv, S.baitLv), so a save keeps what it bought.
+const TACKLE={
+  line:{name:'Braided lines',max:6,per:30,chain:[['line','Lines'],['fish','Fish']],d:'Crews bring fish in faster.',lv:()=>S.lineLv||0,up:()=>{S.lineLv=(S.lineLv||0)+1;}},
+  bait:{name:'Offerings',max:6,per:25,chain:[['bait','Offerings'],['fish','Fish']],d:'Rice and song left at the water: fish come to the banks and take the line more often.',lv:()=>S.baitLv||0,up:()=>{S.baitLv=(S.baitLv||0)+1;}},
+};
 function queueCrate(c){crateQ.push(c);S.crates++;if(!crateOpen)setTimeout(nextCrate,started?900:0);}
 function crateCards(kind){
-  if(kind==='showcase'){const pk=a=>a[Math.floor(Math.random()*a.length)];const k=pk(KEEPERS),b=pk(BOONS),p=pk(BLUEPRINTS);
-    return [{type:'boon',id:b.id,name:b.name,desc:b.desc},{type:'keeper',id:k.id,name:k.name,desc:k.desc,glyph:k.glyph},{type:'blueprint',id:p.id,name:p.name,desc:bpDesc(p)},coinCard()];}
+  if(kind==='showcase'){const pk=a=>a[Math.floor(Math.random()*a.length)];const k=pk(KEEPERS),b=pk(BOONS),p=pk(BLUEPRINTS),t=pk(Object.keys(TACKLE));
+    return [{type:'boon',id:b.id,name:b.name,desc:b.desc},{type:'keeper',id:k.id,name:k.name,desc:k.desc,glyph:k.glyph},{type:'blueprint',id:p.id,name:p.name,desc:bpDesc(p)},
+      {type:'tackle',id:t,name:TACKLE[t].name,desc:TACKLE[t].d},coinCard()];}
   if(kind==='treasure')return Object.keys(COINS).sort(()=>Math.random()-.5).slice(0,3).map(id=>coinCard(id));
   const n=has('quill')?4:3;const out=[];const used=new Set();
   const pools={
     keeper:()=>KEEPERS.filter(k=>!S.keepers.includes(k.id)&&!used.has('k'+k.id)).map(k=>({type:'keeper',id:k.id,name:k.name,desc:k.desc,glyph:k.glyph})),
     boon:()=>BOONS.filter(b=>boon(b.id)<b.max&&!used.has('b'+b.id)).map(b=>({type:'boon',id:b.id,name:b.name,desc:b.desc+(boon(b.id)?` (you have ${boon(b.id)})`:'')})),
     blueprint:()=>BLUEPRINTS.filter(b=>!unlocked(b.id)&&!used.has('p'+b.id)).map(b=>({type:'blueprint',id:b.id,name:b.name,desc:bpDesc(b)})),
+    tackle:()=>Object.entries(TACKLE).filter(([id,t])=>t.lv()<t.max&&!used.has('t'+id)).map(([id,t])=>({type:'tackle',id,name:t.name,desc:t.d})),
   };
   for(let t=0;t<n;t++){
-    let kinds=kind==='keeper'?['keeper']:['keeper','boon','boon','blueprint'];
-    kinds=kinds.filter(k=>pools[k]().length);if(!kinds.length)kinds=['boon','blueprint','keeper'].filter(k=>pools[k]().length);if(!kinds.length)break;
+    let kinds=kind==='keeper'?['keeper']:['keeper','boon','boon','blueprint','tackle'];
+    kinds=kinds.filter(k=>pools[k]().length);if(!kinds.length)kinds=['boon','blueprint','tackle','keeper'].filter(k=>pools[k]().length);if(!kinds.length)break;
     const kk=kinds[Math.floor(Math.random()*kinds.length)],pool=pools[kk]();const c=pool[Math.floor(Math.random()*pool.length)];
     used.add(c.type[0]+c.id);out.push(c);}
   // a mixed crate sometimes holds a treasure instead of one of its cards; an empty one always does
@@ -64,6 +72,9 @@ function cardInfo(cd){
     else if(cd.id==='tide')text=`A good tide lasts ${50+15*l} s → ${50+15*(l+1)} s`;
     else if(cd.id==='reach')text='Every statue, shed and rack';
     return {value:{from:l?`+${l*U.per}${U.u}`:null,to:`+${(l+1)*U.per}${U.u}`},chain:U.chain,desc:U.d||BOON[cd.id].desc,foot:{pips:[l,mx],text}};}
+  if(cd.type==='tackle'){const T=TACKLE[cd.id],l=T.lv(),n=fishersState.length;
+    return {value:{from:l?`+${l*T.per}%`:null,to:`+${(l+1)*T.per}%`},chain:T.chain,desc:T.d,
+      foot:{pips:[Math.min(l,T.max),T.max],text:cd.id==='line'?`${n} fisher${n===1?'':'s'} on the banks`:'Every bank in the valley'}};}
   if(cd.type==='keeper')return {desc:cd.desc,chain:sigsOf(cd.desc),foot:{text:`Cottages: ${S.keepers.length} of ${keeperSlots()} taken`}};
   if(cd.type==='blueprint'){const b=BLUEPRINTS.find(x=>x.id===cd.id);return {value:b?.kind==='build'?'A new building':b?.kind==='style'?'A new hut style':'A new paving',chain:[['build','Build'],...sigsOf(cd.desc).slice(0,2)],desc:cd.desc.replace(/^Blueprint\.\s*/,''),foot:{text:'Yours to build once chosen'}};}
   if(cd.type==='coin')return {value:`+${fmt(cd.amt)}`,emblem:emblem(cd.id),desc:{scales:'The valley’s one money: for building, hiring and everything else.',timber:'For building, and for the wagons north.',
@@ -118,6 +129,7 @@ function pickCard(cd){
     // full: show the newcomer beside everyone who lives here now, with what each of them does, and let the player choose
     keeperSwap(cd);return;}
   if(cd.type==='boon'){S.boons[cd.id]=boon(cd.id)+1;log(`${cd.name}: ${BOON[cd.id].desc}`,'gold');computeEconomy();}
+  if(cd.type==='tackle'){const T=TACKLE[cd.id];T.up();log(`${T.name}, level ${T.lv()}. ${T.d}`,'gold');}
   if(cd.type==='blueprint'){S.unlocked[cd.id]=true;log(`Blueprint: ${cd.name}. Find it in Build.`,'gold');renderDrawer();}
   if(cd.type==='silver'){earn(100+50*S.crates);}
   if(cd.type==='coin'){if(cd.id==='silver'||cd.id==='scales'){S.scales+=cd.amt;S.earned+=cd.amt;}else S.goods[cd.id]=(S.goods[cd.id]||0)+cd.amt;log(`${cd.name}: +${fmt(cd.amt)} ${label(cd.id)}.`,'gold');}
@@ -157,7 +169,8 @@ function wishEvent(kind,d={}){
   if(w.have>=w.n){log(`The village’s wish came true: ${w.text.toLowerCase()}.`,'gold');S.wishesDone++;S.wish=null;queueCrate({source:'the village, with thanks',kind:'mixed'});setTimeout(()=>{if(!S.wish)newWish();},rand(...PACING.wishPause)*1000);}
   renderWish();
 }
-function renderWish(){const w=S.wish;$('wish').innerHTML=w?`<div class="gl"><span class="gi">${icon('wish')}</span><div class="gt"><b>A village wish</b><span>${w.text}</span></div><span class="gn">${fmt(Math.min(w.have,w.n))}/${fmt(w.n)}</span></div>`:'';$('wish').hidden=!w;}
+// the wish shows in the Requests list with the orders (renderRequests in ui/hud.js)
+function renderWish(){renderRequests();if(!$('trade').hidden)renderTrade();}
 
 /* ================= named sets ================= */
 function near(k,code,r,pred){const i=k%GW,j=(k/GW)|0;const out=[];for(let b=-r;b<=r;b++)for(let a=-r;a<=r;a++){const ni=i+a,nj=j+b;if(!inGrid(ni,nj)||(!a&&!b))continue;const q=idx(ni,nj);if(builds[q]===code&&(!pred||pred(q)))out.push(q);}return out;}

@@ -145,8 +145,10 @@ let lastGoal='';
 function refreshUI(){
   $('scales').textContent=fmt(S.scales);
   const r=incomeRate(),lh=linkedHuts().length;
-  $('rate').textContent=r>0?`~${r<10?r.toFixed(1):fmt(r)} scales / min`:'No fish met yet';
-  $('housing').textContent=`${fishersState.length} / ${housing()} fishers housed · ${hutCount()} hut${hutCount()>1?'s':''}${lh<hutCount()?` (${lh} on the Way)`:''}`;
+  // a quieter top bar: income sits beside the purse, housing is a gauge with the others, details on hover
+  $('rate').textContent=r>0?`+${r<10?r.toFixed(1):fmt(r)}/min`:'';$('coinSc').title=r>0?`About ${r<10?r.toFixed(1):fmt(r)} scales a minute, from fish, trade, markets and the tale box`:'No fish met yet';
+  {const n=fishersState.length,cap=housing(),hc=hutCount();$('fishersM').innerHTML=barRow('hire','Fishers',`${n}/${cap}`,cap?n/cap:0,'#9cc3ee');
+    $('fishersM').title=`${n} of ${cap} fishers housed · ${hc} hut${hc===1?'':'s'}${lh<hc?` (${lh} on the Pilgrim Way)`:''}. Huts house fishers; hire more from the toolbar.`;}
   const cal=calendar();$('calY').textContent='Year '+cal.year;$('calS').textContent=cal.season;$('calD').textContent=cal.dom;$('calP').textContent=cal.phase;
   $('stSub').textContent=(villages[0]?villages[0].name:'A valley on the Pilgrim Way')+' · '+(night>.3?'night':cal.phase.toLowerCase())+(S.weather&&S.weather.k!=='clear'?' · '+WEATHER[S.weather.k]:'');
   $('talesN').textContent=String(allTales()).padStart(2,'0');
@@ -154,14 +156,15 @@ function refreshUI(){
     if(grew&&booted)log('The Tale House grows: there are more tales to tell than it had room for.','gold');}}
   const busyW=workers.filter(w=>w.job).length,waiting=jobs.filter(j=>!j.crew.length).length;
   $('builders').innerHTML=barRow('builders','Builders',`${busyW}/${builderCount()}${waiting?` · ${waiting} waiting`:''}`,builderCount()?busyW/builderCount():0,'#c9a36a');
+  $('builders').title=`${busyW} of ${builderCount()} builders at work${waiting?`, ${waiting} job${waiting===1?'':'s'} waiting for hands`:''}. More huts bring more builders.`;
   $('health').innerHTML=barRow('health','Valley health',health+' / 100',health/100,'#9fd68a');$('health').title=`River restored ${healthParts.river.toFixed(0)}/35 · forest kept ${healthParts.forest.toFixed(0)}/30 · backwaters ${healthParts.wetland.toFixed(0)}/20 · weir ${healthParts.weir}/15. The Moonscale needs 50, the Warden 70.`;
-  $('goods').innerHTML=GOOD_IDS.map(g=>{const rt=goodRate(g);return `<span class="gd" title="${GOODS[g].name}${rt?` · +${rt.toFixed(1)} / min`:''}" style="--gc:${GOODS[g].col}">${icon(g)}<b>${fmt(S.goods[g]||0)}</b><em>${GOODS[g].name.toLowerCase()}</em></span>`;}).join('');
+  {const shown=GOOD_IDS.filter(g=>(S.goods[g]||0)>=1||goodRate(g)>0);$('goods').hidden=!shown.length;
+  $('goods').innerHTML=shown.map(g=>{const rt=goodRate(g);return `<span class="gd" title="${GOODS[g].name}${rt?` · +${rt.toFixed(1)} / min`:''}" style="--gc:${GOODS[g].col}">${icon(g)}<b>${fmt(S.goods[g]||0)}</b><em>${GOODS[g].name.toLowerCase()}</em></span>`;}).join('');}
   const tl=tideWindow()-(Date.now()-S.tide.t),tOn=S.tide.n>0&&tl>0;$('tide').innerHTML=barRow('tide','Good tide',tOn?'×'+(1+TIDE_STEP*S.tide.n).toFixed(2):'—',tOn?tl/tideWindow():0,'#8fdcc0');
+  $('tide').title=tOn?`A good tide: fish met one after another shed ×${(1+TIDE_STEP*S.tide.n).toFixed(2)} scales. It ebbs in ${Math.ceil(tl/1000)} s unless another fish is met.`:'Meet fish one after another to raise a good tide: each one adds to the scales they shed.';
   renderOrdersGoal();
   const g=nextGoal();if(g!==lastGoal){$('goal').innerHTML=`<div class="gl"><span class="gi">${icon('fish')}</span><div class="gt"><b>${nextGoalTitle()}</b><span>${g}</span></div></div>`;lastGoal=g;}
   for(const t of ['clear','dig','hire','hut','road','bridge']){const c=cost[t]();$('c-'+t).textContent=fmt(c);$('tool-'+t).classList.toggle('poor',S[COST[t]]<c);}
-  $('cLine').textContent=fmt(cost.line());$('cBait').textContent=fmt(cost.bait());$('lvLine').textContent='Lv '+S.lineLv;$('lvBait').textContent='Lv '+S.baitLv;
-  $('upLine').disabled=S.scales<cost.line();$('upBait').disabled=S.scales<cost.bait();
   {const met=SPECIES.filter(s=>S.codex[s.id]).length;$('codexCount').textContent=`${met}/${SPECIES.length}`;$('btnCodex').title=`Codex · ${met} of ${SPECIES.length} fish met`;$('codexDot').hidden=met<=(S.codexSeen||0);}
   const busy=trade.vehicles.filter(v=>v.state!=='load'&&v.state!=='stuck').length;$('tradeN').textContent=`${busy}/${trade.vehicles.length}`;{const hub=tradeHub()>=0,b=$('btnTrade');b.classList.toggle('locked',!hub);b.title=hub?'Open the ledger at the trading post (T)':'Trade is run from a trading post. Build one first';}
   if(!$('trade').hidden)renderTrade();
@@ -178,7 +181,23 @@ function orderHint(o){const g=o.good,nm=GOODS[g].name.toLowerCase();
     if(!builds.includes(code)&&(S.goods[g]||0)<o.qty-o.got)return {timber:'A woodcutter at the forest’s edge makes timber.',reeds:'Reed beds grow reeds. Build one on still water (a pond or a dead-end channel).',clay:'A clay pit on the riverbank digs clay.'}[g];}
   {const v=trade.vehicles.find(v=>v.kind===(o.route==='north'?'wagon':'barge'));if(v&&v.state==='load'&&(S.goods[g]||0)>=1&&!trade.plan(v)[g])return `Load the ${nm} at the ${o.route==='north'?'trading post':'jetty'} and press Go.`;}
   return '';}
-function renderOrdersGoal(){const os=[...(S.orders||[]).filter(o=>!o.contract).slice(0,2),...(S.orders||[]).filter(o=>o.contract).slice(0,1)];const h=os.map(o=>{const hint=orderHint(o);return `<div class="gl"><span class="gi">${icon('order')}</span><div class="gt"><b>${o.regionName}</b><span>${o.contract?'Contract: ':''}Send ${fmt(o.qty)} ${GOODS[o.good].name.toLowerCase()} by ${o.route==='north'?'wagon':'barge'}</span>${hint?`<span class="still">${hint}</span>`:''}</div><span class="gn">${fmt(o.got)}/${fmt(o.qty)}</span></div>`;}).join('');if($('goalOrders').innerHTML!==h)$('goalOrders').innerHTML=h;}
+// Requests: what the village wishes for and what the places along the river order, as one list.
+// Every row says who asks, what they want, how far along it is, and what it pays.
+const villageName=()=>villages[0]?.name||'The village';
+function requestRows(){
+  const rows=[];const w=S.wish;
+  if(w)rows.push({kind:'wish',who:villageName(),what:w.text,have:Math.min(w.have,w.n),n:w.n,pays:'Pays: a crate'});
+  const os=[...(S.orders||[]).filter(o=>!o.contract).slice(0,2),...(S.orders||[]).filter(o=>o.contract).slice(0,1)];
+  for(const o of os)rows.push({kind:'order',o,who:o.regionName,contract:o.contract,what:`Send ${fmt(o.qty)} ${GOODS[o.good].name.toLowerCase()} by ${o.route==='north'?'wagon':'barge'}`,
+    hint:orderHint(o),have:o.got,n:o.qty,pays:`Pays: +${fmt(o.reward)} scales${o.contract?' and a crate':''}`});
+  return rows;
+}
+function renderRequests(){
+  const rows=requestRows();
+  const h=rows.length?`<div class="gsub">Requests</div>`+rows.map(r=>`<div class="gl req ${r.kind}${r.contract?' contract':''}"><span class="gi">${icon(r.kind==='wish'?'wish':'order')}</span><div class="gt"><b>${r.who}${r.contract?' <i class="ct">Contract</i>':''}</b><span>${r.what}</span>${r.hint?`<span class="still">${r.hint}</span>`:''}<span class="pays">${r.pays}</span></div><span class="gn">${fmt(r.have)}/${fmt(r.n)}</span></div>`).join(''):'';
+  if($('goalOrders').innerHTML!==h)$('goalOrders').innerHTML=h;
+}
+const renderOrdersGoal=renderRequests;
 
 /* ---- the build drawer ---- */
 let drawerTab='work';
@@ -265,14 +284,13 @@ function renderTrade(){
       <span class="dim small">${on?`worth ~${fmt(value)} scales`:''}</span><button type="button" class="go" data-go="${n}"${on&&v.state!=='stuck'?'':' disabled'}>Go ›</button></div></div>`;}).join('')||'<p class="dim">No trading posts or jetties yet. Build them from Build → Work &amp; trade.</p>';
   const ord=o=>`<li class="${o.contract?'contract':''}"><div>${o.contract?'<span class="ct">Contract</span> ':''}<b>${o.regionName}</b> wants <b>${fmt(o.qty)} ${GOODS[o.good].name.toLowerCase()}</b> <span class="dim">by ${o.route==='north'?'wagon':'barge'}${o.contract?`, ${o.why}`:''}</span></div><div class="ob"><i style="width:${(o.got/o.qty*100).toFixed(0)}%"></i></div><div class="dim">${fmt(o.got)}/${fmt(o.qty)} · pays +${fmt(o.reward)} scales${o.contract?' and a crate · filled over many trips':''}</div></li>`;
   const os=(S.orders||[]).filter(o=>!o.contract).map(ord).join(''),cs=(S.orders||[]).filter(o=>o.contract).map(ord).join('');
-  const html=`<h4>Orders from along the river</h4><ul class="os">${os}</ul>${cs?`<h4>Contracts</h4><ul class="os">${cs}</ul>`:''}
+  const w=S.wish,wl=w?`<li class="wish"><div><b>${villageName()}</b> wishes: <b>${w.text}</b></div><div class="ob"><i style="width:${(Math.min(1,w.have/w.n)*100).toFixed(0)}%"></i></div><div class="dim">${fmt(Math.min(w.have,w.n))}/${fmt(w.n)} · pays a crate</div></li>`:'';
+  const html=`<h4>Requests</h4><ul class="os">${wl}${os}</ul>${cs?`<h4>Contracts</h4><ul class="os">${cs}</ul>`:''}
     <h4>Load and send</h4><p class="dim small">Nothing leaves until you say Go. Put on board what the orders need (or anything else to sell), then send it off. The load is remembered for next time.</p>${man}
     <h4>Your goods</h4><table><thead><tr><th>Goods</th><th class="n">Stock</th><th class="n">Made</th><th class="n">Wagon · barge</th><th title="Markets won’t sell below this">Keep back</th></tr></thead><tbody>${g}</tbody></table>`;
   if(html!==lastTradeHTML){lastTradeHTML=html;body.innerHTML=html;}
 }
-$('upLine').title='Crews bring fish in 30% faster per level';$('upBait').title='Rice and song left at the water: fish arrive and take the line 25% more often per level';
-$('upLine').addEventListener('click',()=>{if(spend(cost.line())){S.lineLv++;log(`Braided lines, level ${S.lineLv}. Crews bring fish in faster.`);refreshUI();save();}});
-$('upBait').addEventListener('click',()=>{if(spend(cost.bait())){S.baitLv++;log(`Offerings, level ${S.baitLv}. Fish come to the banks more often.`);refreshUI();save();}});
+// braided lines and offerings are tackle cards in crates now (TACKLE in economy/crates.js)
 function toggleCodex(){const c=$('codex');c.hidden=!c.hidden;if(!c.hidden){renderCodex();S.codexSeen=SPECIES.filter(s=>S.codex[s.id]).length;refreshUI();}}
 $('btnCodex').addEventListener('click',toggleCodex);$('codexClose').addEventListener('click',toggleCodex);
 const regionMap=initMap($('map'));

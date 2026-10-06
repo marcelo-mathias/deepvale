@@ -93,7 +93,7 @@ $('iconSeg').querySelectorAll('[data-icons]').forEach(b=>b.setAttribute('aria-pr
 {const T={look:'look',clear:'clear',dig:'dig',hire:'hire',hut:'hut',road:'road',bridge:'bridge',build:'build',remove:'remove'};
   document.querySelectorAll('.tool').forEach(b=>{const n=T[b.dataset.tool];if(n)b.insertAdjacentHTML('afterbegin',`<span class="ti">${icon(n)}</span>`);});
   setToolArt();
-  $('upLine').insertAdjacentHTML('afterbegin',`<span class="ti">${icon('line')}</span>`);$('upBait').insertAdjacentHTML('afterbegin',`<span class="ti">${icon('bait')}</span>`);
+
   for(const [id,n] of [['btnTrade','trade'],['btnCodex','codex'],['btnMap','map'],['btnSettings','settings']])$(id).insertAdjacentHTML('afterbegin',icon(n));
   $('coinSc').insertAdjacentHTML('afterbegin',icon('scales'));
   $('emb').innerHTML=icon('fish','big');$('goalsIc').innerHTML=icon('wish');

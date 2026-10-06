@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.13.1 — tackle in crates, one list of requests, a quieter top bar
+
+**Tackle cards**
+- **Braided lines and Offerings left the toolbar.** They now arrive in crates as a fifth kind of card, **Tackle**, one level at a time, up to level 6 each. Levels you already bought carry over.
+- **Their own look:** a canvas hang tag on a twine loop through a brass eyelet, in a float's coral red. A float bobs on rippling water while its line draws in, and gives a little tug when you hover the card.
+- The card shows the change (for example +30% → +60%), what it touches, and your level as pips.
+- The "One of each" debug crate deals a tackle card too.
+
+**Requests**
+- **The village wish and the orders along the river are one list,** under Requests in the tracked goals. Every row says who asks, what they want, how far along it is, and what it pays.
+- The trade ledger lists the wish with the orders, under Requests.
+- The ledger's introduction says how crates come now: with contracts, and with every third order.
+
+**A quieter top bar**
+- **Goods** only show what you have or make; a new valley starts with just timber.
+- **Income** sits beside the purse as a small "+12/min"; hover the purse for the details.
+- **Housing** is a fourth gauge, Fishers (housed / room), beside valley health, the good tide and builders. The two lines of text under the goods are gone.
+- Every gauge explains itself on hover.
+
 ## 0.13.0 — one purse, and an unhurried valley
 
 **Silver and scales are one money now**

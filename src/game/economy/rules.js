@@ -5,11 +5,10 @@
 // One money: scales. Fish shed them, and trade, markets and the tale box pay in them too. They pay for everything:
 // work on the land and river, buildings, fishers and upgrades. Goods pay for buildings and leave on wagons and barges.
 // (Silver was a second money until 0.13; old saves fold it into scales, and any 'silver' cost left in a save counts as scales.)
-const COST={scout:'scales',clear:'scales',dig:'scales',hut:'scales',road:'scales',bridge:'scales',hire:'scales',line:'scales',bait:'scales'};
+const COST={scout:'scales',clear:'scales',dig:'scales',hut:'scales',road:'scales',bridge:'scales',hire:'scales'};
 const money=g=>g==='scales'||g==='silver';
 const cost={clear:()=>Math.round(4*Math.pow(1.025,S.clears)),dig:()=>Math.round(12*Math.pow(1.028,S.digs)),hire:()=>Math.round(15*Math.pow(PACING.hireGrow,S.hires)),
-  hut:()=>Math.round(25*Math.pow(PACING.hutGrow,S.huts)),road:()=>3,bridge:()=>Math.round(30*Math.pow(1.2,S.bridges)),
-  line:()=>Math.round(60*Math.pow(2.3,S.lineLv)),bait:()=>Math.round(90*Math.pow(2.5,S.baitLv))};
+  hut:()=>Math.round(25*Math.pow(PACING.hutGrow,S.huts)),road:()=>3,bridge:()=>Math.round(30*Math.pow(1.2,S.bridges))};
 const has=id=>S.keepers.includes(id);
 const boon=id=>S.boons[id]||0;
 const lineMult=()=>(1+.3*S.lineLv)*(1+.15*boon('hands')),baitMult=()=>(1+.25*S.baitLv)*(1+.15*boon('sweet'))*(activeSets.walk?1.1:1)*(builds.includes(B.TEMPLE)?1.15:1);
