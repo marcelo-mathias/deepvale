@@ -139,7 +139,8 @@ function nextGoal(){
   if(best.maxD<sp.needD)parts.push(`open water <b>${sp.needD*2-1} tiles wide</b>`);
   if(health<(sp.minHealth||0))parts.push(`a valley health of <b>${sp.minHealth}</b>`);
   const nm=sp.crew<=2?sp.name:'Something larger';
-  let g=!parts.length?`${nm} can surface now. Keep <b>${sp.crew}</b> fisher${sp.crew>1?'s':''} together on one bank and wait.`:`${nm} needs ${parts.join(', ')}.`;
+  const tw=sp.tide&&!tideIs(sp.tide)?` It only comes at <b>${sp.tide} water</b>: in ${tideMins(sp.tide==='low'?.5:0)} min.`:'';
+  let g=!parts.length?`${nm} can surface${tw?' at the right tide':' now'}. Keep <b>${sp.crew}</b> fisher${sp.crew>1?'s':''} together on one bank and wait.${tw}`:`${nm} needs ${parts.join(', ')}.${sp.tide?` It only comes at ${sp.tide} water.`:''}`;
   if(stillCount>0)g+=`<div class="still">${stillCount} tile${stillCount>1?'s':''} of backwater: no fish, but frogs, herons and reeds.</div>`;
   return g;
 }
@@ -152,14 +153,14 @@ function refreshUI(){
   {const n=fishersState.length,cap=housing(),hc=hutCount();$('fishersM').innerHTML=barRow('hire','Fishers',`${n}/${cap}`,cap?n/cap:0,'#9cc3ee');
     $('fishersM').title=`${n} of ${cap} fishers housed · ${hc} hut${hc===1?'':'s'}${lh<hc?` (${lh} on the Pilgrim Way)`:''}. Huts house fishers; hire more from the toolbar.`;}
   const cal=calendar();$('calY').textContent='Year '+cal.year;$('calS').textContent=cal.season;$('calD').textContent=cal.dom;$('calP').textContent=cal.phase;
-  $('stSub').textContent=(villages[0]?villages[0].name:'A valley on the Pilgrim Way')+' · '+(night>.3?'night':cal.phase.toLowerCase())+(S.weather&&S.weather.k!=='clear'?' · '+WEATHER[S.weather.k]:'');
+  $('stSub').textContent=(villages[0]?villages[0].name:SALT?'Where the river meets the sea':'A valley on the Pilgrim Way')+' · '+(night>.3?'night':cal.phase.toLowerCase())+(S.weather&&S.weather.k!=='clear'?' · '+WEATHER[S.weather.k]:'');
   $('talesN').textContent=String(allTales()).padStart(2,'0');
   {const lk=allTales()+'|'+SPECIES.filter(s=>S.codex[s.id]).length;if(lk!==loreKey){const grew=loreKey&&TALE_STAGES.some(n=>allTales()>=n&&+loreKey.split('|')[0]<n);loreKey=lk;village.sync();
     if(grew&&booted)log('The Tale House grows: there are more tales to tell than it had room for.','gold');}}
   const busyW=workers.filter(w=>w.job).length,waiting=jobs.filter(j=>!j.crew.length).length;
   $('builders').innerHTML=barRow('builders','Builders',`${busyW}/${builderCount()}${waiting?` · ${waiting} waiting`:''}`,builderCount()?busyW/builderCount():0,'#c9a36a');
   $('builders').title=`${busyW} of ${builderCount()} builders at work${waiting?`, ${waiting} job${waiting===1?'':'s'} waiting for hands`:''}. More huts bring more builders.`;
-  $('health').innerHTML=barRow('health','Valley health',health+' / 100',health/100,'#9fd68a');$('health').title=`River restored ${healthParts.river.toFixed(0)}/35 · forest kept ${healthParts.forest.toFixed(0)}/30 · backwaters ${healthParts.wetland.toFixed(0)}/20 · weir ${healthParts.weir}/15. The Moonscale needs 50, the Warden 70.`;
+  $('health').innerHTML=barRow('health','Valley health',health+' / 100',health/100,'#9fd68a');$('health').title=`River restored ${healthParts.river.toFixed(0)}/35 · forest kept ${healthParts.forest.toFixed(0)}/30 · backwaters ${healthParts.wetland.toFixed(0)}/20 · weir ${healthParts.weir}/15. ${SALT?'The Salt Mother needs 60.':`The Moonscale needs 50, the Warden 70.${J.open.salt?'':` At ${SALT_OPEN_AT} the river runs clear to the sea.`}`}`;
   {const shown=GOOD_IDS.filter(g=>(S.goods[g]||0)>=1||goodRate(g)>0);$('goods').hidden=!shown.length;
   $('goods').innerHTML=shown.map(g=>{const rt=goodRate(g);return `<span class="gd" title="${GOODS[g].name}${rt?` · +${rt.toFixed(1)} / min`:''}" style="--gc:${GOODS[g].col}">${icon(g)}<b>${fmt(S.goods[g]||0)}</b><em>${GOODS[g].name.toLowerCase()}</em></span>`;}).join('');}
   const tl=tideWindow()-(Date.now()-S.tide.t),tOn=S.tide.n>0&&tl>0;$('tide').innerHTML=barRow('tide','Good tide',tOn?'×'+(1+TIDE_STEP*S.tide.n).toFixed(2):'—',tOn?tl/tideWindow():0,'#8fdcc0');
@@ -171,7 +172,7 @@ function refreshUI(){
   const busy=trade.vehicles.filter(v=>v.state!=='load'&&v.state!=='stuck').length;$('tradeN').textContent=`${busy}/${trade.vehicles.length}`;{const hub=tradeHub()>=0,b=$('btnTrade');b.classList.toggle('locked',!hub);b.title=hub?'Open the ledger at the trading post (T)':'Trade is run from a trading post. Build one first';}
   if(!$('trade').hidden)renderTrade();
   if(!$('drawer').hidden)updateDrawerCosts();
-  refreshTapestryHUD();
+  refreshTapestryHUD();tideHUD();
 }
 function barRow(ic,label,val,frac,col){return `<span class="bi" style="color:${col}">${icon(ic)}</span><span class="bl">${label}</span><span class="bv">${val}</span><span class="bt"><i style="width:${(clamp(frac,0,1)*100).toFixed(0)}%;background:${col}"></i></span>`;}
 // the one next step that stands between the player and an order
@@ -296,7 +297,7 @@ function renderTrade(){
 // braided lines and offerings are tackle cards in crates now (TACKLE in economy/crates.js)
 function toggleCodex(){const c=$('codex');c.hidden=!c.hidden;if(!c.hidden){renderCodex();S.codexSeen=SPECIES.filter(s=>S.codex[s.id]).length;refreshUI();}}
 $('btnCodex').addEventListener('click',toggleCodex);$('codexClose').addEventListener('click',toggleCodex);
-const regionMap=initMap($('map'));
+const regionMap=initMap($('map'),{state:mapState});
 $('btnMap').addEventListener('click',()=>regionMap.toggle());
 $('btnTrade').addEventListener('click',()=>toggleTrade());$('tradeClose').addEventListener('click',()=>toggleTrade());$('mapClose').addEventListener('click',()=>regionMap.toggle());
 $('btnIn').addEventListener('click',()=>{view.z=clamp(view.z/1.3,ZMIN,ZMAX);cancelAuto();});
@@ -312,8 +313,8 @@ function renderCodex(){
     const tales=lo.tales.map((t,n)=>n<tk?`<li>${t}</li>`:`<li class="locked">${known?`Meet it ${TALE_AT[n]-met} more time${TALE_AT[n]-met>1?'s':''} to hear this tale.`:'Untold.'}</li>`).join('');
     e.innerHTML=`<div></div><div><div class="en">${known?sp.name:'Unknown'}</div><div class="ee">${known?sp.ep:`Something about ${Math.round(sp.len*4)} m long has been seen in the river. ${lo.rumor}`}</div>
       ${known?`<div class="es">${lo.temper} · ${lo.age} · favors ${lo.favors.toLowerCase()}</div>`:''}
-      <div class="er"><span class="${ok(fishersState.length>=sp.crew)}">Crew ${sp.crew}</span><span class="${ok(best.size>=sp.minWater)}">Flowing ${sp.minWater}+</span><span class="${ok(best.maxD>=sp.needD)}">Width ${sp.needD*2-1}+</span>${sp.minHealth?`<span class="${ok(health>=sp.minHealth)}">Health ${sp.minHealth}+</span>`:''}${known?`<span>Met ×${met}</span>`:''}</div>
-      ${known?`<ol class="tales">${tales}</ol>`:''}</div>`;
+      <div class="er"><span class="${ok(fishersState.length>=sp.crew)}">Crew ${sp.crew}</span><span class="${ok(best.size>=sp.minWater)}">Flowing ${sp.minWater}+</span><span class="${ok(best.maxD>=sp.needD)}">Width ${sp.needD*2-1}+</span>${sp.minHealth?`<span class="${ok(health>=sp.minHealth)}">Health ${sp.minHealth}+</span>`:''}${sp.tide?`<span class="${ok(tideIs(sp.tide))}">${sp.tide==='low'?'Low':'High'} water</span>`:''}${sp.night?`<span class="${ok(night>.3)}">Night</span>`:''}${known?`<span>Met ×${met}</span>`:''}</div>
+      ${known?recordHTML(sp.id):''}${known?`<ol class="tales">${tales}</ol>`:''}</div>`;
     e.firstChild.appendChild(cv);L.appendChild(e);}
 }
 function drawThumb(cv,sp,known){

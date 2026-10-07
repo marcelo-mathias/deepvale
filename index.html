@@ -25,7 +25,7 @@
       <div class="grp coins"><span class="coin sc" id="coinSc"><b id="scales">0</b><em>scales</em><span class="rt" id="rate"></span></span></div>
       <div class="grp lv" role="button" tabindex="0" title="Tales learned from the fish you've met · click to open the tapestry"><span id="emb"></span><i class="spool"></i><span>Tales</span><b id="talesN">0</b><i class="dot" id="talesDot" hidden></i></div>
       </div>
-      <div class="pill meters bars"><div class="bar-row" id="health"></div><div class="bar-row" id="tide"></div><div class="bar-row" id="builders"></div><div class="bar-row" id="fishersM"></div></div>
+      <div class="pill meters bars"><div class="bar-row" id="health"></div><div class="bar-row" id="sea" hidden></div><div class="bar-row" id="tide"></div><div class="bar-row" id="builders"></div><div class="bar-row" id="fishersM"></div></div>
       <nav class="topnav" aria-label="Menus">
         <button class="nav" id="btnTrade" type="button"><span class="lb">Trade</span><span class="n" id="tradeN">0/0</span></button>
         <button class="nav" id="btnCodex" type="button"><span class="lb">Codex</span><span class="n" id="codexCount" hidden>0/8</span><i class="dot" id="codexDot" hidden></i></button>
@@ -87,7 +87,7 @@
   <aside id="map" hidden aria-label="Map of the river">
     <button class="nav close" id="mapClose" type="button">Close</button>
     <h3>The River’s Course</h3>
-    <p class="intro">From the Hollow Tarn to the sea. Only Deepvale has been charted.</p>
+    <p class="intro" id="mapIntro">From the Hollow Tarn to the sea. Only Deepvale has been charted.</p>
     <div class="mapwrap"><canvas></canvas><div class="pins"></div></div>
     <div class="region"></div>
   </aside>

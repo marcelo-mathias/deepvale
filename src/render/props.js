@@ -109,7 +109,8 @@ export function makeProps({ rimMat }){
       for (const y of [.05, .11]){ const rail = put(g, box(a ? .5 : .018, .018, b ? .5 : .018), mat('#9a7048'), a * .23, y, b * .23); } }
     return finish(g); };
   /* ---------- fish statues: a carved fish on a stepped plinth, in a small garden terrace dressed for that fish ---------- */
-  const FISH_COL = { reed: '#b8c2a4', koi: '#d8483a', carp: '#b07a3a', showa: '#ff8a4a', sturgeon: '#7a9a4a', eel: '#6fd8f0', moon: '#e4ebff', warden: '#e8b84a' };
+  const FISH_COL = { reed: '#b8c2a4', koi: '#d8483a', carp: '#b07a3a', showa: '#ff8a4a', sturgeon: '#7a9a4a', eel: '#6fd8f0', moon: '#e4ebff', warden: '#e8b84a',
+    smelt: '#c9d6d8', flounder: '#9a8460', mullet: '#7d8a90', bass: '#5f8796', silverking: '#e6eef4', mother: '#5fd8c0' };
   const disc = (r, h, seg = 14) => (G['d' + r + h + seg] ||= new THREE.CylinderGeometry(r, r, h, seg));
   const pondM = () => (M.pond ||= (() => { const m = new THREE.MeshStandardMaterial({ color: '#244f55', roughness: .15, metalness: .1 }); return m; })());
   const pebbles = (g, rnd, n, cols, x0, z0, spread) => { for (let q = 0; q < n; q++) put(g, ico(.018 + rnd() * .014), mat(cols[q % cols.length], '#ffffff', .5), x0 + (rnd() - .5) * spread, .025, z0 + (rnd() - .5) * spread).scale.y = .55; };

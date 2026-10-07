@@ -97,6 +97,13 @@ export const STATUE_FX = {
   eel:      { txt:'fishers reel 25% faster', reel:.25 },
   moon:     { txt:'market prices +50%', prod:{ [B.MARKET]:.5 }, charm:4 },
   warden:   { txt:'fish met within 4 tiles shed 50% more', scale:.5, r:4 },
+  // the Salt Mouth
+  smelt:      { txt:'fish take the line 15% more often', bite:.15 },
+  flounder:   { txt:'clay pits dig 50% more', prod:{ [B.CLAY]:.5 } },
+  mullet:     { txt:'reed beds grow 50% more', prod:{ [B.REED]:.5 } },
+  bass:       { txt:'fish met here shed 25% more scales', scale:.25 },
+  silverking: { txt:'market prices +50%', prod:{ [B.MARKET]:.5 }, charm:4 },
+  mother:     { txt:'fish met within 4 tiles shed 50% more', scale:.5, r:4 },
 };
 
 /* ---------- blueprints: locked things a crate or a forest find can unlock ---------- */

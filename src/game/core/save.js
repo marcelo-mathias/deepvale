@@ -2,11 +2,12 @@
 // Saving, loading (and old-save migration), and offline progress.
 // Part of the game's one shared scope: see src/main.js for the order. Names from other parts are in scope here.
 /* ================= save / load / offline ================= */
-const SAVE_KEY='deepvale-save-v1';
+const SAVE_KEY=SALT?'deepvale-save-salt':'deepvale-save-v1'; // each valley keeps its own save
 let noSave=false;const WIPE_KEY='deepvale-wipe';
 // wiping: drop the save, leave a marker that boot honours even if something saves on the way out, and roll a new valley
-function wipeSave(){noSave=true;try{localStorage.removeItem(SAVE_KEY);}catch(e){}store.set(WIPE_KEY,'1');store.set('deepvale-nextmap',String(1+Math.floor(Math.random()*999999)));location.replace(location.pathname+location.search);}
-function save(){if(noSave||store.get(WIPE_KEY))return;S.jobs=saveJobs();S.t=Date.now();S.tiles=Array.from(tiles);S.builds=Array.from(builds);S.fishers=fishersState.map(f=>({i:f.i,j:f.j,slot:f.slot,c:f.color}));store.set(SAVE_KEY,JSON.stringify(S));}
+// wiping Deepvale starts the whole journey over (the Salt Mouth and the tapestry go too); wiping the Salt Mouth only rolls a new one
+function wipeSave(){noSave=true;try{localStorage.removeItem(SAVE_KEY);if(!SALT){localStorage.removeItem('deepvale-save-salt');localStorage.removeItem(JOURNEY_KEY);}}catch(e){}store.set(WIPE_KEY,'1');store.set('deepvale-nextmap',String(1+Math.floor(Math.random()*999999)));location.replace(location.pathname+location.search);}
+function save(){if(noSave||store.get(WIPE_KEY))return;S.jobs=saveJobs();S.t=Date.now();S.tiles=Array.from(tiles);S.builds=Array.from(builds);S.fishers=fishersState.map(f=>({i:f.i,j:f.j,slot:f.slot,c:f.color}));store.set(SAVE_KEY,JSON.stringify(S));saveJourney();}
 let migrated='',silverMerged=-1;
 function load(){
   if(store.get(WIPE_KEY)){try{localStorage.removeItem(SAVE_KEY);localStorage.removeItem(WIPE_KEY);}catch(e){}return false;}

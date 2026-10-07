@@ -40,7 +40,7 @@ function writeLetter(d){
   if(linkedOf(B.TALEHALL).length)lines.push({ic:icon('keeper'),t:'Pilgrims came down the Way to hear the tales, and left scales in the box.'});
   if(!lines.length)lines.push({ic:icon('tide'),t:'The river ran on, and the village kept watch.'});
   const k=S.keepers.length?KEEPER[S.keepers[Math.floor(Math.random()*S.keepers.length)]]:null,v=villages[0]?.name||S.valleyName||'the village';
-  pendingLetter={from:v,seal:(villages[0]?.name||S.valleyName||'Deepvale')[0],when:`${d.cal1.season}, day ${d.cal1.dom} · you were away ${awayWords(d.ms)}`,lines,sign:k?`${k.name}, for everyone in ${v}`:`Everyone in ${v}`,
+  pendingLetter={from:v,seal:(villages[0]?.name||S.valleyName||HOME_NAME.replace(/^The /,''))[0],when:`${d.cal1.season}, day ${d.cal1.dom} · you were away ${awayWords(d.ms)}`,lines,sign:k?`${k.name}, for everyone in ${v}`:`Everyone in ${v}`,
     sums:(()=>{const t={};if(d.g>0)t.scales=d.g;for(const [g,q] of Object.entries(d.made))t[g]=(t[g]||0)+q;for(const [ty,q] of Object.entries(d.fetched||{})){const g=FINDS[ty].good;t[g]=(t[g]||0)+q;}return Object.entries(t);})()};
   if(started)setTimeout(showLetter,600);
 }

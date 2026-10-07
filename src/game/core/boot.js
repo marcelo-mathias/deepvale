@@ -2,16 +2,18 @@
 // Boot, settings and menus, the guided tour, and the main loop.
 // Part of the game's one shared scope: see src/main.js for the order. Names from other parts are in scope here.
 /* ================= boot ================= */
-const loaded=load();
+const loaded=load();syncJourney(); // the tapestry is shared between the valleys (game/world/sea.js)
 // the valley's shape: saved games keep theirs (old saves the original valley); new games roll one from a seed
 function applyMap(map){if(!map)return;setRiver(map.river);setShape(map);MTS=map.mts;INLET=mouthRows(0);OUTLET=mouthRows(GW-1);}
 function rollMap(seed){let s=seed>>>0||1;const R=()=>(s=(s*1664525+1013904223)>>>0)/4294967296;
   const G=GROW*.95,mts=[[-44+R()*54,-44+R()*10,28+R()*22,10+R()*5],[-64+R()*14,-24+R()*26,12+R()*12,8+R()*4],[-8+R()*36,-66+R()*12,18+R()*14,11+R()*4],[-60+R()*14,-58+R()*12,12+R()*10,9+R()*3]].map(([x,z,h,s])=>[x*G,z*G,h,s*1.15]);
   if(R()<.6)mts.push([10+R()*24,-40+R()*8,20+R()*14,9+R()*3]); // sometimes a second peak to the north-east
+  // the Salt Mouth lies low by the sea: a gentler river, lower hills, and the peaks far off to the west
+  if(SALT){const r=randomRiver(seed);r.a1*=.5;r.a2*=.5;r.z0=clamp(r.z0,-1,3);return {seed,river:r,mts:mts.map(([x,z,h,s])=>[x-16,z-8,h*.4,s])};}
   return {seed,river:randomRiver(seed),mts};}
 if(loaded){applyMap(S.map);if(!S.shaped){carveEdge(tiles,true);S.shaped=1;}}
-else{const pend=+store.get('deepvale-nextmap')||0;S.map=rollMap(pend||1+Math.floor(Math.random()*999999));store.set('deepvale-nextmap','');applyMap(S.map);S.seed=S.map.seed;S.shaped=1;initTiles();initBuilds();}
-$('valleyNo').textContent=(S.map?`Valley no. ${S.map.seed}`:'The first valley')+` · v${VERSION}`;$('reroll').hidden=loaded;
+else{const pend=+store.get('deepvale-nextmap')||0;S.map=rollMap(pend||1+Math.floor(Math.random()*999999));store.set('deepvale-nextmap','');applyMap(S.map);S.seed=S.map.seed;S.shaped=1;initTiles();initBuilds();if(SALT)saltStart();}
+$('valleyNo').textContent=(SALT?`The Salt Mouth · no. ${S.map.seed}`:S.map?`Valley no. ${S.map.seed}`:'The first valley')+` · v${VERSION}`;$('reroll').hidden=loaded;
 {const p=parseInt(store.get('deepvale-pix'));if([2,3,4].includes(p))PIX=p;$('pixSeg').querySelectorAll('[data-pix]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.pix===PIX)));}
 initSecrets();
 buildTerrain(false);buildStairs();scatterOuter();updateTrees();analyzeWater();computeVillages();computeEconomy();village.sync();trade.sync();trade.topUpOrders();updateHintVis();
@@ -20,7 +22,7 @@ else{const spot=[];for(let j=0;j<GH;j++)for(let i=0;i<GW;i++)if(standable(i,j)&&
   const hut=builds.indexOf(HUT),hj=hut>=0?(hut/GW)|0:GH/2;spot.sort((a,b)=>Math.hypot(a[0]-WAY_I,a[1]-hj-2)-Math.hypot(b[0]-WAY_I,b[1]-hj-2));
   const s=spot[0]||[WAY_I,GH/2];makeFisher(s[0],s[1],1,0);}
 // a few fish already in the river
-{const main=comps.reduce((a,c)=>c.size>a.size?c:a,comps[0]);if(main){for(let n=0;n<4;n++)spawnFish(n<3?SP.reed:SP.koi,main,{emerge:false});}}
+{const main=comps.reduce((a,c)=>c.size>a.size?c:a,comps[0]);if(main){for(let n=0;n<4;n++)spawnFish(n<3?SPECIES[0]:SPECIES[1],main,{emerge:false});}}
 if(!S.weirGone&&!builds.includes(B.WEIR))placeWeir();
 const taleHouseAdded=loaded&&placeTaleHouse();if(taleHouseAdded)buildsChanged();
 migrateDeco();
@@ -29,7 +31,7 @@ booted=true;
 // work that was still going when the valley was closed gets finished while you were away
 let jobsDoneAway=0;if(loaded&&Array.isArray(S.jobs)){const js=S.jobs;S.jobs=[];for(const jb of js){if(inGrid(jb.i,jb.j)){applyJob({...jb,quiet:true});jobsDoneAway++;}}}
 if(loaded)offlineGain(Date.now()-S.t,jobsDoneAway);
-initThreads();resize();renderCodex();refreshUI();refreshTapestryHUD();updateMarks();renderKeepers();renderWish();
+initThreads();syncJourney();resize();renderCodex();refreshUI();refreshTapestryHUD();updateMarks();renderKeepers();renderWish();
 if(!S.wish)setTimeout(()=>{if(!S.wish)newWish();},loaded?4000:30000);
 $('reroll').addEventListener('click',wipeSave);
 
@@ -37,11 +39,11 @@ $('reroll').addEventListener('click',wipeSave);
 function toggleSettings(force){const d=$('settings');d.hidden=force!==undefined?!force:!d.hidden;if(!d.hidden){$('valleyName').value=S.valleyName||'';renderWipe(false);}}
 $('btnSettings').addEventListener('click',()=>toggleSettings());$('menuSettings').addEventListener('click',()=>toggleSettings(true));$('settingsClose').addEventListener('click',()=>toggleSettings(false));
 $('valleyTitle').addEventListener('click',()=>{toggleSettings(true);setTimeout(()=>{$('valleyName').focus();$('valleyName').select();},30);});
-function setValleyName(n,quiet){n=(n||'').replace(/\s+/g,' ').trim().slice(0,24);S.valleyName=n||null;const nm=n||'Deepvale';
-  $('valleyTitle').textContent=nm;document.title=n?`${n} · Deepvale`:'Deepvale';menu.setTitle(nm);if(!quiet)save();}
+function setValleyName(n,quiet){n=(n||'').replace(/\s+/g,' ').trim().slice(0,24);S.valleyName=n||null;const nm=n||HOME_NAME;
+  $('valleyTitle').textContent=nm;document.title=nm===HOME_NAME&&!SALT?'Deepvale':`${nm} · Deepvale`;menu.setTitle(nm);if(!quiet)save();}
 $('valleyName').addEventListener('change',e=>setValleyName(e.target.value));
 $('valleyName').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){setValleyName(e.target.value);e.target.blur();}});
-function renderWipe(ask){$('wipeSeg').innerHTML=ask?'<button class="nav warn" id="wipeYes" type="button">Yes, wipe this valley</button><button class="nav" id="wipeNo" type="button">Keep it</button>':'<button class="nav" id="wipeAsk" type="button">Start a new valley…</button>';
+function renderWipe(ask){$('wipeSeg').innerHTML=ask?`<button class="nav warn" id="wipeYes" type="button">${!SALT&&J.open.salt?'Yes, start the whole journey over':'Yes, wipe this valley'}</button><button class="nav" id="wipeNo" type="button">Keep it</button>`:'<button class="nav" id="wipeAsk" type="button">Start a new valley…</button>';
   if(ask){$('wipeYes').addEventListener('click',wipeSave);$('wipeNo').addEventListener('click',()=>renderWipe(false));}else $('wipeAsk').addEventListener('click',()=>renderWipe(true));}
 renderWipe(false);
 // the open menu is marked in the top bar
@@ -60,7 +62,7 @@ function tileRect(k){const i=k%GW,j=(k/GW)|0,c=tileC(i,j),y=Math.max(heightAt(c.
 const unionRect=(...els)=>{const r=els.map(e=>e.getBoundingClientRect()).filter(b=>b.width);if(!r.length)return null;const x=Math.min(...r.map(b=>b.left)),y=Math.min(...r.map(b=>b.top));
   return {x,y,w:Math.max(...r.map(b=>b.right))-x,h:Math.max(...r.map(b=>b.bottom))-y};};
 function TOUR(){
-  const nm=S.valleyName||'Deepvale';let clearK=-1,jobsAt=0,theJob=null;
+  const nm=S.valleyName||HOME_NAME;let clearK=-1,jobsAt=0,theJob=null;
   const fisher=()=>fishersState[0]?.g.position;
   // a patch of forest beside the village, for the first clearing
   const pickClear=()=>{const h=builds.indexOf(HUT);const hi=h%GW,hj=(h/GW)|0;let best=-1,bd=1e9;
@@ -94,7 +96,8 @@ if(loaded)$('enter').querySelector('span').textContent=`Return to ${S.valleyName
 $('enter').addEventListener('click',()=>{started=true;if(pendingLetter)setTimeout(showLetter,2200);$('intro').classList.add('gone');$('dv').classList.remove('menu');toggleSettings(false);setSound(true);
   tweenTo({x:0,y:0,z:-2},innerWidth<700?24:32,5.5);
   // a new valley starts with the guided tour; the old opening notes stay for anyone who skips it
-  if(!loaded||S.first||S.tourPending){S.first=false;S.tourPending=false;setTimeout(()=>{if(!tour.active)tour.start(TOUR());},5600);}
+  if(SALT&&!loaded)setTimeout(saltWelcome,5000);
+  else if(!loaded||S.first||S.tourPending){S.first=false;S.tourPending=false;setTimeout(()=>{if(!tour.active)tour.start(TOUR());},5600);}
   else if(migrated==='grow'){log('The valley has grown on every side. More forest to clear, old landmarks deep in the wood, and the river runs further. Everything you built is where you left it.','gold');}
   else if(migrated==='0.2'){log('The valley has grown. There is more forest to clear, and a trading post by the Pilgrim Way. Pilgrims buy at market stalls now.','gold');}
   else if(migrated)log('The valley has changed: fish are released now, and a village has grown by the Pilgrim Way.','gold');
@@ -108,7 +111,7 @@ const clock=new THREE.Clock();let saveT=0,uiT=0,crateSkip=0;
 function simStep(dt,t){
   for(const f of fishes.slice()){updateFish(f,dt);updateFight(f,dt);}
   hookTimer+=dt;if(hookTimer>.5){hookTimer=0;hookCheck();}
-  clockTick(dt);spawnTick(dt);giantTick(dt);if(started)dropTick(dt);pilgrimTick(dt);productionTick(dt);trade.update(dt,t);village.update(dt,t);gatherTick(dt);workTick(dt,t);
+  clockTick(dt);spawnTick(dt);giantTick(dt);if(started)dropTick(dt);pilgrimTick(dt);productionTick(dt);trade.update(dt,t);village.update(dt,t);gatherTick(dt);workTick(dt,t);tideTick(dt);
 }
 // before the valley is entered, the camera drifts slowly over it
 function menuDrift(){if(started||tween)return;const tt=performance.now()/1000;view.t.x=-13+Math.sin(tt*.045)*5;view.t.z=-24+Math.sin(tt*.031)*2.5;}
@@ -138,4 +141,4 @@ function frame(){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-if (import.meta.env.DEV) window.__dv={openPlot,computeVillages,villages:()=>villages,wxSnap:()=>{for(let n=0;n<120;n++)weatherTick(.1,U.time.value);},save,wildFx:()=>{wildT=0;},seasonFx:()=>{seasonCT=0;seasonTick(0);},THREE,seasonW,SEASON_U,foliage,makeFishMesh,U,groundAt,camera,giants,wildlife,giantGift,S,fishes,fishersState,spawnFish,SP,comps:()=>comps,view,tweenTo,startCine,tiles,builds,FLOW,act,worldChanged,buildsChanged,refreshUI,pickFish,toScreen,setTool,hookCheck,trade,secrets:()=>secrets,queueCrate,debugAct,canDo,villages:()=>villages,producers:()=>producers,activeSets:()=>activeSets,setTimeScale:n=>{timeScale=n;},hintVis,newWish,linkedOf,tally,sfx,simStep,jobs,workers,openPlot,snapAt:(p,k)=>snapAt(p,k),actDeco:(t,s)=>actDeco(t,s),corners:()=>S.corners,edges:()=>S.edges};
+if (import.meta.env.DEV) window.__dv={openPlot,computeVillages,villages:()=>villages,wxSnap:()=>{for(let n=0;n<120;n++)weatherTick(.1,U.time.value);},save,wildFx:()=>{wildT=0;},seasonFx:()=>{seasonCT=0;seasonTick(0);},THREE,seasonW,SEASON_U,foliage,makeFishMesh,U,groundAt,camera,giants,wildlife,giantGift,S,fishes,fishersState,spawnFish,SP,comps:()=>comps,view,tweenTo,startCine,tiles,builds,FLOW,act,worldChanged,buildsChanged,refreshUI,pickFish,toScreen,setTool,hookCheck,trade,secrets:()=>secrets,queueCrate,debugAct,canDo,villages:()=>villages,producers:()=>producers,activeSets:()=>activeSets,setTimeScale:n=>{timeScale=n;},hintVis,newWish,linkedOf,tally,sfx,simStep,jobs,workers,openPlot,snapAt:(p,k)=>snapAt(p,k),actDeco:(t,s)=>actDeco(t,s),corners:()=>S.corners,edges:()=>S.edges,journey:()=>J,travelTo,tide:()=>({lv:tideLevel(),ph:tidePhase(),y:waterLv}),health:()=>health};

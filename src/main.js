@@ -8,11 +8,13 @@
 // To add a part: create the file under src/game/ and add its line below.
 //#parts
 // game/core/setup.js
+// game/world/sea.js
 // game/world/terrain.js
 // game/fish/fish.js
 // game/world/nature.js
 // game/economy/rules.js
 // game/fish/hooking.js
+// game/fish/variety.js
 // game/economy/trade-secrets.js
 // game/economy/crates.js
 // game/village/village.js

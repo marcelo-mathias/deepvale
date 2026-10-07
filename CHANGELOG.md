@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.14.0 — the Salt Mouth, and no two fish alike
+
+**No two fish alike**
+- **Every fish has its own size** now, spread around its kind's usual length (from about 70% to 134%). You can see it in the water, and it's in the log when you meet one (*"Released a River Koi (8.9 m)"*).
+- **Crowns, as in Monster Hunter.** The very smallest and very largest of each kind wear a **small crown** or a **big crown**. A big crown sheds ×1.5 scales, a small one ×1.25, and the tally says so.
+- **Colours of the hour.** Some fish come up in the colours of when they surface: **Night** (blue, after dark), **Storm** (grey and silver, in rain or storm) and **Frost** (pale, in winter). They shed ×1.2.
+- **Records in the Codex:** smallest and largest met, both crowns, and which colours you've seen, for each fish.
+- **Threads:** the first big crown, the first small crown and the first of each colour, for every kind of fish, each spin a thread for the tapestry.
+
+**The Salt Mouth: a second valley**
+- **Charted when Deepvale's health reaches 50.** The river runs clear to the sea, and the Map shows a new valley where it meets the tide. The health bar's tooltip says how far you have to go.
+- **Travel from the Map:** pick a charted valley and *Travel to …*. Each valley keeps its own save and keeps going while you're in the other one (the letter tells you what happened when you come back).
+- **The tapestry is shared.** Threads and woven panels belong to the journey, not to one valley: weave in either, use it in both.
+- **A different place:** the river widens into an estuary and opens onto the sea, the hills are low, and the banks are mudflats. You start with a little more (90 scales, timber and reeds) and no tour.
+- **The tide** comes in and goes out twice a day (every 20 minutes). You can watch the water rise and fall on the mudflats, and the sand stays dark where the high water was. **Tide** at the top shows where it is and when it turns; the village tells you when it does.
+
+**Seven fish of the estuary**
+| Fish | Crew | Comes when |
+| --- | --- | --- |
+| Silver Smelt | 1 | always |
+| Mudflat Flounder | 1 | low water |
+| Grey Mullet | 2 | always |
+| Tidewater Bass | 3 | always |
+| Lantern Eel | 6 | always (it follows the river all the way down) |
+| The Silver King | 7 | high water |
+| The Salt Mother | 12 | high water, health 60 |
+
+Each has its own skin, lore, three tales and a statue blessing. The Codex and the next-goal hint show which tide a fish needs and how long until it comes.
+
+**Finds at the Salt Mouth:** driftwood banks (timber), a salt marsh (reeds), a clay seam, and **mussel beds** (scales), which gatherers can only reach at low water.
+
+**Starting over:** *Start a new valley* in Deepvale now starts the whole journey over (the Salt Mouth and the tapestry too) once the Salt Mouth is charted; in the Salt Mouth it only rolls a new estuary.
+
 ## 0.13.4 — finds in the forest, and the gatherers who fetch them
 
 **Finds**

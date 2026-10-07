@@ -29,14 +29,14 @@ index.html            HUD markup and page shell
 src/
   main.js             the list of game parts, in the order they run
   game/core/          setup.js (imports, state, renderer, day clock, `PACING`: the valley's timers), save.js (save, load, migration), boot.js (menus, tour, main loop)
-  game/world/         terrain.js (ground, water surface, trees, flow analysis), nature.js (seasons, weather, wildlife, giants)
-  game/fish/          fish.js (fish, fishers, sparkles), hooking.js (bites, the fight, release tally, spawning)
+  game/world/         sea.js (the two valleys, the shared journey, travel, the Salt Mouth's tide), terrain.js (ground, water surface, trees, flow analysis), nature.js (seasons, weather, wildlife, giants)
+  game/fish/          fish.js (fish, fishers, sparkles), hooking.js (bites, the fight, release tally, spawning), variety.js (sizes, crowns, colour variants and records)
   game/economy/       rules.js (costs, actions, production, health, pilgrims), trade-secrets.js, crates.js (keepers, blessings, wishes)
   game/village/       village.js (workers, corner and edge decor, building plots), gather.js (finds in the forest and the gatherers who fetch them)
   game/ui/            view.js (camera, post pipeline), input.js, hud.js (labels, rings, drawer, ledger), letter.js (the letter from the village when you come back), tapestry.js (threads and the tapestry at the Tale House), debug.js
   style.css           HUD styling
   core/utils.js       math, noise and localStorage helpers
-  world/constants.js  valley grid, tile types, river course
+  world/constants.js  valley grid, tile types, river course and width
   world/flow.js       river current solver (flowing vs still water)
   data/species.js     the eight fish and their unlock gates
   data/lore.js        rumors, tales, village names, map regions

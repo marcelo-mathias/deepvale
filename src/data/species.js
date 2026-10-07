@@ -9,4 +9,15 @@ export const SPECIES=[
  {id:'moon',name:'Moonscale Koi',ep:'Seen once a generation, on nights the river runs silver.',len:9.6,wid:.23,hgt:.13,crew:8,minWater:330,needD:3,value:2800,fight:130,w:.8,speed:.5,pattern:'moon',fin:'#f3f6ff',fins:.8,tail:.46,glow:'#b9ccff',awe:true,minHealth:50,night:true},
  {id:'warden',name:'The Valley Warden',ep:'The river was cut to fit it.',len:15,wid:.19,hgt:.1,crew:12,minWater:420,needD:4,value:13000,fight:200,w:.35,speed:.38,pattern:'warden',fin:'#173634',fins:.6,tail:.4,glow:'#ffc861',awe:true,minHealth:70},
 ];
-export const SP=Object.fromEntries(SPECIES.map(s=>[s.id,s]));
+// The Salt Mouth, where the river meets the sea. tide: 'low' or 'high' — it only surfaces at that water.
+// The Lantern Eel follows the river all the way down, so it is met in both valleys.
+export const SALT_SPECIES=[
+ {id:'smelt',name:'Silver Smelt',ep:'A sliver of light in the brackish water. It smells, faintly, of cucumber.',len:1.05,wid:.17,hgt:.11,crew:1,minWater:0,needD:1,value:5,fight:12,w:10,speed:1.25,pattern:'smelt',fin:'#c9d6d8',fins:.45,tail:.34},
+ {id:'flounder',name:'Mudflat Flounder',ep:'It lies on the bottom with both eyes on top, and waits for the water to go out.',len:2,wid:.46,hgt:.05,crew:1,minWater:0,needD:1,value:14,fight:22,w:7,speed:.6,pattern:'flounder',fin:'#8a7a5a',fins:.2,tail:.3,tide:'low'},
+ {id:'mullet',name:'Grey Mullet',ep:'It leaps for no reason anyone has found. Three times, then gone.',len:3.1,wid:.2,hgt:.14,crew:2,minWater:120,needD:1,value:36,fight:30,w:5,speed:.85,pattern:'mullet',fin:'#5f6b70',fins:.5,tail:.4},
+ {id:'bass',name:'Tidewater Bass',ep:'Barred like the light through a jetty. It rides the turn of the tide upriver.',len:4.5,wid:.22,hgt:.15,crew:3,minWater:300,needD:1,value:110,fight:46,w:3,speed:.75,pattern:'bass',fin:'#3c4a52',fins:.6,tail:.42,glow:'#9fe8ff',awe:true},
+ SPECIES.find(s=>s.id==='eel'),
+ {id:'silverking',name:'The Silver King',ep:'Scales like a mirror the size of a hand. It comes in with the high water and leaves with it.',len:8.6,wid:.2,hgt:.13,crew:7,minWater:420,needD:2,value:2400,fight:120,w:.9,speed:.6,pattern:'silverking',fin:'#d5dde4',fins:.6,tail:.48,glow:'#e8f4ff',awe:true,tide:'high'},
+ {id:'mother',name:'The Salt Mother',ep:'Every fish in the river was hatched within a day’s swim of her.',len:16,wid:.24,hgt:.1,crew:12,minWater:540,needD:4,value:15000,fight:210,w:.3,speed:.36,pattern:'mother',fin:'#1d3a40',fins:.7,tail:.42,glow:'#7fffe0',awe:true,minHealth:60,tide:'high'},
+];
+export const SP=Object.fromEntries([...SPECIES,...SALT_SPECIES].map(s=>[s.id,s]));

@@ -75,6 +75,61 @@ export const LORE = {
       'Once in a hundred years the Warden swims downstream to the Salt Mouth, and the river runs backward for a night to let it pass. When it returns, the valley has a new name for everything.',
     ],
   },
+  // the Salt Mouth
+  smelt: {
+    rumor: 'At the turn of the tide the shallows flicker, as if someone were tipping out a bag of coins.',
+    age: 'a year or two', temper: 'Skittish', favors: 'Brackish shallows',
+    tales: [
+      'Smelt come up the river in a single night in spring. The Salt Mouth children stay up for it and sit on the jetty with lanterns, and count until they fall asleep.',
+      'A smelt held up to the sun shows its own spine through its side. The old ones say it hides nothing, and that is why the sea lets it go upriver first.',
+      'In the year the Mouth silted up, the smelt came anyway and pushed against the sandbar all night. By morning there was a channel the width of a hand, and by summer the barges were back.',
+    ],
+  },
+  flounder: {
+    rumor: 'When the water goes out, the mud has eyes in it. Look where you step.',
+    age: 'twenty tides of years', temper: 'Patient', favors: 'Mudflats at low tide',
+    tales: [
+      'A flounder is born the right way up, like any fish. Then it lies down on the mud for good, and one eye walks over its head to join the other. It never complains.',
+      'Mudflat children play a game called Flounder: lie still on the sand until the tide reaches your toes. The one who waits longest gets the first oyster of the year.',
+      'When the sea wall broke in the long storm, the flounder lay down in the gap, one on top of the other, until the masons came. Or so the masons say, and they were there.',
+    ],
+  },
+  mullet: {
+    rumor: 'Something leaps three times off the point at dusk and never a fourth. The fishers bet on it.',
+    age: 'a dozen summers', temper: 'Playful', favors: 'Warm creeks',
+    tales: [
+      'Nobody knows why the mullet leap. The fishers have argued about it for three hundred years, and they have agreed only that it is not to look at them.',
+      'Grey mullet graze the green off the jetty posts like sheep on a hill. A jetty with mullet under it never rots. A jetty without them is not worth building.',
+      'A mullet once leapt into the harbourmaster’s boat during his wedding, and out again on the other side. They were married sixty years. Every couple at the Mouth hopes for a mullet.',
+    ],
+  },
+  bass: {
+    rumor: 'At the turn of the tide something barred and heavy rides the current upriver, and the gulls go quiet.',
+    age: 'forty winters', temper: 'Bold', favors: 'Where the tide turns',
+    tales: [
+      'The Tidewater Bass knows the tide before the moon does. The ferrymen used to set their crossings by it, and were never once caught by the ebb.',
+      'Its stripes are the shadows of the old pier, the bass-fishers say: it swam under the pier so long the light stayed on its back.',
+      'When the old pier was taken down, the bass stopped coming for three years. The village built a new one in the same place, plank for plank, and the first morning it was finished there were bass under it.',
+    ],
+  },
+  silverking: {
+    rumor: 'At high water, out past the bar, something flashes like a dropped mirror, as long as a boat.',
+    age: 'eighty years and more', temper: 'Proud', favors: 'High water over the bar',
+    tales: [
+      'One scale of the Silver King, found on the sand, is as big as a hand and shines like a mirror. Brides at the Salt Mouth look into one on their wedding morning.',
+      'The Silver King comes in with the flood and leaves with the ebb. It has never once been stranded. The village says it reads the tide the way the priest reads the book.',
+      'It once leapt clean over the ferry, end to end, with the ferryman and both his cows aboard. The cows were never the same. The ferryman said it was the best day of his life.',
+    ],
+  },
+  mother: {
+    rumor: 'At the highest tides the whole bay goes still and green, as if it were holding its breath.',
+    age: 'older than the river’s name', temper: 'Ancient', favors: 'The deepest water at the highest tide',
+    tales: [
+      'Every fish in the river was hatched within a day’s swim of the Salt Mother. The Warden too, the old ones say, though it was so long ago the Warden has forgotten.',
+      'Once a century the Valley Warden swims down to the sea to meet her. The tide waits for it, and does not turn until the two of them have gone.',
+      'When the river was cut from the mountain, the Salt Mother sang to it until it found its way down to her. You can still hear it in the shells: not the sea, but her, calling the river home.',
+    ],
+  },
 };
 
 export const VILLAGE_NAMES = ['Reedmoor','Lowlantern','Stillford','Carpsend','Mossbank','Emberhythe','Ferrywick','Silverbend','Brackenholm','Tallow Cross','Kettlewade','Duskmere'];

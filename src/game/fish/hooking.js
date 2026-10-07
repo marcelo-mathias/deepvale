@@ -46,13 +46,14 @@ function updateFight(f,dt){
   let cx=0,cz=0;f.hookers.forEach(fs=>{cx+=fs.x;cz+=fs.z;});cx/=hands;cz/=hands;
   const d=Math.hypot(cx-f.x,cz-f.z),pull=(f.surge>0?.02:.12)*Math.min(2,hands/f.sp.crew);if(Math.hypot(fishHead(f).x-cx,fishHead(f).z-cz)>1.1){const nx=f.x+(cx-f.x)/d*dt*pull,nz=f.z+(cz-f.z)/d*dt*pull;if(dAt(nx,nz)>0){f.x=nx;f.z=nz;}}
   if(!(f.surge>0))f.h+=angDiff(Math.atan2(cx-f.x,cz-f.z),f.h)*dt*.25; // reeled in: head toward the crew
-  if(Math.random()<dt*2)sparkle(fishHead(f).x,WATER_Y+.02,fishHead(f).z,'#dff8ee');
+  if(Math.random()<dt*2)sparkle(fishHead(f).x,waterLv+.02,fishHead(f).z,'#dff8ee');
   if(f.progress>=1){
     f.state='held';f.out=0;f.relH=Math.atan2(f.x-cx,f.z-cz);f.hookers.forEach(fs=>{fs.state='idle';fs.fish=null;});
     const before=talesKnown(f.sp.id);const first=!S.codex[f.sp.id];S.codex[f.sp.id]=(S.codex[f.sp.id]||0)+1;
     (S.meets||=[]).push([Date.now(),f.sp.id]);if(S.meets.length>240)S.meets.splice(0,S.meets.length-240); // for the letter: what was met lately
-    const tl=releaseTally(f,cx,cz);earn(tl.total,f.x,f.z,false);
-    log(`${first?'Met':'Released'} ${first?'a '+f.sp.name+' for the first time':'a '+f.sp.name}, and let it go. It shed ${fmt(tl.total)} scales.`,'gold');
+    const rec=recordCatch(f),tl=releaseTally(f,cx,cz,rec);earn(tl.total,f.x,f.z,false);
+    const nm=fishTitle(f),len=metres(f.sp,f.size||1);
+    log(`${first?`Met a ${nm} for the first time`:`Released a ${nm}`} (${len} m${f.crown?`, a ${f.crown} crown`:''}${rec.notes.length?`, ${rec.notes.join(' and ')}`:''}), and let it go. It shed ${fmt(tl.total)} scales.`,'gold');
     if(first){S.statueSp=S.statueSp||f.sp.id;if(booted)log(`You can carve a statue of the ${f.sp.name} now (Build → Decor).`);}
     wishEvent('meet',{sp:f.sp.id});
     if(talesKnown(f.sp.id)>before){const n=talesKnown(f.sp.id);log(`A new tale of the ${f.sp.name} is told in the village (${n} of 3). Pilgrims will come to hear it.`,'gold');gainThreads(n-before,`a tale of the ${f.sp.name}`);}
@@ -65,8 +66,8 @@ const tally=makeTally(document.getElementById('labels'),sfx);
 function tideWindow(){return (50+15*boon('tide')+(woven('tide')?15:0))*1000;}
 const TIDE_STEP=.05;
 function tideMult(){return Date.now()-S.tide.t<tideWindow()?1+TIDE_STEP*S.tide.n:1;}
-function releaseTally(f,cx,cz){
-  const sp=f.sp,rows=[{t:sp.name,v:sp.value,k:'base'}];const x=v=>v;
+function releaseTally(f,cx,cz,rec){
+  const sp=f.sp,rows=[{t:sp.name,v:sp.value,k:'base'},...(rec?.rows||[])];const x=v=>v;
   const hk=f.hookers.map(fs=>idx(fs.i,fs.j));const avg=a=>hk.reduce((s,k)=>s+a[k],0)/Math.max(1,hk.length);
   const extra=f.hookers.length-sp.crew;if(extra>0)rows.push({t:`${extra} extra hand${extra>1?'s':''}`,v:1+.1*extra,k:'x'});
   const rk=avg(aura.rack);if(rk>0)rows.push({t:'Drying racks',v:1+rk,k:'x'});
@@ -86,7 +87,7 @@ function releaseTally(f,cx,cz){
   if(S.tide.n>0)wishEvent('tide',{n:S.tide.n});
   let total=sp.value;for(const r of rows)if(r.k==='x')total*=r.v;total=Math.round(total);
   if(started){const hd=fishHead(f);const p=toScreen(hd.x,.4,hd.z);
-    tally.show({x:sp.awe?innerWidth/2:p.x,y:sp.awe?innerHeight*.34:p.y-30,big:!!sp.awe,title:sp.awe?`${sp.name} · released`:'',rows,total,col:sp.glow});}
+    tally.show({x:sp.awe?innerWidth/2:p.x,y:sp.awe?innerHeight*.34:p.y-30,big:!!sp.awe,title:sp.awe?`${fishTitle(f)} · released${f.crown?` · ${f.crown} crown`:''}`:(rec?.title||''),rows,total,col:sp.glow||(f.crown?'#e9c67a':undefined)});}
   return {total,rows};
 }
 
@@ -100,7 +101,7 @@ function spawnTick(dt){
   const open=comps.filter(c=>(counts[c.id]||0)<Math.max(1,Math.floor(c.size/7)));if(!open.length)return;
   let tot=open.reduce((s,c)=>s+c.size,0),r=Math.random()*tot,comp=open[0];for(const c of open){r-=c.size;if(r<=0){comp=c;break;}}
   const present=new Set(fishes.map(f=>f.sp.id));
-  const elig=SPECIES.filter(s=>s.minWater<=comp.size&&comp.maxD>=s.needD&&health>=(s.minHealth||0)&&(!s.night||night>.3)&&!(s.awe&&present.has(s.id)));if(!elig.length)return;
+  const elig=SPECIES.filter(s=>s.minWater<=comp.size&&comp.maxD>=s.needD&&health>=(s.minHealth||0)&&(!s.night||night>.3)&&tideIs(s.tide)&&!(s.awe&&present.has(s.id)));if(!elig.length)return;
   const wt=s=>s.w*(S.codex[s.id]?1:1.6)*(s.crew<=fishersState.length?1:.35)*(s.id==='eel'&&night>.3?2:1);
   let W=elig.reduce((a,s)=>a+wt(s),0),rr=Math.random()*W,sp=elig[0];for(const s of elig){rr-=wt(s);if(rr<=0){sp=s;break;}}
   const f=spawnFish(sp,comp);

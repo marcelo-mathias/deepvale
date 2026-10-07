@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clamp, lerp, smooth, rand, hash2, fbm, ridged, fmt, store } from './core/utils.js';
 import { GW, GH, HX, HZ, WATER_Y, BED_Y, LAND_Y, WILD, LAND, WATER, EDGE as RIM, idx, tileC, inGrid, riverZ, setRiver, randomRiver,
-  NONE, HUT, ROAD, BRIDGE, WAY_I, DECK_Y, HOUSING, mouthRows, LEGACY_GRIDS, GROW } from './world/constants.js';
+  NONE, HUT, ROAD, BRIDGE, WAY_I, DECK_Y, HOUSING, mouthRows, LEGACY_GRIDS, GROW, riverHalf, setWiden } from './world/constants.js';
 import { B, DEFS, DEF_BY_CODE, CATS, GOODS, GOOD_IDS, RESERVE, STYLES, STYLE_IDS, PAVES, PAVE_IDS, STATUE_FX, BLUEPRINTS,
   KEEPERS, KEEPER, BOONS, BOON, SETS, SET } from './data/builds.js';
 import { makeSecrets, makeChannels, SECRET_TYPES } from './world/secrets.js';
@@ -19,7 +19,7 @@ import { makeTally } from './ui/tally.js';
 import { icon } from './ui/icons.js';
 import { makeBuildingIcons } from './ui/bldgicons.js';
 import { portrait } from './ui/portraits.js';
-import { SPECIES, SP } from './data/species.js';
+import { SPECIES, SP, SALT_SPECIES } from './data/species.js';
 import { LORE, TALE_AT, VILLAGE_NAMES } from './data/lore.js';
 import { NOISE_GLSL, RIM_FRAG, BEND_VERT, BEND_DECL } from './render/shaders.js';
 import { setSound as setAudio, sfx, isSoundOn, setView as setAudioView, playTheme, themeNote, worldSound, setWeatherSound, reelTension } from './audio/audio.js';
@@ -38,6 +38,14 @@ import { makeWildlife } from './render/wildlife.js';
 import { makeGiants, GIANTS } from './render/giants.js';
 
 function setSound(on){ setAudio(on); const b=document.getElementById('btnSound'); b.textContent = on ? 'Sound on' : 'Sound off'; b.setAttribute('aria-pressed',on); }
+
+/* ================= which valley ================= */
+// The journey runs down the river: Deepvale first, then the Salt Mouth where it meets the sea. Each valley keeps its
+// own save; the tapestry is shared (game/world/sea.js). The valley you're in is read once, here, before anything else.
+const VALLEY=store.get('deepvale-valley')==='salt'?'salt':'deepvale',SALT=VALLEY==='salt';
+const HOME_NAME=SALT?'The Salt Mouth':'Deepvale';
+// each valley has its own fish: the list everything iterates over is swapped in place
+if(SALT){SPECIES.splice(0,SPECIES.length,...SALT_SPECIES);setWiden(6);}
 
 /* ================= state ================= */
 // scales: the valley's one money. Released fish shed them; trade, market stalls and the tale box pay in them too. They pay for everything.
@@ -60,27 +68,27 @@ function setShape(map){const seed=map?.seed;if(!seed){SHAPE=null;return;}let s=(
   SHAPE={p:2.3+R()*1.1,ox:R()*90,oz:R()*90,amp:.1+R()*.08,lobes:[0,1,2].map(()=>({k:2+Math.floor(R()*4),ph:R()*6.28,a:.025+R()*.04}))};}
 function shapeF(x,z){if(!SHAPE)return Math.max(Math.abs(x)/HX,Math.abs(z)/HZ);
   const u=Math.abs(x)/HX,v=Math.abs(z)/HZ,P=SHAPE.p,rs=Math.pow(Math.pow(u,P)+Math.pow(v,P),1/P),rm=Math.max(u,v);
-  const nearRiver=smooth(7,2.5,Math.abs(z-riverZ(x))),nearWay=z<0?smooth(7,3,Math.abs(x-tileC(WAY_I,0).x)):0,keep=Math.max(nearRiver,nearWay);
+  const nearRiver=smooth(7,2.5,Math.max(0,Math.abs(z-riverZ(x))-riverHalf(x)+1.6)),nearWay=z<0?smooth(7,3,Math.abs(x-tileC(WAY_I,0).x)):0,keep=Math.max(nearRiver,nearWay);
   const th=Math.atan2(z/HZ,x/HX);let n=(fbm(x*.06+SHAPE.ox,z*.06+SHAPE.oz,3)-.5)*2*SHAPE.amp;for(const l of SHAPE.lobes)n+=Math.sin(th*l.k+l.ph)*l.a;
   return lerp(rs+.04+n,rm,keep);}
 // how far outside the valley floor a point is, in world units (0 inside)
 const dOut=(x,z)=>Math.max(Math.hypot(Math.max(0,Math.abs(x)-HX),Math.max(0,Math.abs(z)-HZ)),Math.max(0,shapeF(x,z)-1)*(HX+HZ)*.5);
 const inPlay=(x,z)=>{const i=Math.floor(x+HX),j=Math.floor(z+HZ);return inGrid(i,j)&&tiles[idx(i,j)]!==RIM;};
 function initTiles(T=tiles){
-  for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const c=tileC(i,j);const d=Math.abs(c.z-riverZ(c.x));T[idx(i,j)]=d<1.6?WATER:WILD;}
+  for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const c=tileC(i,j);const d=Math.abs(c.z-riverZ(c.x));T[idx(i,j)]=d<riverHalf(c.x)?WATER:WILD;}
   // a little clearing on the north bank, mid-valley
-  for(let i=WAY_I-2;i<=WAY_I+2;i++){for(let j=0;j<GH;j++){const c=tileC(i,j);const d=c.z-riverZ(c.x);if(d<0&&d>-2.8&&T[idx(i,j)]===WILD)T[idx(i,j)]=LAND;}}
+  for(let i=WAY_I-2;i<=WAY_I+2;i++){for(let j=0;j<GH;j++){const c=tileC(i,j);const d=c.z-riverZ(c.x);if(d<0&&d>-riverHalf(c.x)-1.2&&T[idx(i,j)]===WILD)T[idx(i,j)]=LAND;}}
   // every rolled valley also has a few natural meadows and forest ponds of its own
   const seed=S.map?.seed;if(!seed)return;let s=(seed^0x9e3779b9)>>>0;const R=()=>(s=(s*1664525+1013904223)>>>0)/4294967296;
   const blob=(n,minRiver,rmin,rmax,type)=>{for(let q=0;q<n;q++)for(let t=0;t<40;t++){const i=3+Math.floor(R()*(GW-6)),j=2+Math.floor(R()*(GH-4)),c=tileC(i,j);
-      if(Math.abs(c.z-riverZ(c.x))<minRiver||Math.abs(i-WAY_I)<4)continue;const rx=rmin+R()*(rmax-rmin),rz=rmin+R()*(rmax-rmin);
+      if(Math.abs(c.z-riverZ(c.x))-riverHalf(c.x)+1.6<minRiver||Math.abs(i-WAY_I)<4)continue;const rx=rmin+R()*(rmax-rmin),rz=rmin+R()*(rmax-rmin);
       for(let b=-3;b<=3;b++)for(let a=-3;a<=3;a++){if((a/rx)**2+(b/rz)**2>1||!inGrid(i+a,j+b))continue;const k=idx(i+a,j+b);if(T[k]===WILD)T[k]=type;}break;}};
   blob(2+Math.floor(R()*3),4,1.3,2.6,LAND);blob(1+Math.floor(R()*2),5,.9,1.6,WATER);
   carveEdge(T);
 }
 // everything past the valley's outline becomes unreachable forest (the river keeps running through it)
 function carveEdge(T=tiles,saved=false){if(!SHAPE)return;for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const k=idx(i,j),c=tileC(i,j);if(shapeF(c.x,c.z)<1)continue;
-    if(Math.abs(c.z-riverZ(c.x))<1.6&&T[k]===WATER)continue;if(saved&&(T[k]!==WILD||builds[k]!==NONE||Object.values(S.lm||{}).some(q=>Math.abs(q%GW-i)<=3&&Math.abs(((q/GW)|0)-j)<=3)))continue;T[k]=RIM;}}
+    if(Math.abs(c.z-riverZ(c.x))<riverHalf(c.x)&&T[k]===WATER)continue;if(saved&&(T[k]!==WILD||builds[k]!==NONE||Object.values(S.lm||{}).some(q=>Math.abs(q%GW-i)<=3&&Math.abs(((q/GW)|0)-j)<=3)))continue;T[k]=RIM;}}
 // the Pilgrim Way comes down from the north edge to a first hut near the clearing
 function initBuilds(){
   builds.fill(NONE);placeWeir();let end=0;
@@ -129,7 +137,9 @@ const hemi=new THREE.HemisphereLight(new THREE.Color('#a6c8d6'),new THREE.Color(
 // the giants carry their own light; at dusk it is most of the light there is
 const giantLight=new THREE.PointLight(new THREE.Color('#ffc861'),0,10,1.4);giantLight.position.set(0,-50,0);scene.add(giantLight);
 const FOG0=new THREE.Color('#d9b995'),NIGHT_FOG=new THREE.Color('#2a3446');
-const DUSK_OF={sturgeon:.45,eel:.7,moon:1,warden:1};let dusk=0,giantDusk=0,duskLvl=0,duskT=0;
+// the water's surface: in Deepvale it never moves; in the Salt Mouth the tide lifts and lowers it (game/world/sea.js)
+const TIDE_AMP=.11,UWATER={value:WATER_Y},UTIDEHI={value:SALT?WATER_Y+TIDE_AMP*.85:-99};let waterLv=WATER_Y;
+const DUSK_OF={sturgeon:.45,eel:.7,moon:1,warden:1,bass:.35,silverking:.8,mother:1};let dusk=0,giantDusk=0,duskLvl=0,duskT=0;
 /* ---- the pace ----
    Deepvale is meant to be left running while you do other things, so things come slowly and each one means more.
    Every timer that sets the rhythm of the valley is here; the crews' own speed is PACE in game/village/village.js. */

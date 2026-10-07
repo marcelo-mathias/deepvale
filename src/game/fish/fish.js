@@ -27,6 +27,17 @@ function fishCanvases(sp){
         const st=Math.max(Math.abs(nx-lx),Math.abs(ny-ly));for(let s=0;s<=st;s++){const x=lerp(lx,nx,s/st),y=lerp(ly,ny,s/st);px(g,x,y,'#8a6a33');px(ge,x,y,'#6b4d1a');}
         px(g,nx,ny,'#ffd27a');px(ge,nx,ny,'#ffd27a');lx=nx;ly=ny;if(lx>55){lx=6;ly=8+(R()-.5)*8;}}
       for(let x=4;x<60;x+=3){px(g,x,20,'#8fb0a2');px(g,x,28,'#8fb0a2');}break;}
+    // the Salt Mouth
+    case 'smelt':band('#6f8c94','#eef4f2');for(let x=4;x<60;x++){px(g,x,4,'#e6f6ff');px(g,x,12,'#e6f6ff');if(x%4===0)px(g,x,8,'#4d666d');}break;
+    case 'flounder':band('#6e5f42','#efe6d4');for(let n=0;n<70;n++)px(g,3+R()*56,8+(R()-.5)*14,R()<.5?'#4a3e2a':'#a8916a');for(let n=0;n<7;n++)blob(8+R()*44,8+(R()-.5)*8,1.6,1.4,'#d9823a');break;
+    case 'mullet':band('#4f5a60','#dfe3e2');for(let x=4;x<60;x++)for(const y of [3,5,11,13])if((x+y)%5)px(g,x,y,'#3c464c');break;
+    case 'bass':band('#3d4f58','#e8eef0');for(let x=8;x<56;x+=6)for(let y=1;y<16;y++)if(Math.abs(y-8)<6+(x%12?0:1))px(g,x+(y%2),y,'#25323a');
+      for(let x=6;x<58;x+=3){px(g,x,4,'#cfefff');px(ge,x,4,'#7fd8ff');px(g,x,12,'#cfefff');px(ge,x,12,'#7fd8ff');}break;
+    case 'silverking':band('#8ea3b2','#f4f8fb');for(let y=0;y<H;y+=3)for(let x=4+(y%6?2:0);x<60;x+=4){px(g,x,y,'#c4d2dc');if(R()<.18)px(ge,x,y,'#ffffff');}
+      for(let x=4;x<60;x++)px(g,x,8,'#6f8494');break;
+    case 'mother':band('#123036','#5f8f88');for(let n=0;n<9;n++)blob(6+R()*50,8+(R()-.5)*10,2+R()*3,1.5+R()*2,'#2c5a58');
+      for(let n=0;n<60;n++){const x=4+R()*54,y=8+(R()-.5)*14;px(g,x,y,'#cfe9df');if(R()<.5)px(ge,x,y,'#7fffe0');}
+      for(let x=5;x<59;x+=2){px(g,x,20,'#9cc8bc');px(g,x,28,'#9cc8bc');}break;
   }
   const eye=sp.pattern==='warden'?'#ffd27a':'#141414';
   px(g,3,4,eye);px(g,3,12,eye);if(sp.glow){const ec=sp.pattern==='warden'?'#ffd27a':sp.pattern==='showa'?'#ff7a2a':'#556';px(ge,3,4,ec);px(ge,3,12,ec);}
@@ -82,7 +93,7 @@ function makeFishMesh(sp){
   const depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,side:THREE.DoubleSide});
   depth.onBeforeCompile=sh=>{Object.assign(sh.uniforms,u);sh.vertexShader=BEND_DECL+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n'+BEND_VERT);};
   const mesh=new THREE.Mesh(geo,mat);mesh.customDepthMaterial=depth;mesh.castShadow=true;
-  return {mesh,mat,u,canvas:cv.c,rim:rs};
+  return {mesh,mat,u,canvas:cv.c,rim:rs,rimCol:rc};
 }
 const fishes=[];
 function swimY(sp){return -.6-Math.min(.42,sp.len*.03);}
@@ -91,6 +102,7 @@ function spawnFish(sp,comp,{emerge=true}={}){
   const f=makeFishMesh(sp);const p=randomTileIn(comp,sp.needD);
   const fish={sp,...f,x:p.x,z:p.z,h:Math.random()*6.28,turn:0,speed:sp.speed*.35*Math.sqrt(sp.len),state:'swim',y:emerge?-3.4-sp.len*.08:swimY(sp),
     emerge:emerge?0:1,life:rand(240,520)*(sp.awe?1.4:1),age:0,tgt:null,hookers:[],progress:0,nextHint:0,out:0,id:Math.random()};
+  dressFish(fish); // its own size, and sometimes the colours of the hour (fish/variety.js)
   fish.mesh.position.set(fish.x,fish.y,fish.z);scene.add(fish.mesh);fishes.push(fish);pickTarget(fish);
   return fish;
 }
@@ -108,7 +120,8 @@ const fightTire=f=>1-.75*clamp(f.progress||0,0,1);
 function updateFish(f,dt){
   const sp=f.sp;f.age+=dt;
   if(f.emerge<1){f.emerge=Math.min(1,f.emerge+dt/9);}
-  const targetY=swimY(sp);
+  // in the Salt Mouth's shallows a fish keeps off the mud, and just under the tide
+  const targetY=SALT?Math.min(Math.max(swimY(sp),heightAt(f.x,f.z)+.07),waterLv-.035):swimY(sp);
   if(f.state==='swim'||f.state==='hooked'){
     const base=sp.speed*.35*Math.sqrt(sp.len);
     // on the line it mostly tires, but every so often it surges away from the crew
@@ -143,9 +156,9 @@ function updateFish(f,dt){
   }else if(f.state==='held'){
     // brought up beside the crew, just under the surface, for a moment
     f.out+=dt/3.4;const k=Math.min(1,f.out);
-    f.y=lerp(f.y,WATER_Y-.1-sp.hgt*sp.len*.25,1-Math.exp(-dt*2));
+    f.y=lerp(f.y,waterLv-.1-sp.hgt*sp.len*.25,1-Math.exp(-dt*2));
     f.u.uPhase.value+=dt*1.6;f.u.uAmp.value=lerp(f.u.uAmp.value,.025,dt*2);f.u.uCurve.value*=1-dt;
-    if(Math.random()<dt*10)sparkle(f.x+rand(-.4,.4)*sp.len*.5*Math.abs(Math.sin(f.h)),WATER_Y+.05,f.z+rand(-.4,.4)*sp.len*.5*Math.abs(Math.cos(f.h)),sp.glow||'#fff3d6');
+    if(Math.random()<dt*10)sparkle(f.x+rand(-.4,.4)*sp.len*.5*Math.abs(Math.sin(f.h)),waterLv+.05,f.z+rand(-.4,.4)*sp.len*.5*Math.abs(Math.cos(f.h)),sp.glow||'#fff3d6');
     if(k>=1){f.state='release';f.out=0;f.speed=0;}
   }else if(f.state==='release'){
     // turned loose: it heads back out to open water and sinks out of sight
@@ -217,10 +230,10 @@ function freeSlot(i,j){const used=fishersOn(i,j).map(f=>f.slot);for(const s of [
 const tipV=new THREE.Vector3();
 function updateFisher(fs,dt,t){
   let endX,endY,endZ,sag;
-  if(fs.state==='fight'&&fs.fish){const h=fishHead(fs.fish);endX=h.x;endZ=h.z;endY=WATER_Y;sag=.03;
+  if(fs.state==='fight'&&fs.fish){const h=fishHead(fs.fish);endX=h.x;endZ=h.z;endY=waterLv;sag=.03;
     fs.g.rotation.x=-.28+Math.sin(t*7+fs.ph)*.07;fs.rodPivot.rotation.x=ROD_ANG-.5+Math.sin(t*9+fs.ph)*.12;fs.bobMesh.visible=false;}
   else{fs.g.rotation.x=0;fs.rodPivot.rotation.x=ROD_ANG+Math.sin(t*.7+fs.ph)*.04;
-    endX=fs.bob.x;endZ=fs.bob.z;endY=WATER_Y+.012+Math.sin(t*2.1+fs.ph)*.01;sag=.18;
+    endX=fs.bob.x;endZ=fs.bob.z;endY=waterLv+.012+Math.sin(t*2.1+fs.ph)*.01;sag=.18;
     fs.bobMesh.visible=true;fs.bobMesh.position.set(endX,endY,endZ);}
   fs.bobPos.x=endX;fs.bobPos.z=endZ;
   fs.g.updateMatrixWorld();tipV.set(0,.55,0);fs.rodPivot.children[0].localToWorld(tipV);

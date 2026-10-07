@@ -13,6 +13,10 @@ export const inGrid=(i,j)=>i>=0&&j>=0&&i<GW&&j<GH;
 // The river's course. The default is the original valley; new games roll their own (see randomRiver).
 export const RIVER={a1:3.1,f1:.21,p1:.6,a2:1.8,f2:.07,p2:2.0,z0:0};
 export const setRiver=r=>Object.assign(RIVER,r);
+// how wide the river runs at x (half-width in tiles). Deepvale keeps one width; the Salt Mouth opens toward the sea
+const WIDEN={a:0};
+export const setWiden=a=>{WIDEN.a=a;};
+export function riverHalf(x){if(!WIDEN.a)return 1.6;const t=Math.min(1,Math.max(0,(x+HX*.25)/(HX*1.2)));return 1.6+WIDEN.a*t*t*(3-2*t);}
 export function riverZ(x){const R=RIVER;return Math.sin(x*R.f1+R.p1)*R.a1+Math.sin(x*R.f2+R.p2)*R.a2+R.z0;}
 // a random but friendly course: gentle bends, and the north bank by the Pilgrim Way always has room for a village
 export function randomRiver(seed){let s=seed>>>0||1;const R=()=>(s=(s*1664525+1013904223)>>>0)/4294967296;
@@ -25,4 +29,4 @@ export const WAY_I=GW/2;          // column where the Pilgrim Way enters the val
 export const DECK_Y=0.02;       // bridge deck height
 export const HOUSING=3;         // fishers per hut
 // rows of the grid's west and east edge where the river enters and leaves
-export const mouthRows=i=>{const r=[];for(let j=0;j<GH;j++){const c=tileC(i,j);if(Math.abs(c.z-riverZ(c.x))<1.6)r.push(j);}return r;};
+export const mouthRows=i=>{const r=[];for(let j=0;j<GH;j++){const c=tileC(i,j);if(Math.abs(c.z-riverZ(c.x))<riverHalf(c.x))r.push(j);}return r;};

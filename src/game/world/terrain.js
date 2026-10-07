@@ -3,7 +3,10 @@
 // Part of the game's one shared scope: see src/main.js for the order. Names from other parts are in scope here.
 /* ================= terrain ================= */
 const oldCh=new Uint8Array(GW*GH); // where the river used to run
-function tileH(i,j){i=clamp(i,0,GW-1);j=clamp(j,0,GH-1);const k=idx(i,j),t=tiles[k];return t===WATER?BED_Y:(t===LAND?LAND_Y:t===RIM?wildH[k]+.15:wildH[k])-(oldCh[k]?.16:0);}
+// the Salt Mouth: water along every bank is a shallow mudflat that the low tide nearly uncovers
+const MUD_Y=-.31;
+const mudflat=(i,j)=>SALT&&[[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>inGrid(i+a,j+b)&&tiles[idx(i+a,j+b)]!==WATER);
+function tileH(i,j){i=clamp(i,0,GW-1);j=clamp(j,0,GH-1);const k=idx(i,j),t=tiles[k];return t===WATER?(mudflat(i,j)?MUD_Y:BED_Y):(t===LAND?LAND_Y:t===RIM?wildH[k]+.15:wildH[k])-(oldCh[k]?.16:0);}
 function innerH(x,z){
   const u=x+HX-.5,v=z+HZ-.5,i0=Math.floor(u),j0=Math.floor(v);
   const fu=smooth(.18,.82,u-i0),fv=smooth(.18,.82,v-j0);
@@ -13,7 +16,7 @@ function innerH(x,z){
 function outerH(x,z){
   const d=dOut(x,z);
   let h=.25+(fbm(x*.12+3,z*.12-7)-.5)*.7;
-  const rise=((1-Math.exp(-d*.11))*11+d*.2)*(.65+.7*fbm(x*.05,z*.05));
+  const rise=((1-Math.exp(-d*.11))*11+d*.2)*(.65+.7*fbm(x*.05,z*.05))*(SALT?.5:1); // the coast is low country
   h+=rise;
   // the mountain and its shoulders
   // mountains fade out toward the valley edge, so the slope rises over foothills instead of a sheer wall
@@ -21,10 +24,13 @@ function outerH(x,z){
   // soft terracing gives the slopes a surveyed, topographic feel
   const tq=Math.floor(h/.9)*.9;h=lerp(h,tq+smooth(0,.9,h-tq)*.9,.35);
   // the river gorge continues beyond the valley
-  const rd=Math.abs(z-riverZ(x));
+  const rd=Math.max(0,Math.abs(z-riverZ(x))-riverHalf(clamp(x,-HX,HX))+1.6);
+  // the Salt Mouth opens onto the sea: past the valley's east edge the land falls away under the water
   const gorge=Math.pow(smooth(15,2.2,rd),1.4);
   h=lerp(h,.35+rise*.12,gorge*.85);
   h=lerp(h,BED_Y,smooth(2.9,1.4,rd)*(d>0?1:0));
+  // the Salt Mouth opens onto the sea: past the valley's east edge the land falls away under the water
+  if(SALT){const sea=smooth(HX-1,HX+12,x+(fbm(x*.08+4,z*.08,2)-.5)*10);h=lerp(h,lerp(MUD_Y-.15,BED_Y,smooth(HX+8,HX+22,x)),sea);}
   return h;
 }
 function heightAt(x,z){
@@ -156,9 +162,9 @@ function updateFlowTex(){
 }
 const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,flatShading:true,roughness:.95,metalness:0});
 terrainMat.onBeforeCompile=sh=>{
-  sh.uniforms.uTime=U.time;sh.uniforms.uWaterY={value:WATER_Y};sh.uniforms.uFlow={value:flowTex};sh.uniforms.uSeason=SEASON_U;
+  sh.uniforms.uTime=U.time;sh.uniforms.uWaterY=UWATER;sh.uniforms.uTideHi=UTIDEHI;sh.uniforms.uFlow={value:flowTex};sh.uniforms.uSeason=SEASON_U;
   sh.vertexShader='varying vec3 vWPos;\n'+sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\n vWPos=(modelMatrix*vec4(transformed,1.0)).xyz;');
-  sh.fragmentShader='varying vec3 vWPos;\nuniform float uTime;\nuniform float uWaterY;\nuniform vec4 uSeason;\n'+NOISE_GLSL+FLOW_GLSL+sh.fragmentShader
+  sh.fragmentShader='varying vec3 vWPos;\nuniform float uTime;\nuniform float uWaterY;\nuniform float uTideHi;\nuniform vec4 uSeason;\n'+NOISE_GLSL+FLOW_GLSL+sh.fragmentShader
    .replace('#include <color_fragment>',`#include <color_fragment>
     float depthW=uWaterY-vWPos.y;
     float cloud=clouds(vWPos.xz,uTime);
@@ -169,6 +175,8 @@ terrainMat.onBeforeCompile=sh=>{
       diffuseColor.rgb=mix(dc,dc*vec3(0.95,1.12,0.9),uSeason.x*green*0.6);
       float leaf=vns(vWPos.xz*0.9)*0.6+0.4;diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.62,0.46,0.2)*(0.8+0.3*leaf),uSeason.y*green*0.45);
       float cover=smoothstep(0.25,0.6,vns(vWPos.xz*0.35+3.1)*0.7+0.5*uSeason.z)*uSeason.z;diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.9,0.93,0.96),cover*0.92);}
+    // the tide's mark: sand and mud the high water left behind stay dark and wet until it comes back
+    if(depthW<=0.0&&vWPos.y<uTideHi){float wet=smoothstep(uTideHi+0.01,uTideHi-0.05,vWPos.y);diffuseColor.rgb*=mix(1.0,0.66,wet);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.3,0.27,0.2),wet*0.25);}
     if(depthW>0.0){stillB=1.0-smoothstep(0.1,0.4,flowAt(vWPos.xz).a);
       diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(0.012,0.085,0.075),vec3(0.05,0.075,0.02),stillB),clamp(depthW*0.55,0.0,0.82));}
     float ch=vWPos.y/0.75; float fw=max(fwidth(ch),1e-4); float cd=abs(fract(ch+0.5)-0.5);

@@ -98,7 +98,7 @@ function giantGift(gi){if(gi.gifted)return;gi.gifted=true;gi.life=Math.min(gi.li
   const sc=1+allTales()*.08+S.found.length*.04,p=gi.focus;let body='';
   if(k==='stag'){const tb=Math.round(40*sc);S.goods.timber+=tb;body=`It lowers its head to look at the valley, and an antler it has shed lies glowing among the trees. The woodcutters bring back <b>${tb} timber</b>.`;}
   if(k==='owl'){S.owlUntil=(S.clock.day||1)+(S.clock.t||0)+1;updateHintVis();queueCrate({source:nm,kind:'mixed'});body='It watches the valley for a long time without blinking. For a day, every secret in the forest shows itself. It leaves something on the rim, too.';}
-  if(k==='whale'){S.tide={n:Math.max(S.tide.n,8),t:Date.now()};const v=Math.round(120*sc);earn(v,p.x*.3,p.z*.3);const main=comps.reduce((a,c)=>c.size>a.size?c:a,comps[0]);if(main)for(let n=0;n<3;n++)spawnFish(n?SP.koi:SP.reed,main);
+  if(k==='whale'){S.tide={n:Math.max(S.tide.n,8),t:Date.now()};const v=Math.round(120*sc);earn(v,p.x*.3,p.z*.3);const main=comps.reduce((a,c)=>c.size>a.size?c:a,comps[0]);if(main)for(let n=0;n<3;n++)spawnFish(n?SPECIES[1]:SPECIES[0],main);
     body=`It sings, very low, under the bridge, and the river answers: fish rise all along it, and a <b>good tide</b> builds. Scales fall like rain: <b>${fmt(v)}</b>.`;}
   toast(nm+(first?' · first sighting':''),body);$('toast').querySelector('.k').textContent='A spirit of the forest';sfx('awe');for(let n=0;n<10;n++)sparkle(p.x+rand(-4,4),p.y+rand(-2,4),p.z+rand(-4,4),'#fff3cf');refreshUI();save();}
 // the Ember Showa warms the water it passes through: heat spots along its body and a short fading trail, plus rising steam

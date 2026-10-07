@@ -1,4 +1,4 @@
-// The Reach map: a small pixel map of the river's whole course. Deepvale is the only charted region for now.
+// The Reach map: a small pixel map of the river's whole course. Charted valleys can be travelled to from here.
 import { fbm, clamp, smooth } from '../core/utils.js';
 import { REGIONS } from '../data/lore.js';
 
@@ -43,19 +43,27 @@ function paint(cv){
   g.putImageData(img, 0, 0);
 }
 
-export function initMap(root, { onOpen } = {}){
+// state(): { here: the valley you're in, open: {id: true} for charted ones, onTravel(id), lockText: {id: why it's shut} }
+export function initMap(root, { onOpen, state = () => ({ here: 'deepvale', open: { deepvale: true } }) } = {}){
   const cv = root.querySelector('canvas'); cv.width = W; cv.height = H; paint(cv);
-  const pins = root.querySelector('.pins'), card = root.querySelector('.region');
-  const show = r => {
-    card.innerHTML = `<div class="rb">${r.biome}</div><div class="rn">${r.name}</div><p>${r.teaser}</p><div class="rl ${r.here ? 'here' : ''}">${r.here ? 'You are here' : r.lock}</div>`;
+  const pins = root.querySelector('.pins'), card = root.querySelector('.region'), intro = root.querySelector('#mapIntro');
+  const show = r => { const st = state(), here = r.id === st.here, open = !!st.open[r.id];
+    const foot = here ? `<div class="rl here">You are here</div>`
+      : open ? `<div class="rl open">Charted · your village there keeps going while you’re away</div><button type="button" class="nav go" data-go="${r.id}">Travel to ${r.name}</button>`
+      : `<div class="rl">${st.lockText?.[r.id] || r.lock}</div>`;
+    card.innerHTML = `<div class="rb">${r.biome}</div><div class="rn">${r.name}</div><p>${r.teaser}</p>${foot}`;
+    card.querySelector('[data-go]')?.addEventListener('click', () => st.onTravel?.(r.id));
     pins.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === r.id)));
   };
-  for (const r of REGIONS){
-    const b = document.createElement('button'); b.type = 'button'; b.dataset.id = r.id; b.className = 'pin' + (r.here ? ' here' : ' locked') + (r.x > .75 ? ' flip' : '');
-    b.style.left = (r.x * 100) + '%'; b.style.top = (r.y * 100) + '%';
-    b.innerHTML = `<i></i><span>${r.name}</span>`; b.addEventListener('click', () => show(r)); b.addEventListener('mouseenter', () => show(r));
-    pins.appendChild(b);
-  }
-  show(REGIONS.find(r => r.here));
-  return { toggle(){ root.hidden = !root.hidden; if (!root.hidden && onOpen) onOpen(); } };
+  const draw = () => { const st = state(); pins.innerHTML = '';
+    for (const r of REGIONS){ const here = r.id === st.here, open = !!st.open[r.id];
+      const b = document.createElement('button'); b.type = 'button'; b.dataset.id = r.id; b.className = 'pin' + (here ? ' here' : open ? ' open' : ' locked') + (r.x > .75 ? ' flip' : '');
+      b.style.left = (r.x * 100) + '%'; b.style.top = (r.y * 100) + '%';
+      b.innerHTML = `<i></i><span>${r.name}</span>`; b.addEventListener('click', () => show(r)); b.addEventListener('mouseenter', () => show(r));
+      pins.appendChild(b); }
+    const charted = REGIONS.filter(r => st.open[r.id]).map(r => r.name);
+    if (intro) intro.textContent = `From the Hollow Tarn to the sea. ${charted.length > 1 ? `Charted: ${charted.join(' and ')}.` : 'Only Deepvale has been charted.'}`;
+    show(REGIONS.find(r => r.id === st.here) || REGIONS[1]); };
+  draw();
+  return { toggle(){ root.hidden = !root.hidden; if (!root.hidden){ draw(); onOpen?.(); } } };
 }

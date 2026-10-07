@@ -507,6 +507,13 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .pin[aria-pressed="true"] i{outline:1px solid var(--gold);outline-offset:3px}
 .pin span{padding:2px 6px;font-family:var(--display);font-size:12px;letter-spacing:.1em;color:#f3e6c8;white-space:nowrap;background:rgba(8,17,15,.78);border:1px solid var(--line);border-radius:2px}
 .pin.locked span{color:var(--mist-2)}
+.pin.open i{background:var(--jade);box-shadow:0 0 10px rgba(127,196,170,.7);animation:pinPulse 2.4s ease-in-out infinite}
+@keyframes pinPulse{50%{box-shadow:0 0 18px rgba(127,196,170,.95)}}
+.region .rl.open{color:var(--jade)}
+.region .go{margin-top:10px}
+/* travelling between valleys: the screen fades out before the next valley loads */
+#dv.leaving::after{content:'';position:fixed;inset:0;z-index:999;background:#0b1412;animation:leave .9s ease-in forwards;pointer-events:all}
+@keyframes leave{from{opacity:0}to{opacity:1}}
 .region{min-height:88px;margin-top:12px}
 .region .rb{font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--jade)}
 .region .rn{margin-top:2px;font-family:var(--display);font-size:19px;letter-spacing:.06em}
@@ -809,6 +816,15 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 #toast b{font-weight:500;color:var(--gold2)}
 
 /* while you were away */
+/* codex records (game/fish/variety.js): lengths, crowns won, colours of the hour seen */
+#codex .erec{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin-top:6px;font-size:11px;color:var(--txt-3)}
+#codex .erec b{font-family:var(--mono);font-weight:500;color:var(--txt-2)}
+#codex .erec .cr,#codex .erec .vr{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border:1px dashed rgba(255,255,255,.14);color:var(--txt-3);opacity:.6}
+#codex .erec .crown{width:12px;height:9px;fill:currentColor}
+#codex .erec .cr.on{opacity:1;border-style:solid;border-color:rgba(233,198,122,.55);color:#e9c67a}
+#codex .erec .vr.on{opacity:1;border-style:solid}
+#codex .erec .vr.night.on{color:#a9b8ff;border-color:rgba(169,184,255,.45)} #codex .erec .vr.storm.on{color:#dfe8ee;border-color:rgba(223,232,238,.45)} #codex .erec .vr.frost.on{color:#c7ecff;border-color:rgba(199,236,255,.45)}
+
 /* the tapestry at the Tale House (game/ui/tapestry.js): a woven cloth on a rod. Unwoven panels are a chalk
    pattern drawn on the cloth; woven ones are sewn in gold running stitch. Weaving one stitches it in, a stitch at a time */
 .grp.lv{position:relative;cursor:pointer}
