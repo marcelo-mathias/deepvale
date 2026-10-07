@@ -21,6 +21,8 @@ function renderDebug(){
   <div class="dg"><span>Landmark</span>${['temple','elder','tower','gate'].map(k=>{const sc=secrets.find(x=>x.type===k);return `<button type="button" data-lm="${k}"${sc?'':' disabled'}>${k}${sc&&S.found.includes(sc.k)?' ✓':''}</button>`;}).join('')}<button type="button" data-a="lmFind">Uncover all 4</button></div>
   <div class="dg"><span>World</span><button type="button" data-a="clear">Clear 9×9 at view</button><button type="button" data-a="find">Find all secrets</button><button type="button" data-a="fishers">+6 fishers</button></div>
   <div class="dg"><span>Trade</span><button type="button" data-a="ship">Send vehicles now</button><button type="button" data-a="back">Bring them home</button><button type="button" data-a="wish">Grant wish</button><button type="button" data-a="tide">Tide ×1.5</button><button type="button" data-a="work">Finish all work</button></div>
+  <div class="dg"><span>Journey</span><button type="button" data-a="restore"${SALT?' disabled':''} title="Dig every old channel, take the weir down: the river is restored and health jumps">Restore river</button><button type="button" data-a="chart"${J.open.salt?' disabled':''}>Chart Salt Mouth${J.open.salt?' ✓':''}</button><button type="button" data-a="goSalt">${SALT?'Go to Deepvale':'Go to Salt Mouth'}</button><button type="button" data-a="threads">+10 threads</button><button type="button" data-a="saltReset" class="warn" title="Delete the Salt Mouth's save: the next trip there starts a fresh estuary">New Salt Mouth</button></div>
+  <div class="dg"><span>Tide</span><button type="button" data-a="tLow"${SALT?'':' disabled'}>Low water</button><button type="button" data-a="tHigh"${SALT?'':' disabled'}>High water</button><span class="dim">health ${health} · tide ${SALT?tideWord().toLowerCase():'—'}</span></div>
   <div class="dg">${resetArm?'<span>Wipe this valley?</span><button type="button" data-a="wipe" class="warn">Yes, start over</button><button type="button" data-a="keep">Keep it</button>':'<button type="button" data-a="reset" class="warn">Reset save</button>'}</div>`;
   d.querySelectorAll('[data-clock]').forEach(b=>b.addEventListener('click',()=>{S.clock.t=+b.dataset.clock;}));
   d.querySelectorAll('[data-ts]').forEach(b=>b.addEventListener('click',()=>{timeScale=+b.dataset.ts;renderDebug();}));
@@ -63,6 +65,14 @@ function debugAct(a){
   if(a==='wish'&&S.wish){S.wish.have=S.wish.n-1;wishEvent(S.wish.kind,{sp:S.wish.sp,id:S.wish.id,n:S.wish.n});}
   if(a==='tide'){S.tide.n=10;S.tide.t=Date.now();}
   if(a==='work')for(const jb of jobs.slice())finishJob(jb);
+  // the journey: skip ahead to the second valley
+  if(a==='restore'&&!SALT){for(let k=0;k<GW*GH;k++)if(oldCh[k]&&tiles[k]!==WATER&&tiles[k]!==RIM){tiles[k]=WATER;builds[k]=NONE;}
+    for(let k=0;k<GW*GH;k++)if(builds[k]===B.WEIR)builds[k]=NONE;S.weirGone=true;worldChanged();buildsChanged();log(`Debug: the old channels are dug and the weir is gone. Valley health ${health}.`,'gold');}
+  if(a==='chart'){if(SALT)J.open.salt=Date.now();else chartSalt();saveJourney();}
+  if(a==='goSalt'){const to=SALT?'deepvale':'salt';if(to==='salt'&&!J.open.salt){J.open.salt=Date.now();saveJourney();}travelTo(to);return;}
+  if(a==='threads')gainThreads(10,'the debug fairy');
+  if(a==='tLow'||a==='tHigh'){const p=a==='tLow'?.5:0,cur=tidePhase();S.clock.t+=((p-cur+1)%1)/TIDE_PER_DAY;if(S.clock.t>=1){S.clock.t-=1;S.clock.day++;}}
+  if(a==='saltReset'){if(SALT){wipeSave();return;}try{localStorage.removeItem('deepvale-save-salt');}catch(e){}log('Debug: the Salt Mouth will start fresh on your next trip there.','warn');}
   if(a==='reset'||a==='keep'){resetArm=a==='reset';renderDebug();return;}
   if(a==='wipe'){wipeSave();return;}
   computeEconomy();renderDrawer();refreshUI();renderDebug();save();

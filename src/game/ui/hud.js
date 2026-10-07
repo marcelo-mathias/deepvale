@@ -151,7 +151,7 @@ function refreshUI(){
   // a quieter top bar: income sits beside the purse, housing is a gauge with the others, details on hover
   $('rate').textContent=r>0?`+${r<10?r.toFixed(1):fmt(r)}/min`:'';$('coinSc').title=r>0?`About ${r<10?r.toFixed(1):fmt(r)} scales a minute, from fish, trade, markets and the tale box`:'No fish met yet';
   {const n=fishersState.length,cap=housing(),hc=hutCount();$('fishersM').innerHTML=barRow('hire','Fishers',`${n}/${cap}`,cap?n/cap:0,'#9cc3ee');
-    $('fishersM').title=`${n} of ${cap} fishers housed · ${hc} hut${hc===1?'':'s'}${lh<hc?` (${lh} on the Pilgrim Way)`:''}. Huts house fishers; hire more from the toolbar.`;}
+    $('fishersM').dataset.tip=`${n} of ${cap} fishers housed · ${hc} hut${hc===1?'':'s'}${lh<hc?` (${lh} on the Pilgrim Way)`:''}. Huts house fishers; hire more from the toolbar.`;}
   const cal=calendar();$('calY').textContent='Year '+cal.year;$('calS').textContent=cal.season;$('calD').textContent=cal.dom;$('calP').textContent=cal.phase;
   $('stSub').textContent=(villages[0]?villages[0].name:SALT?'Where the river meets the sea':'A valley on the Pilgrim Way')+' · '+(night>.3?'night':cal.phase.toLowerCase())+(S.weather&&S.weather.k!=='clear'?' · '+WEATHER[S.weather.k]:'');
   $('talesN').textContent=String(allTales()).padStart(2,'0');
@@ -159,12 +159,12 @@ function refreshUI(){
     if(grew&&booted)log('The Tale House grows: there are more tales to tell than it had room for.','gold');}}
   const busyW=workers.filter(w=>w.job).length,waiting=jobs.filter(j=>!j.crew.length).length;
   $('builders').innerHTML=barRow('builders','Builders',`${busyW}/${builderCount()}${waiting?` · ${waiting} waiting`:''}`,builderCount()?busyW/builderCount():0,'#c9a36a');
-  $('builders').title=`${busyW} of ${builderCount()} builders at work${waiting?`, ${waiting} job${waiting===1?'':'s'} waiting for hands`:''}. More huts bring more builders.`;
-  $('health').innerHTML=barRow('health','Valley health',health+' / 100',health/100,'#9fd68a');$('health').title=`River restored ${healthParts.river.toFixed(0)}/35 · forest kept ${healthParts.forest.toFixed(0)}/30 · backwaters ${healthParts.wetland.toFixed(0)}/20 · weir ${healthParts.weir}/15. ${SALT?'The Salt Mother needs 60.':`The Moonscale needs 50, the Warden 70.${J.open.salt?'':` At ${SALT_OPEN_AT} the river runs clear to the sea.`}`}`;
+  $('builders').dataset.tip=`${busyW} of ${builderCount()} builders at work${waiting?`, ${waiting} job${waiting===1?'':'s'} waiting for hands`:''}. More huts bring more builders.`;
+  $('health').innerHTML=barRow('health','Valley health',health+' / 100',health/100,'#9fd68a');
   {const shown=GOOD_IDS.filter(g=>(S.goods[g]||0)>=1||goodRate(g)>0);$('goods').hidden=!shown.length;
   $('goods').innerHTML=shown.map(g=>{const rt=goodRate(g);return `<span class="gd" title="${GOODS[g].name}${rt?` · +${rt.toFixed(1)} / min`:''}" style="--gc:${GOODS[g].col}">${icon(g)}<b>${fmt(S.goods[g]||0)}</b><em>${GOODS[g].name.toLowerCase()}</em></span>`;}).join('');}
   const tl=tideWindow()-(Date.now()-S.tide.t),tOn=S.tide.n>0&&tl>0;$('tide').innerHTML=barRow('tide','Good tide',tOn?'×'+(1+TIDE_STEP*S.tide.n).toFixed(2):'—',tOn?tl/tideWindow():0,'#8fdcc0');
-  $('tide').title=tOn?`A good tide: fish met one after another shed ×${(1+TIDE_STEP*S.tide.n).toFixed(2)} scales. It ebbs in ${Math.ceil(tl/1000)} s unless another fish is met.`:'Meet fish one after another to raise a good tide: each one adds to the scales they shed.';
+  $('tide').dataset.tip=tOn?`A good tide: fish met one after another shed ×${(1+TIDE_STEP*S.tide.n).toFixed(2)} scales. It ebbs in ${Math.ceil(tl/1000)} s unless another fish is met.`:'Meet fish one after another to raise a good tide: each one adds to the scales they shed.';
   renderOrdersGoal();
   const g=nextGoal();if(g!==lastGoal){$('goal').innerHTML=`<div class="gl"><span class="gi">${icon('fish')}</span><div class="gt"><b>${nextGoalTitle()}</b><span>${g}</span></div></div>`;lastGoal=g;}
   for(const t of ['clear','dig','hire','hut','road','bridge']){const c=cost[t]();$('c-'+t).textContent=fmt(c);$('tool-'+t).classList.toggle('poor',S[COST[t]]<c);}
@@ -172,8 +172,28 @@ function refreshUI(){
   const busy=trade.vehicles.filter(v=>v.state!=='load'&&v.state!=='stuck').length;$('tradeN').textContent=`${busy}/${trade.vehicles.length}`;{const hub=tradeHub()>=0,b=$('btnTrade');b.classList.toggle('locked',!hub);b.title=hub?'Open the ledger at the trading post (T)':'Trade is run from a trading post. Build one first';}
   if(!$('trade').hidden)renderTrade();
   if(!$('drawer').hidden)updateDrawerCosts();
-  refreshTapestryHUD();tideHUD();
+  refreshTapestryHUD();tideHUD();if(meterOn)showMeterTip();
 }
+/* ---- tooltips on the gauges at the top ----
+   The gauges redraw twice a second, which kept the browser's own tooltip from ever showing. This one stays put
+   while you hover and updates in place. Health gets a full breakdown; the others show their line (data-tip). */
+const meterTip=document.createElement('div');meterTip.id='meterTip';meterTip.hidden=true;$('dv').appendChild(meterTip);
+let meterOn=null;
+function healthTip(){const H=healthInfo,P=healthParts,need=Math.ceil(.65*wild0),stillN=H.still+H.reeds;
+  const row=(nm,v,max,txt)=>`<div class="ht-r${v>=max-.5?' full':''}"><span>${nm}</span><b>${Math.round(v)}<em>/${max}</em></b><i><u style="width:${clamp(v/max,0,1)*100}%"></u></i><p>${txt}</p></div>`;
+  const ms=(SALT?[[60,'The Salt Mother can come in on the high tide']]:[[SALT_OPEN_AT,J.open.salt?'The Salt Mouth is charted':'The river runs clear to the sea: the Salt Mouth is charted'],[50,'The Moonscale Koi can surface, on silver nights'],[70,'The Valley Warden can surface']]).sort((a,b)=>a[0]-b[0]);
+  return `<div class="ht-h"><b>Valley health</b><span>${health}<em>/100</em></span></div>
+    <p class="ht-sub">How alive the river and the land around it are. A healthier valley brings fish up more often (now ×${healthSpawn().toFixed(2)}).</p>`+
+    row('River restored',P.river,35,H.chT?`${H.chD} of ${H.chT} tiles of the old dry channels flow again. Dig out the pale beds that show through the forest.`:'This valley has no old channels to restore.')+
+    row('Forest kept',P.forest,30,H.wild>=need?`${fmt(H.wild)} forest tiles standing: enough.`:`${fmt(H.wild)} forest tiles standing, ${fmt(need)} wanted (about two thirds of the forest). Clear only what you need.`)+
+    row('Backwaters',P.wetland,20,stillN>=20?'Ponds, still channels and reed beds: enough.':`${H.still} tiles of still water and ${H.reeds} reed bed${H.reeds===1?'':'s'}, 20 wanted. Ponds and dead-end channels count, and reed beds on them.`)+
+    row('The weir',P.weir,15,H.weir?'The old weir still blocks the river. Click it to take it down.':'The old weir is gone, and the river runs free.')+
+    `<div class="ht-ms">${ms.map(([n,t])=>`<div class="${health>=n?'on':''}"><b>${n}</b><span>${t}</span></div>`).join('')}</div>`;}
+const METER_TIP={health:healthTip};
+function showMeterTip(){const el=meterOn;if(!el)return;const f=METER_TIP[el.id];
+  meterTip.innerHTML=f?f():`<p class="ht-one">${el.dataset.tip||el.title||''}</p>`;meterTip.classList.toggle('wide',!!f);meterTip.hidden=false;
+  const r=el.getBoundingClientRect(),w=meterTip.offsetWidth;meterTip.style.left=clamp(r.left+r.width/2-w/2,8,innerWidth-w-8)+'px';meterTip.style.top=(r.bottom+10)+'px';}
+document.querySelectorAll('.hud-top .bar-row').forEach(el=>{el.addEventListener('mouseenter',()=>{meterOn=el;showMeterTip();});el.addEventListener('mouseleave',()=>{meterOn=null;meterTip.hidden=true;});});
 function barRow(ic,label,val,frac,col){return `<span class="bi" style="color:${col}">${icon(ic)}</span><span class="bl">${label}</span><span class="bv">${val}</span><span class="bt"><i style="width:${(clamp(frac,0,1)*100).toFixed(0)}%;background:${col}"></i></span>`;}
 // the one next step that stands between the player and an order
 function orderHint(o){const g=o.good,nm=GOODS[g].name.toLowerCase();

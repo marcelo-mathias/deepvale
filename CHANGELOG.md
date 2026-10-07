@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.1 — health you can read, and a shortcut to the sea
+
+- **Tooltips on the gauges at the top work now.** They redraw twice a second, which kept the browser's own tooltip from ever appearing. Hovering a gauge now opens a small window that stays put and updates live.
+- **Valley health gets a full breakdown:** each of the four parts (river restored, forest kept, backwaters, the weir) with its own bar, what it counts right now and what to do about it, plus what the valley is working toward: the Salt Mouth and the Moonscale at 50, the Warden at 70 (the Salt Mother at 60 in the Salt Mouth).
+- **Debug panel (` or F9, or ?debug in the address), new Journey and Tide rows:** *Restore river* (digs every old channel and takes the weir down, so health jumps past 50 and the Salt Mouth is charted a few seconds later, the normal way), *Chart Salt Mouth* (opens it at once), *Go to Salt Mouth / Go to Deepvale*, *+10 threads*, *New Salt Mouth* (its next visit starts fresh), and *Low water / High water* in the Salt Mouth.
+
 ## 0.14.0 — the Salt Mouth, and no two fish alike
 
 **No two fish alike**

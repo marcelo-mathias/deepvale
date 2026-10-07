@@ -235,9 +235,10 @@ function spread(k,r,fn){const i=k%GW,j=(k/GW)|0;for(let b=-r;b<=r;b++)for(let a=
 let producers=[];// {k,code,good,rate}
 let activeSets={};
 /* ---- valley health: the river restored, forest kept, backwaters alive, the weir gone ---- */
-let health=0,healthParts={};
+let health=0,healthParts={},healthInfo={};
 function computeHealth(){let chT=0,chD=0,wild=0,still=0,reeds=0,weir=0;
   for(let k=0;k<GW*GH;k++){if(oldCh[k]){chT++;if(tiles[k]===WATER&&FLOW.live[k])chD++;}if(tiles[k]===WILD)wild++;if(tiles[k]===WATER&&!FLOW.live[k])still++;if(builds[k]===B.REED)reeds++;if(builds[k]===B.WEIR)weir++;}
+  healthInfo={chT,chD,wild,still,reeds,weir};
   healthParts={river:35*(chT?chD/chT:0),forest:30*Math.min(1,wild/(.65*wild0)),wetland:20*Math.min(1,(still+reeds)/20),weir:weir?0:15};
   health=Math.round(Object.values(healthParts).reduce((a,b)=>a+b,0));}
 const healthSpawn=()=>(.8+health/250)*(builds.includes(B.WEIR)?.85:1);

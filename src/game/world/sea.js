@@ -20,7 +20,8 @@ const valleyOpen=id=>id==='deepvale'||!!J.open[id];
 function travelTo(id){if(id===VALLEY||!valleyOpen(id))return;save();saveJourney();store.set(VALLEY_KEY,id);
   $('dv').classList.add('leaving');sfx('discover');setTimeout(()=>location.reload(),900);}
 // the Salt Mouth is charted once Deepvale's river runs clear
-function checkCharted(){if(SALT||J.open.salt||health<SALT_OPEN_AT||!started)return;
+function checkCharted(){if(SALT||J.open.salt||health<SALT_OPEN_AT||!started)return;chartSalt();}
+function chartSalt(){if(J.open.salt)return;
   J.open.salt=Date.now();saveJourney();sfx('discover');
   toast('The Salt Mouth','The river runs clear all the way to the sea now. Far downstream, where it meets the tide, the map has a new valley on it. Open the <b>Map</b> to travel there. Deepvale keeps going while you’re away.');
   $('toast').querySelector('.k').textContent='Charted';
@@ -50,7 +51,7 @@ function tideHUD(){const el=$('sea');if(!el)return;el.hidden=!SALT;if(!SALT)retu
   const l=tideLevel(),toLow=tideMins(.5),toHigh=tideMins(0);
   el.innerHTML=barRow('tide','Tide',tideWord(),l,'#7fc4d8');
   const low=tideIs('low')?'Low water now':`Low water in ${toLow} min`,high=tideIs('high')?'High water now':`High water in ${toHigh} min`;
-  el.title=`The tide turns twice a day. ${low}: the mudflats are bare, flounder come up, gatherers reach the mussel beds. ${high}: the Silver King and the Salt Mother only come in on the flood.`;}
+  el.dataset.tip=`The tide turns twice a day. ${low}: the mudflats are bare, flounder come up, gatherers reach the mussel beds. ${high}: the Silver King and the Salt Mother only come in on the flood.`;}
 
 /* ================= arriving in the Salt Mouth ================= */
 // a new valley at the sea: a little to start with, no tour (you've done it), and a few lines to say what's different
